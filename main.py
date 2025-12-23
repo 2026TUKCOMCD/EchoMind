@@ -66,7 +66,7 @@ def split_sentences(t: str):
 # -----------------------
 # 무료 API 클라이언트
 # -----------------------
-HF_API = "https://api-inference.huggingface.co/models/cardiffnlp/twitter-xlm-roberta-base-sentiment"
+HF_API = "https://router.huggingface.co/hf-inference/models/cardiffnlp/twitter-xlm-roberta-base-sentiment"
 
 def hf_sentiment_labels(texts):
     """
