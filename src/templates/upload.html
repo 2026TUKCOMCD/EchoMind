@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>대화 txt 제출</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background-color: #f5f5f5;
+    }
+    .container {
+      max-width: 720px;
+      margin: 40px auto;
+      background-color: #ffffff;
+      border-radius: 12px;
+      padding: 24px 28px 30px;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+    }
+    h1 {
+      margin: 0 0 10px;
+      font-size: 22px;
+    }
+    p.desc {
+      margin: 0 0 18px;
+      font-size: 14px;
+      color: #555555;
+    }
+    .field {
+      margin-bottom: 16px;
+    }
+    .field label {
+      display: block;
+      font-size: 13px;
+      margin-bottom: 4px;
+      font-weight: 600;
+    }
+    .field input[type="text"],
+    .field textarea {
+      width: 100%;
+      padding: 8px 10px;
+      border-radius: 6px;
+      border: 1px solid #cccccc;
+      font-size: 14px;
+    }
+    .field textarea {
+      resize: vertical;
+      min-height: 80px;
+    }
+    .field input[type="file"] {
+      font-size: 14px;
+    }
+    .hint {
+      margin-top: 4px;
+      font-size: 11px;
+      color: #666666;
+    }
+    .file-name {
+      margin-top: 4px;
+      font-size: 12px;
+      color: #333333;
+    }
+    .actions {
+      margin-top: 20px;
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+    button {
+      border: none;
+      border-radius: 8px;
+      padding: 9px 18px;
+      font-size: 14px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    .btn-secondary {
+      background-color: #e0e0e0;
+    }
+    .btn-primary {
+      background-color: #1976d2;
+      color: #ffffff;
+    }
+    .required {
+      color: #d32f2f;
+      margin-left: 2px;
+    }
+    .top-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+      font-size: 13px;
+      color: #666666;
+    }
+    .top-bar a {
+      text-decoration: none;
+      color: #1976d2;
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="top-bar">
+      <div>로그인됨: <span id="user-name-display">사용자</span></div>
+      <!-- 필요 시 로그인 페이지로 이동 -->
+      <div><a href="/auth">로그아웃 / 계정 전환</a></div>
+    </div>
+
+    <h1>카카오톡 대화 txt 제출</h1>
+    <p class="desc">
+      카카오톡 대화 내보내기로 생성한 <strong>.txt 파일</strong>을 업로드하면
+      서버에서 자동으로 성격 분석 및 매칭을 진행합니다.
+    </p>
+
+    <!-- Flask 예시: @app.route("/upload", methods=["POST"]) -->
+    <form id="upload-form" action="/upload" method="POST" enctype="multipart/form-data">
+      <!-- 로그인된 유저 ID/이메일 등을 백엔드에서 숨은 값으로 넣을 수 있음 -->
+      <!-- 예: <input type="hidden" name="user_id" value="{{ current_user.id }}"> -->
+
+      <div class="field">
+        <label for="owner-name">
+          카톡에서의 내 이름(표시 이름)<span class="required">*</span>
+        </label>
+        <input type="text" id="owner-name" name="owner_name" required />
+        <div class="hint">
+          txt 안에서 본인의 발화를 찾기 위해 필요합니다. 카톡 대화창 상단에 보이는 본인 이름과 똑같이 입력하세요.
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="room-name">대화방 이름 (선택)</label>
+        <input type="text" id="room-name" name="room_name" placeholder="예: 대학친구방, 동아리방 등" />
+      </div>
+
+      <div class="field">
+        <label for="purpose">분석 목적 / 메모 (선택)</label>
+        <textarea
+          id="purpose"
+          name="purpose"
+          placeholder="예: 친한 친구와의 대화에서 내 성격이 어떻게 나오는지 보고 싶어요."
+        ></textarea>
+      </div>
+
+      <div class="field">
+        <label for="chat-file">
+          카카오톡 대화 txt 파일 업로드<span class="required">*</span>
+        </label>
+        <input
+          type="file"
+          id="chat-file"
+          name="chat_file"
+          accept=".txt"
+          required
+        />
+        <div class="hint">
+          카카오톡 &gt; 더보기 &gt; 설정 &gt; 채팅 &gt; 대화 내보내기 기능으로 txt 파일을 만든 후 업로드하세요.
+        </div>
+        <div id="file-name" class="file-name"></div>
+      </div>
+
+      <div class="actions">
+        <button type="reset" class="btn-secondary">입력 초기화</button>
+        <button type="submit" class="btn-primary">제출하기</button>
+      </div>
+    </form>
+  </div>
+
+  <script>
+    // (선택) 로그인된 사용자 이름을 localStorage 등에서 읽어와 표시하고 싶다면 사용
+    // 백엔드 템플릿에서 직접 넣어도 됨. 예: {{ current_user.username }}
+    const savedName = localStorage.getItem("echomind_username");
+    if (savedName) {
+      document.getElementById("user-name-display").textContent = savedName;
+      // owner-name 기본값으로도 사용 가능
+      const ownerInput = document.getElementById("owner-name");
+      if (!ownerInput.value) {
+        ownerInput.value = savedName;
+      }
+    }
+
+    // 파일명 표시
+    const fileInput = document.getElementById("chat-file");
+    const fileNameEl = document.getElementById("file-name");
+
+    fileInput.addEventListener("change", () => {
+      const file = fileInput.files[0];
+      if (file) {
+        fileNameEl.textContent = "선택된 파일: " + file.name;
+      } else {
+        fileNameEl.textContent = "";
+      }
+    });
+  </script>
+</body>
+</html>
