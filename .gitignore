@@ -1,0 +1,8 @@
+.env
+.venv/
+.vscode/
+.idea/
+uploads/
+data
+out_report
+out_results
