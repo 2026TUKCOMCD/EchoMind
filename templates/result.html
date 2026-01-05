@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>EchoMind - 분석 결과</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .score-box { background: #f8f9fa; border-radius: 10px; padding: 20px; text-align: center; }
+        .score-value { font-size: 2rem; font-weight: bold; color: #0d6efd; }
+        .mbti-box { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; border-radius: 15px; }
+    </style>
+</head>
+<body class="bg-light">
+
+<nav class="navbar navbar-dark bg-dark mb-4">
+    <div class="container">
+        <span class="navbar-brand">EchoMind AI Analysis</span>
+        <a href="/upload" class="btn btn-sm btn-outline-light">다시 분석하기</a>
+    </div>
+</nav>
+
+<div class="container mb-5">
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="mbti-box text-center shadow">
+                <h4 class="mb-3">{{ nickname }}님의 예측 성격 유형</h4>
+                <h1 class="display-1 fw-bold">{{ data.mbti_prediction }}</h1>
+                <p class="lead mt-3">{{ data.summary_text }}</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-5">
+            <div class="card shadow-sm h-100">
+                <div class="card-header bg-white fw-bold">
+                    📊 AI 원본 분석 지표 (0.0 ~ 1.0)
+                </div>
+                <div class="card-body">
+                    <div class="mb-4">
+                        <label class="form-label d-flex justify-content-between">
+                            <span>Google Perspective (독성)</span>
+                            <span class="fw-bold text-danger">{{ data.toxicity_score }}</span>
+                        </label>
+                        <div class="progress" style="height: 20px;">
+                            <div class="progress-bar bg-danger" role="progressbar" 
+                                 style="width: {{ data.toxicity_score * 100 }}%"></div>
+                        </div>
+                        <small class="text-muted">수치가 낮을수록 예의바른 대화입니다.</small>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label d-flex justify-content-between">
+                            <span>Hugging Face (긍정)</span>
+                            <span class="fw-bold text-primary">{{ data.sentiment_pos_ratio }}</span>
+                        </label>
+                        <div class="progress" style="height: 20px;">
+                            <div class="progress-bar bg-primary" role="progressbar" 
+                                 style="width: {{ data.sentiment_pos_ratio * 100 }}%"></div>
+                        </div>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label d-flex justify-content-between">
+                            <span>Hugging Face (부정)</span>
+                            <span class="fw-bold text-secondary">{{ data.sentiment_neg_ratio }}</span>
+                        </label>
+                        <div class="progress" style="height: 20px;">
+                            <div class="progress-bar bg-secondary" role="progressbar" 
+                                 style="width: {{ data.sentiment_neg_ratio * 100 }}%"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-7">
+            <div class="card shadow-sm h-100">
+                <div class="card-header bg-white fw-bold">
+                    🧠 분석 근거 (Why?)
+                </div>
+                <div class="card-body">
+                    <h5 class="card-title text-primary">왜 {{ data.mbti_prediction }}인가요?</h5>
+                    <p class="card-text bg-light p-3 rounded border">
+                        {{ data.reasoning_text | safe }}
+                    </p>
+
+                    <hr>
+                    
+                    <h5 class="card-title mt-4">Big 5 상세 점수</h5>
+                    <div class="row text-center mt-3">
+                        <div class="col">
+                            <div class="fw-bold text-muted">개방성</div>
+                            <div class="h4">{{ data.openness }}</div>
+                        </div>
+                        <div class="col">
+                            <div class="fw-bold text-muted">성실성</div>
+                            <div class="h4">{{ data.conscientiousness }}</div>
+                        </div>
+                        <div class="col">
+                            <div class="fw-bold text-muted">외향성</div>
+                            <div class="h4">{{ data.extraversion }}</div>
+                        </div>
+                        <div class="col">
+                            <div class="fw-bold text-muted">친화성</div>
+                            <div class="h4">{{ data.agreeableness }}</div>
+                        </div>
+                        <div class="col">
+                            <div class="fw-bold text-muted">신경성</div>
+                            <div class="h4">{{ data.neuroticism }}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+</body>
+</html>
