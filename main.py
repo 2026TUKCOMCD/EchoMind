@@ -36,7 +36,7 @@ from openai import OpenAI
 load_dotenv()
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5")  # account-dependent
+OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5-mini")  # account-dependent
 
 # 비용/지연 제어(한국어 대화는 길어지기 쉬움)
 MAX_MESSAGES_FOR_LLM = 140
@@ -119,7 +119,7 @@ def mask_pii(text: str) -> str:
     text = RE_KR_ID.sub("[주민번호]", text)
     return text
 
-def extract_target_messages(rows: List[Dict[str, str]], target_name: str) -> List[str]:
+def extract_target_messages(rows: List[Dict[str, str]], target_name: str, limit: int = MAX_MESSAGES_FOR_LLM) -> List[str]:
     msgs: List[str] = []
     for r in rows:
         if r["speaker"] != target_name:
@@ -143,8 +143,8 @@ def extract_target_messages(rows: List[Dict[str, str]], target_name: str) -> Lis
         uniq.append(m)
 
     # 최근 발화 위주(현재 스타일 반영)
-    if len(uniq) > MAX_MESSAGES_FOR_LLM:
-        uniq = uniq[-MAX_MESSAGES_FOR_LLM:]
+    if len(uniq) > limit:
+        uniq = uniq[-limit:]
 
     return uniq
 
@@ -256,32 +256,20 @@ def call_llm_structured(prompt: str, model: str) -> dict:
     # SDK 버전에 따라 파라미터 형태가 다를 수 있어, 2가지 형태를 순차 시도합니다.
     # 1) text.format 방식
     try:
-        resp = client.responses.create(
+        resp = client.chat.completions.create(
             model=model,
-            input=prompt,
-            text={
-                "format": {
-                    "type": "json_schema",
-                    "json_schema": PROFILE_SCHEMA
-                }
-            },
-        )
-        raw = resp.output_text
-        data = json.loads(raw)
-        return data
-    except Exception:
-        # 2) response_format 방식(일부 SDK/예제에서 사용되는 형태)
-        resp = client.responses.create(
-            model=model,
-            input=prompt,
+            messages=[{"role": "user", "content": prompt}],
             response_format={
                 "type": "json_schema",
                 "json_schema": PROFILE_SCHEMA
             },
         )
-        raw = resp.output_text
+        raw = resp.choices[0].message.content
         data = json.loads(raw)
         return data
+    except Exception as e:
+        # Fallback or re-raise
+        raise RuntimeError(f"OpenAI API 호출 실패: {e}")
 
 
 # ----------------------------
@@ -293,13 +281,14 @@ def main():
     ap.add_argument("--name", required=True, help="Target speaker name in the export (your name)")
     ap.add_argument("--out", default="", help="Output JSON path (optional)")
     ap.add_argument("--model", default=OPENAI_MODEL, help="OpenAI model name (optional)")
+    ap.add_argument("--limit", type=int, default=200, help="Max messages to analyze (default: 200)")
     args = ap.parse_args()
 
     rows = parse_kakao_txt(args.file)
     if not rows:
         raise SystemExit("파싱 결과가 비어 있습니다. 내보내기 파일 형식이 예상과 다를 수 있습니다.")
 
-    msgs = extract_target_messages(rows, args.name)
+    msgs = extract_target_messages(rows, args.name, limit=args.limit)
     if len(msgs) < 15:
         raise SystemExit(f"분석 가능한 발화가 너무 적습니다(현재 {len(msgs)}개). --name(대화명)을 확인하세요.")
 
