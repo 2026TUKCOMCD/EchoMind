@@ -84,7 +84,6 @@ def parse_kakao_txt(path: str):
 
 def clean_text(t: str) -> str:
     t = re.sub(r"https?://\S+", " ", t)
-    t = re.sub(r"[ㅋㅎㅠㅜ]+", "", t)  # ㅋㅋㅋㅋ, ㅎㅎㅎ 등 제거
     t = re.sub(r"\s+", " ", t).strip()
     return t
 
@@ -236,7 +235,7 @@ def infer_bigfive_korean(summary):
         "agreeableness": round(agreeableness * 100, 2),
         "neuroticism": round(neuroticism * 100, 2),
     }
-    
+
 def calculate_mbti_and_reasoning(big5, summary_data):
     e_type = 'E' if big5['extraversion'] >= 50 else 'I'
     n_type = 'N' if big5['openness'] >= 55 else 'S'     #N이 더 안나오도록 유도
@@ -367,33 +366,14 @@ def upload_api():
                 flash(f"'{target_name}'님의 대화 내용이 너무 적습니다. 이름을 확인해주세요.")
                 return redirect(url_for('upload_page'))
 
-            MAX_LIMIT = 200  # 분석할 총 문장 수 제한
+            MAX_LIMIT = 150  # 분석할 총 문장 수 제한
             # 문장이 제한보다 많을 때만 줄이기 작업을 수행
             if len(my_sentences) > MAX_LIMIT:
                 print(f"[알림] 문장이 {len(my_sentences)}개로 많아 '{MAX_LIMIT}'개로 압축합니다.")
                 
-                # 전략: 절반은 '긴 문장'(심층 분석용), 절반은 '랜덤'(일상 대화용)으로 채움
-                half_limit = MAX_LIMIT // 2 
-                
-                # 1. 전체를 길이순으로 정렬
-                # (긴 문장이 리스트 앞쪽으로, 짧은 문장이 뒤쪽으로 감)
-                sorted_by_len = sorted(my_sentences, key=len, reverse=True)
-                
-                # 2. 상위 50%는 가장 긴 문장들로 채택
-                long_part = sorted_by_len[:half_limit]
-                
-                # 3. 나머지는 '선택받지 못한 나머지 문장들' 중에서 랜덤 추출
-                remaining_pool = sorted_by_len[half_limit:]
-                
-                random.seed(42) # 결과 재현을 위해 시드 고정
-                # 남은 것들 중에서 (MAX_LIMIT - half_limit) 개수만큼 뽑음
-                random_part = random.sample(remaining_pool, MAX_LIMIT - len(long_part))
-                
-                # 4. 두 리스트 합치기
-                my_sentences = long_part + random_part
-                
-                # 5. 분석 순서가 섞이도록 최종 셔플 (API 호출 시 긴 것만 몰리지 않게)
-                random.shuffle(my_sentences)
+                # 전략: 전체 문장 중 무작위로 MAX_LIMIT 만큼 추출 (편향 방지)
+                random.seed(42)  # 재현성 보장
+                my_sentences = random.sample(my_sentences, MAX_LIMIT)
 
             senti_labels = hf_sentiment_labels(my_sentences)
             tox_scores = perspective_toxicity_scores(my_sentences)
@@ -417,7 +397,18 @@ def upload_api():
             
             big5_result = infer_bigfive_korean(summary_data)
             mbti_prediction, reasoning_text = calculate_mbti_and_reasoning(big5_result, summary_data)
-            
+            # ==========================================================
+            # [디버깅] MBTI 최종 점수 확인 (콘솔 출력)
+            # ==========================================================
+            print("\n" + "#" * 50)
+            print(f"   [MBTI 최종 점수 진단 - 대상: {target_name}]")
+            print("#" * 50)
+            print(f"1. 외향성(E) 점수: {big5_result['extraversion']}점  (기준: 48점 이상 E)")
+            print(f"2. 개방성(N) 점수: {big5_result['openness']}점  (기준: 50점 이상 N)")
+            print(f"3. 우호성(F) 점수: {big5_result['agreeableness']}점  (기준: 50점 이상 F)")
+            print(f"4. 성실성(J) 점수: {big5_result['conscientiousness']}점  (기준: 50점 이상 J)")
+            print("#" * 50 + "\n")
+            # ==========================================================
             summary_text = (f"총 {n}문장 분석 완료. 긍정 {pos_ratio*100:.1f}%, 독성 {tox_avg:.3f}")
 
             with conn.cursor() as cursor:
