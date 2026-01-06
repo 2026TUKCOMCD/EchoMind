@@ -149,17 +149,26 @@ def analyze_korean_style(sentences):
         "laughs": laugh_count / total_words
     }
 
-# [감성 분석 - KNU 사전 사용 (빠름)]
+# [감성 분석 - KNU 사전 사용 (빠름), 오타 보정 기능 추가됨]
 def analyze_sentiment_local(sentences):
     pos_score_sum = 0
     neg_score_sum = 0
     total_sentiment_words = 0
     
-    full_text = " ".join(sentences)
-    tokens = kiwi.tokenize(full_text)
+    # 1. soynlp로 'ㅋㅋㅋㅋㅋㅋ' 같은 반복 문자 정규화 (최대 2번 반복으로 줄임)
+    # 예: "너무너무너무너무" -> "너무너무" / "슬퍼ㅠㅠㅠㅠ" -> "슬퍼ㅠㅠ"
+    normalized_sentences = [repeat_normalize(s, num_repeats=2) for s in sentences]
+    
+    full_text = " ".join(normalized_sentences)
+    
+    # 2. Kiwi 분석 시 'normalize_coda=True' 옵션 켜기 (덧붙은 받침 등 오타 교정)
+    # 예: "머거써" -> "먹었어"로 인식률 향상
+    tokens = kiwi.tokenize(full_text, normalize_coda=True)
     
     for t in tokens:
         word = t.form
+        
+        # 3. 사전 매칭
         if word in SENTIMENT_DB:
             score = SENTIMENT_DB[word]
             if score >= 1:
