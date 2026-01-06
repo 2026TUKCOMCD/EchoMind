@@ -148,41 +148,68 @@ def analyze_korean_style(sentences):
         "laughs": laugh_count / total_words  # 리액션 비율 추가
     }
 
-def hf_sentiment_labels(texts):
-    if not HF_TOKEN: return ["NEUTRAL"] * len(texts)
+import concurrent.futures
+
+def request_with_retry(url, headers, payload, max_retries=3):
+    """API 호출 재시도 로직 (Rate Limit 대응)"""
+    for attempt in range(max_retries):
+        try:
+            r = requests.post(url, headers=headers, json=payload, timeout=5)
+            if r.status_code == 200:
+                return r.json()
+            elif r.status_code == 429: # Too Many Requests
+                time.sleep(2 ** attempt) # 지수 백오프 (1s, 2s, 4s...)
+            else:
+                pass
+        except:
+            pass
+        time.sleep(0.5)
+    return None
+
+def hf_sentiment_single(text):
+    if not HF_TOKEN: return "NEUTRAL"
     HF_API_URL = "https://router.huggingface.co/hf-inference/models/cardiffnlp/twitter-xlm-roberta-base-sentiment"
     headers = {"Authorization": f"Bearer {HF_TOKEN}"}
-    out = []
-    for t in texts:
-        payload = {"inputs": t[:500]} 
-        try:
-            r = requests.post(HF_API_URL, headers=headers, json=payload, timeout=5)
-            if r.status_code == 200:
-                js = r.json()
-                arr = js[0] if isinstance(js, list) and js and isinstance(js[0], list) else js
-                if isinstance(arr, list):
-                    top = max(arr, key=lambda x: x["score"])
-                    out.append(top["label"].upper())
-                else: out.append("NEUTRAL")
-            else: out.append("NEUTRAL")
-        except: out.append("NEUTRAL")
-        time.sleep(0.1)
-    return out
+    payload = {"inputs": text[:500]}
+    
+    js = request_with_retry(HF_API_URL, headers, payload)
+    if js:
+        arr = js[0] if isinstance(js, list) and js and isinstance(js[0], list) else js
+        if isinstance(arr, list):
+            top = max(arr, key=lambda x: x["score"])
+            return top["label"].upper()
+    return "NEUTRAL"
+
+def hf_sentiment_labels(texts):
+    # 감정 분석: 병렬 처리로 속도 대폭 향상 (최대 5개 동시 요청)
+    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+        results = list(executor.map(hf_sentiment_single, texts))
+    return results
+
+def perspective_toxicity_single(text):
+    if not PERSPECTIVE_API_KEY: return 0.0
+    PERSPECTIVE_URL = "https://commentanalyzer.googleapis.com/v1alpha1/comments:analyze"
+    data = {"comment": {"text": text[:1500]}, "languages": ["ko"], "requestedAttributes": {"TOXICITY": {}}}
+    
+    # 쿼리 파라미터로 키 전달 방식 주의
+    # request_with_retry 구조상 URL에 키 포함 필요
+    url_with_key = f"{PERSPECTIVE_URL}?key={PERSPECTIVE_API_KEY}"
+    js = request_with_retry(url_with_key, {}, data)
+    
+    if js:
+        val = js.get("attributeScores", {}).get("TOXICITY", {}).get("summaryScore", {}).get("value", 0.0)
+        return float(val)
+    return 0.0
 
 def perspective_toxicity_scores(texts):
-    if not PERSPECTIVE_API_KEY: return [0.0] * len(texts)
-    PERSPECTIVE_URL = "https://commentanalyzer.googleapis.com/v1alpha1/comments:analyze"
+    # 독성 분석: 속도 제한(1QPS) 준수를 위해 Worker 1개 유지 + 재시도 로직 추가
+    # 대신 감정 분석과 동시에 돌아가므로 전체 시간은 단축됨
     scores = []
-    for t in texts:
-        try:
-            data = {"comment": {"text": t[:1500]}, "languages": ["ko"], "requestedAttributes": {"TOXICITY": {}}}
-            r = requests.post(f"{PERSPECTIVE_URL}?key={PERSPECTIVE_API_KEY}", json=data, timeout=5)
-            if r.status_code == 200:
-                val = r.json().get("attributeScores", {}).get("TOXICITY", {}).get("summaryScore", {}).get("value", 0.0)
-                scores.append(float(val))
-            else: scores.append(0.0)
-        except: scores.append(0.0)
-        time.sleep(1.04)
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+        # map을 쓰면 순서대로 결과가 나옴
+        for score in executor.map(perspective_toxicity_single, texts):
+            scores.append(score)
+            time.sleep(1.05) # API 쿼터 준수 (안전하게 1.05초)
     return scores
 
 def infer_bigfive_korean(summary):
@@ -375,8 +402,15 @@ def upload_api():
                 random.seed(42)  # 재현성 보장
                 my_sentences = random.sample(my_sentences, MAX_LIMIT)
 
-            senti_labels = hf_sentiment_labels(my_sentences)
-            tox_scores = perspective_toxicity_scores(my_sentences)
+            # [비동기 처리] 감정 분석과 독성 분석을 동시에 실행
+            with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+                future_senti = executor.submit(hf_sentiment_labels, my_sentences)
+                future_tox = executor.submit(perspective_toxicity_scores, my_sentences)
+                
+                # 결과 대기 및 수신
+                senti_labels = future_senti.result()
+                tox_scores = future_tox.result()
+
             korean_style = analyze_korean_style(my_sentences)
             
             cnt = pd.Series(senti_labels).value_counts()
