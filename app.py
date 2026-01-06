@@ -15,7 +15,7 @@ from werkzeug.utils import secure_filename
 from datetime import datetime
 from dotenv import load_dotenv
 from kiwipiepy import Kiwi
-
+from soynlp.normalizer import repeat_normalize
 # -----------------------
 # [0] 환경 설정 및 초기화
 # -----------------------
