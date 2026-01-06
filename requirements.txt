@@ -17,3 +17,4 @@ kiwipiepy>=0.17.0
 
 #Open AI LLM
 openai>=1.50.0
+ 
