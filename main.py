@@ -1,255 +1,319 @@
+# main.py
 # -*- coding: utf-8 -*-
+
 """
-main.py
-카카오톡 대화 내보내기(txt) -> 본인 이름 입력 -> 내 발화만 분석
-무료 AI API:
- - Hugging Face Inference API (감성: 긍/부/중)
- - Google Perspective API (독성: 0~1)
-출력:
- - out_report/summary.md
- - out_report/report.json
- - out_report/utterances.csv
+EchoMind core (KakaoTalk TXT -> LLM structured profile) / Korean-first
+- No HTML, No DB
+- Input: KakaoTalk export .txt, target speaker name
+- Output: JSON (structured via JSON Schema / Structured Outputs)
+
+Install:
+  pip install openai python-dotenv
+
+Env:
+  export OPENAI_API_KEY="..."
+  (optional) export OPENAI_MODEL="gpt-5"   # or any model your account supports
+
+Run:
+  python main.py --file "KakaoTalkChat.txt" --name "홍길동" --out "profile.json"
 """
 
 import os
 import re
 import json
-import time
-import statistics
 import argparse
-from pathlib import Path
-from collections import Counter
+from dataclasses import dataclass
+from typing import List, Dict, Optional
+from datetime import datetime
 
-import numpy as np
-import pandas as pd
-import requests
 from dotenv import load_dotenv
+from openai import OpenAI
 
-# -----------------------
-# 환경변수 로드
-# -----------------------
+
+# ----------------------------
+# 0) Config
+# ----------------------------
 load_dotenv()
-HF_TOKEN = os.getenv("HF_TOKEN")  # Hugging Face Inference API 토큰
-PERSPECTIVE_API_KEY = os.getenv("PERSPECTIVE_API_KEY")  # Google Perspective API 키
 
-# -----------------------
-# 카톡 파서
-# -----------------------
-LINE_RE = re.compile(r"^\[(?P<name>.+?)\]\s+\[(?P<time>\d{1,2}:\d{2})\]\s+(?P<msg>.+)$")
-SKIP_TOKENS = {"사진", "이모티콘", "동영상", "삭제된 메시지입니다."}
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5-mini")  # account-dependent
 
-def parse_kakao_txt(path: str):
-    rows = []
-    with open(path, "r", encoding="utf-8", errors="ignore") as f:
-        for line in f:
-            line = line.rstrip("\n")
-            m = LINE_RE.match(line)
-            if not m:
+# 비용/지연 제어(한국어 대화는 길어지기 쉬움)
+MAX_MESSAGES_FOR_LLM = 140
+MAX_CHARS_PER_MESSAGE = 200
+MAX_TOTAL_INPUT_CHARS = 28_000
+
+SYSTEM_SKIP_SUBSTR = [
+    "사진", "이모티콘", "동영상", "삭제된 메시지입니다", "파일", "보이스톡", "통화", "송금", "입금", "출금"
+]
+
+# ----------------------------
+# 1) KakaoTalk TXT parsing
+# ----------------------------
+# 다양한 내보내기 포맷을 최대한 흡수(완벽 파서는 아님)
+LINE_PATTERNS = [
+    # [Name] [YYYY.MM.DD. 오후 1:23] message
+    re.compile(r"^\[(?P<name>.+?)\]\s+\[(?P<time>.+?)\]\s+(?P<msg>.+)$"),
+    # 2025. 1. 1. 오후 1:23, Name : message
+    re.compile(r"^(?P<time>\d{4}\.\s*\d{1,2}\.\s*\d{1,2}\.\s*.+?),\s*(?P<name>[^:]+?)\s*:\s*(?P<msg>.+)$"),
+]
+
+def parse_kakao_txt(filepath: str) -> List[Dict[str, str]]:
+    rows: List[Dict[str, str]] = []
+    with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
+        for raw in f:
+            line = raw.rstrip("\n")
+            if not line.strip():
                 continue
+
+            m = None
+            for pat in LINE_PATTERNS:
+                m = pat.match(line)
+                if m:
+                    break
+            if not m:
+                # 멀티라인 메시지(줄바꿈 이어지는 경우)까지 완전히 처리하려면
+                # 이전 메시지에 붙이는 로직이 필요합니다.
+                continue
+
             rows.append({
                 "speaker": m.group("name").strip(),
-                "time": m.group("time"),
+                "time": m.group("time").strip(),
                 "text": m.group("msg").strip(),
-                "raw": line,
             })
     return rows
 
-def clean_text(t: str) -> str:
-    t = re.sub(r"https?://\S+", " ", t)
-    t = re.sub(r"\s+", " ", t).strip()
-    return t
 
-def split_sentences(t: str):
-    parts = re.split(r"(?<=[.!?])\s+|\n+", t)
-    return [p.strip() for p in parts if p.strip()]
+# ----------------------------
+# 2) Preprocess (Korean-first)
+# ----------------------------
+RE_URL = re.compile(r"https?://\S+")
+RE_LAUGH = re.compile(r"[ㅋㅎ]{2,}")
+RE_CRY = re.compile(r"[ㅠㅜ]{2,}")
+RE_SPACES = re.compile(r"\s+")
 
-# -----------------------
-# 무료 API 클라이언트
-# -----------------------
-HF_API = "https://router.huggingface.co/hf-inference/models/cardiffnlp/twitter-xlm-roberta-base-sentiment"
+def looks_like_system_message(text: str) -> bool:
+    t = text.strip()
+    if not t:
+        return True
+    for s in SYSTEM_SKIP_SUBSTR:
+        if s in t:
+            return True
+    return False
 
-def hf_sentiment_labels(texts):
-    """
-    다국어 감성 분석: POSITIVE / NEGATIVE / NEUTRAL
-    무료 할당량 보호를 위해 단건 호출 + 약간의 대기
-    """
-    headers = {"Authorization": f"Bearer {HF_TOKEN}"} if HF_TOKEN else {}
-    out = []
-    for t in texts:
-        payload = {"inputs": t[:800]}  # 과도한 길이 방지
-        r = requests.post(HF_API, headers=headers, json=payload, timeout=30)
-        if r.status_code == 503:
-            time.sleep(2)
-            r = requests.post(HF_API, headers=headers, json=payload, timeout=30)
-        r.raise_for_status()
-        js = r.json()
-        # 응답: [[{label, score}, ...]] 또는 [{label, score}, ...]
-        arr = js[0] if isinstance(js, list) and js and isinstance(js[0], list) else js
-        top = max(arr, key=lambda x: x["score"])
-        out.append(top["label"].upper())
-        time.sleep(0.2)  # QPS 여유
-    return out
+def clean_text_ko(text: str) -> str:
+    text = RE_URL.sub(" ", text)
+    text = RE_LAUGH.sub(" ", text)
+    text = RE_CRY.sub(" ", text)
+    text = RE_SPACES.sub(" ", text).strip()
+    return text
 
-PERSPECTIVE_URL = "https://commentanalyzer.googleapis.com/v1alpha1/comments:analyze"
+# PII 마스킹(오탐 가능성은 존재. 보수적으로 적용)
+RE_PHONE = re.compile(r"(01[016789])[-.\s]?\d{3,4}[-.\s]?\d{4}")
+RE_EMAIL = re.compile(r"\b[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}\b")
+RE_KR_ID = re.compile(r"\b\d{6}[-\s]?\d{7}\b")  # 주민번호 형태(단순)
 
-def perspective_toxicity_scores(texts, lang="ko"):
-    """
-    독성(TOXICITY) 0~1 점수. 기본 1 QPS 제한 → 호출 간 1초 간격.
-    키가 없으면 0.0으로 대체.
-    """
-    if not PERSPECTIVE_API_KEY:
-        return [0.0] * len(texts)
-    scores = []
-    for t in texts:
-        data = {
-            "comment": {"text": t[:2000]},
-            "languages": [lang],
-            "requestedAttributes": {"TOXICITY": {}}
-        }
-        r = requests.post(f"{PERSPECTIVE_URL}?key={PERSPECTIVE_API_KEY}", json=data, timeout=30)
-        r.raise_for_status()
-        js = r.json()
-        val = js.get("attributeScores", {}).get("TOXICITY", {}).get("summaryScore", {}).get("value", 0.0)
-        scores.append(float(val))
-        time.sleep(1.05)  # 1 QPS
-    return scores
+def mask_pii(text: str) -> str:
+    text = RE_PHONE.sub("[전화번호]", text)
+    text = RE_EMAIL.sub("[이메일]", text)
+    text = RE_KR_ID.sub("[주민번호]", text)
+    return text
 
-# -----------------------
-# 간단 스타일 지표 & 빅파이브(탐색적)
-# -----------------------
-def style_metrics(sentences):
-    joined = " ".join(sentences)
-    toks = joined.split()
-    total = len(toks) or 1
-    self_ref = len(re.findall(r"\b(나|내가|나는|내|제가|제|I|me|my|mine)\b", joined, flags=re.I)) / total
-    uncertainty = len(re.findall(r"\b(아마|같다|듯|일지도|maybe|might|could|seems?)\b", joined, flags=re.I)) / total
-    certainty = len(re.findall(r"\b(반드시|확실히|틀림없이|definitely|always|never)\b", joined, flags=re.I)) / total
-    avg_len = statistics.mean([len(s.split()) for s in sentences]) if sentences else 0.0
-    ttr = len(set(toks)) / total
-    return {"self_ref": self_ref, "uncertainty": uncertainty, "certainty": certainty, "avg_len": avg_len, "ttr": ttr}
+def extract_target_messages(rows: List[Dict[str, str]], target_name: str, limit: int = MAX_MESSAGES_FOR_LLM) -> List[str]:
+    msgs: List[str] = []
+    for r in rows:
+        if r["speaker"] != target_name:
+            continue
+        txt = r.get("text", "")
+        if looks_like_system_message(txt):
+            continue
+        txt = clean_text_ko(txt)
+        txt = mask_pii(txt)
+        if not txt:
+            continue
+        msgs.append(txt)
 
-def infer_bigfive(summary):
-    s = summary
-    st = s["style"]
-    avg_len_norm = min(1.0, st["avg_len"] / 30.0)
-    openness           = min(1.0, 0.45*st["ttr"] + 0.35*s.get("topic_div", 0.5) + 0.20*avg_len_norm)
-    conscientiousness  = min(1.0, 0.50*st["certainty"] + 0.30*(1 - s["toxicity_avg"]) + 0.20*s["positive_ratio"])
-    extraversion       = min(1.0, 0.50*st["self_ref"] + 0.30*s["positive_ratio"] + 0.20*avg_len_norm)
-    agreeableness      = min(1.0, 0.55*(1 - s["toxicity_avg"]) + 0.25*s["positive_ratio"] + 0.20*(1 - st["uncertainty"]))
-    neuroticism        = min(1.0, 0.60*s["negative_ratio"] + 0.20*st["uncertainty"] + 0.20*(1 - st["certainty"]))
-    return {
-        "openness": round(openness, 3),
-        "conscientiousness": round(conscientiousness, 3),
-        "extraversion": round(extraversion, 3),
-        "agreeableness": round(agreeableness, 3),
-        "neuroticism": round(neuroticism, 3),
+    # 중복 제거(동일 문장 반복 API 비용 낭비 방지)
+    seen = set()
+    uniq = []
+    for m in msgs:
+        if m in seen:
+            continue
+        seen.add(m)
+        uniq.append(m)
+
+    # 최근 발화 위주(현재 스타일 반영)
+    if len(uniq) > limit:
+        uniq = uniq[-limit:]
+
+    return uniq
+
+
+# ----------------------------
+# 3) LLM Structured Output (JSON Schema)
+# ----------------------------
+PROFILE_SCHEMA = {
+    "name": "kakao_chat_profile_v1",
+    "schema": {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            "language": {"type": "string", "enum": ["ko"]},
+            "overall_summary": {"type": "string", "minLength": 20, "maxLength": 1200},
+            "communication_style": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "tone": {"type": "string", "enum": ["친근함", "공손함", "중립적", "건조함", "공격적"]},
+                    "directness": {"type": "string", "enum": ["직설적", "완곡적", "상황따라변함"]},
+                    "emotion_expression": {"type": "string", "enum": ["낮음", "보통", "높음"]},
+                    "empathy_signals": {"type": "string", "enum": ["낮음", "보통", "높음"]},
+                    "initiative": {"type": "string", "enum": ["주도형", "반응형", "혼합형"]},
+                    "conflict_style": {"type": "string", "enum": ["회피", "완화", "직면", "혼합"]},
+                },
+                "required": ["tone", "directness", "emotion_expression", "empathy_signals", "initiative", "conflict_style"],
+            },
+            "notable_patterns": {
+                "type": "array",
+                "items": {"type": "string", "minLength": 5, "maxLength": 120},
+                "minItems": 3,
+                "maxItems": 10
+            },
+            "strengths": {
+                "type": "array",
+                "items": {"type": "string", "minLength": 5, "maxLength": 120},
+                "minItems": 2,
+                "maxItems": 6
+            },
+            "cautions": {
+                "type": "array",
+                "items": {"type": "string", "minLength": 5, "maxLength": 120},
+                "minItems": 2,
+                "maxItems": 6
+            },
+            "matching_tips": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "works_well_with": {"type": "array", "items": {"type": "string", "minLength": 5, "maxLength": 120}, "minItems": 2, "maxItems": 6},
+                    "may_clash_with": {"type": "array", "items": {"type": "string", "minLength": 5, "maxLength": 120}, "minItems": 2, "maxItems": 6},
+                },
+                "required": ["works_well_with", "may_clash_with"]
+            },
+            "confidence": {"type": "number", "minimum": 0.0, "maximum": 1.0},
+            "evidence_quotes": {
+                "type": "array",
+                "description": "원문을 길게 복사하지 말고 25자 내외로 의역/요약만",
+                "items": {"type": "string", "minLength": 5, "maxLength": 60},
+                "minItems": 3,
+                "maxItems": 8
+            }
+        },
+        "required": [
+            "language", "overall_summary", "communication_style",
+            "notable_patterns", "strengths", "cautions",
+            "matching_tips", "confidence", "evidence_quotes"
+        ]
     }
+}
 
-# -----------------------
-# 리포트 저장
-# -----------------------
-def write_report(outdir, per_sent_records, summary, big5):
-    out = Path(outdir)
-    out.mkdir(parents=True, exist_ok=True)
+def build_prompt(target_name: str, messages: List[str]) -> str:
+    # 입력 총량 제한
+    trimmed: List[str] = []
+    total = 0
+    for m in messages:
+        m2 = m[:MAX_CHARS_PER_MESSAGE]
+        add = len(m2) + 3
+        if total + add > MAX_TOTAL_INPUT_CHARS:
+            break
+        trimmed.append(m2)
+        total += add
 
-    # CSV
-    pd.DataFrame(per_sent_records).to_csv(out / "utterances.csv", index=False, encoding="utf-8-sig")
+    bullets = "\n".join([f"- {x}" for x in trimmed])
 
-    # JSON
-    (out / "report.json").write_text(json.dumps({
-        "summary": summary,
-        "big_five_exploratory": big5
-    }, ensure_ascii=False, indent=2), encoding="utf-8")
+    return f"""
+당신은 한국어 카카오톡 대화 텍스트로부터 '대화 성향/커뮤니케이션 스타일'을 분석해 구조화 요약하는 분석가입니다.
 
-    # Markdown
-    md = []
-    md.append("# 텍스트 성향 리포트(탐색적)\n")
-    md.append("## 핵심 지표")
-    md.append(f"- 문장 수: {summary['n_sentences']}")
-    md.append(f"- 긍정/중립/부정: {summary['positive_ratio']:.2f} / {summary['neutral_ratio']:.2f} / {summary['negative_ratio']:.2f}")
-    md.append(f"- 평균 독성 점수: {summary['toxicity_avg']:.3f}")
-    md.append(f"- 평균 문장 길이(단어): {summary['style']['avg_len']:.2f}")
-    md.append(f"- 어휘 다양성(TTR≈): {summary['style']['ttr']:.3f}")
-    md.append("\n## 빅파이브(탐색적, 0~1)")
-    for k, v in big5.items():
-        md.append(f"- {k.title()}: {v:.2f}")
-    md.append("\n> ※ 텍스트 기반 ‘탐색적 추정’으로, 심리검사가 아닙니다.")
-    (out / "summary.md").write_text("\n".join(md), encoding="utf-8")
+규칙:
+- 심리검사/의학적 진단처럼 단정하지 말고, 텍스트에서 관찰되는 경향만 기술하세요.
+- 개인정보(전화번호/이메일/실명/계좌 등)를 출력에 포함하지 마세요.
+- 원문을 길게 인용하지 말고, evidence_quotes는 25자 내외 의역/요약만 하세요.
+- 출력은 반드시 제공된 JSON 스키마를 정확히 준수하세요.
+- 언어는 반드시 ko로 출력하세요.
 
-# -----------------------
-# 메인 실행
-# -----------------------
+분석 대상(내 발화): {target_name}
+아래는 발화 샘플입니다:
+{bullets}
+""".strip()
+
+def call_llm_structured(prompt: str, model: str) -> dict:
+    if not OPENAI_API_KEY:
+        raise RuntimeError("OPENAI_API_KEY 환경변수가 설정되지 않았습니다.")
+
+    client = OpenAI(api_key=OPENAI_API_KEY)
+
+    # Responses API에서 Structured Outputs 사용 (문서 기준: text.format 사용 권장)
+    # SDK 버전에 따라 파라미터 형태가 다를 수 있어, 2가지 형태를 순차 시도합니다.
+    # 1) text.format 방식
+    try:
+        resp = client.chat.completions.create(
+            model=model,
+            messages=[{"role": "user", "content": prompt}],
+            response_format={
+                "type": "json_schema",
+                "json_schema": PROFILE_SCHEMA
+            },
+        )
+        raw = resp.choices[0].message.content
+        data = json.loads(raw)
+        return data
+    except Exception as e:
+        # Fallback or re-raise
+        raise RuntimeError(f"OpenAI API 호출 실패: {e}")
+
+
+# ----------------------------
+# 4) CLI
+# ----------------------------
 def main():
-    parser = argparse.ArgumentParser(description="카카오톡 대화 성격 분석 (무료 API 사용)")
-    parser.add_argument("-f", "--file", required=True, help="카카오톡 내보내기 txt 경로")
-    parser.add_argument("-o", "--outdir", default="out_report", help="리포트 출력 폴더")
-    args = parser.parse_args()
-
-    if not HF_TOKEN:
-        raise SystemExit("환경변수 HF_TOKEN 이 없습니다. .env 파일을 확인하세요. (Hugging Face Inference API 토큰)")
-    if not PERSPECTIVE_API_KEY:
-        print("[경고] PERSPECTIVE_API_KEY 가 없습니다. 독성 점수는 0으로 처리됩니다.")
-
-    my_name = input("카톡 대화에서 본인 이름(표시명)을 입력하세요: ").strip()
-    if not my_name:
-        raise SystemExit("이름이 비어 있습니다.")
+    ap = argparse.ArgumentParser(description="KakaoTalk TXT -> LLM structured profile (Korean-first)")
+    ap.add_argument("--file", required=True, help="KakaoTalk exported .txt file path")
+    ap.add_argument("--name", required=True, help="Target speaker name in the export (your name)")
+    ap.add_argument("--out", default="", help="Output JSON path (optional)")
+    ap.add_argument("--model", default=OPENAI_MODEL, help="OpenAI model name (optional)")
+    ap.add_argument("--limit", type=int, default=200, help="Max messages to analyze (default: 200)")
+    args = ap.parse_args()
 
     rows = parse_kakao_txt(args.file)
+    if not rows:
+        raise SystemExit("파싱 결과가 비어 있습니다. 내보내기 파일 형식이 예상과 다를 수 있습니다.")
 
-    # 내 발화만 추출 → 문장화
-    sentences = []
-    for r in rows:
-        if r["speaker"] != my_name:
-            continue
-        txt = r["text"]
-        if not txt or txt in SKIP_TOKENS:
-            continue
-        txt = clean_text(txt)
-        sentences.extend(split_sentences(txt))
+    msgs = extract_target_messages(rows, args.name, limit=args.limit)
+    if len(msgs) < 15:
+        raise SystemExit(f"분석 가능한 발화가 너무 적습니다(현재 {len(msgs)}개). --name(대화명)을 확인하세요.")
 
-    # 너무 짧은 문장 제거
-    sentences = [s for s in sentences if len(s.split()) >= 3]
-    if len(sentences) == 0:
-        raise SystemExit("분석할 문장이 없습니다. 파일/이름을 확인하세요.")
-    if len(sentences) < 10:
-        print(f"[안내] 문장 수가 {len(sentences)}개로 적어 결과 신뢰도가 낮을 수 있습니다.")
+    prompt = build_prompt(args.name, msgs)
+    profile = call_llm_structured(prompt, args.model)
 
-    # 무료 API 호출
-    print("[진행] 감성 분석(Hugging Face Inference API)...")
-    senti_labels = hf_sentiment_labels(sentences)  # POSITIVE/NEGATIVE/NEUTRAL
-
-    print("[진행] 독성 분석(Google Perspective API)...")
-    tox_scores = perspective_toxicity_scores(sentences, lang="ko")  # 0~1 (키 없으면 0)
-
-    # 요약
-    n = len(sentences)
-    cnt = Counter(senti_labels)
-    pos = cnt.get("POSITIVE", 0) / n
-    neg = cnt.get("NEGATIVE", 0) / n
-    neu = 1 - pos - neg
-    tox_avg = float(np.mean(tox_scores)) if tox_scores else 0.0
-    style = style_metrics(sentences)
-    topic_div = float(min(1.0, 0.5 + 0.5 * (len(set(sentences)) / n)))  # 간단 근사
-
-    summary = {
-        "n_sentences": n,
-        "positive_ratio": float(pos),
-        "negative_ratio": float(neg),
-        "neutral_ratio": float(neu),
-        "toxicity_avg": float(tox_avg),
-        "style": style,
-        "topic_div": topic_div,
+    # 안전장치: language 강제
+    profile["language"] = "ko"
+    profile["_meta"] = {
+        "source": "kakao_export_txt",
+        "target_name": args.name,
+        "message_count_used": len(msgs),
+        "generated_at": datetime.utcnow().isoformat() + "Z",
+        "model": args.model
     }
 
-    # per-sentence 레코드
-    per_sent = [{"sentence": s, "sentiment": l, "toxicity": float(t)} for s, l, t in zip(sentences, senti_labels, tox_scores)]
+    out_text = json.dumps(profile, ensure_ascii=False, indent=2)
 
-    # 빅파이브(탐색적)
-    big5 = infer_bigfive(summary)
+    if args.out:
+        with open(args.out, "w", encoding="utf-8") as f:
+            f.write(out_text)
+        print(f"[OK] Saved: {args.out}")
+    else:
+        print(out_text)
 
-    # 저장
-    write_report(args.outdir, per_sent, summary, big5)
-    print(f"[완료] 리포트 생성: {Path(args.outdir).resolve()} (summary.md / report.json / utterances.csv)")
 
 if __name__ == "__main__":
     main()
