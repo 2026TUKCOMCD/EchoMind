@@ -91,7 +91,7 @@ def clean_text(t: str) -> str:
 def analyze_korean_style(sentences):
     full_text = " ".join(sentences)
     if not full_text:
-        return {"avg_len": 0, "self_ref": 0, "certainty": 0, "uncertainty": 0, "ttr": 0}
+        return {"avg_len": 0, "self_ref": 0, "certainty": 0, "uncertainty": 0, "ttr": 0, "laughs": 0}
 
     tokens = kiwi.tokenize(full_text)
     
@@ -101,20 +101,43 @@ def analyze_korean_style(sentences):
     self_ref_count = 0
     certainty_count = 0
     uncertainty_count = 0
+    laugh_count = 0     # ㅋㅋㅋ, ㅎㅎㅎ 등 리액션 횟수 (한국어 E/F 성향 분석 핵심)
     unique_morphs = set()
+
+    # 자기지시어 목록 (품사별로 구분하여 정확도 향상)
+    self_pronouns = {"나", "저", "우리", "너", "본인"}  # NP (대명사)
+    self_determiners = {"내", "제", "네"}              # MM (관형사: '내' 생각엔)
+
+    # 확신/불확신 단어장 확장
+    certainty_words = {"진짜", "정말", "너무", "완전", "확실히", "분명", "반드시", "물론", "절대", "당연"}
+    uncertainty_words = {"아마", "글쎄", "약간", "좀", "어쩌면", "가", "듯", "모르"}
 
     for t in tokens:
         morph = t.form
         tag = t.tag
         unique_morphs.add(morph)
         
-        if morph in ["나", "저", "내", "제", "우리"] and tag.startswith('N'):
+        # 1. 자기지시어 정밀 분석 ('바나나' 문제 해결)
+        # 태그가 NP(대명사)이거나 MM(관형사)일 때만 카운트
+        if tag == 'NP' and morph in self_pronouns:
+            self_ref_count += 1
+        elif tag == 'MM' and morph in self_determiners:
             self_ref_count += 1
             
-        if morph in ["진짜", "정말", "너무", "완전", "확실히", "분명", "반드시", "개"] and tag.startswith('M'):
+        # 2. 한국식 리액션 (ㅋㅋㅋ, ㅎㅎㅎ, ㅠㅠ) - 형태소 분석 시 분리될 수 있음
+        if morph in ['ㅋ', 'ㅎ', 'ㅠ', 'ㅜ']:
+            laugh_count += 1
+            
+        # 3. 확신어 (주로 부사 MAG, 어근 XR)
+        if morph in certainty_words:
             certainty_count += 1
             
-        if morph in ["듯", "나", "가", "글쎄", "아마", "지"] and (tag.startswith('E') or tag.startswith('M')):
+        # 4. 불확신/추측 (어미 E, 부사 MAG)
+        # 예: ~인듯(NNB+VCP+ETM -> 분석기에 따라 다름, 여기선 단순 단어 매칭 보강)
+        if morph in uncertainty_words:
+            uncertainty_count += 1
+        # 추측성 어미 체크 (~것 같아, ~ㄹ까)
+        if tag.startswith('E') and any(x in morph for x in ['나', '가', '지']): # 밥 먹었'나'?, 갈'까'?
             uncertainty_count += 1
 
     return {
@@ -122,7 +145,8 @@ def analyze_korean_style(sentences):
         "self_ref": self_ref_count / total_words,
         "certainty": certainty_count / total_words,
         "uncertainty": uncertainty_count / total_words,
-        "ttr": len(unique_morphs) / total_words
+        "ttr": len(unique_morphs) / total_words,
+        "laughs": laugh_count / total_words  # 리액션 비율 추가
     }
 
 def hf_sentiment_labels(texts):
@@ -162,45 +186,47 @@ def perspective_toxicity_scores(texts):
         time.sleep(1.04)
     return scores
 
-
 def infer_bigfive_korean(summary):
     s = summary
     st = s["style"]
     
-    # [수정] 정규화 함수: scale을 곱한 뒤 offset을 더해 기준점을 이동시킴
     def normalize(val, scale=1.0, offset=0.0):
         val = (val * scale) + offset
         return min(1.0, max(0.0, val))
 
-    # 1. 개방성 (Openness) - N(상상) vs S(현실)
-    # [수정] 기존 TTR * 2.0 -> 1.3으로 대폭 축소 (한국어 조사 거품 제거)
-    # 주제가 다양하지 않으면(일상 대화) S가 나오도록 유도
-    openness = (0.6 * normalize(st["ttr"], 1.3)) + (0.4 * s.get("topic_div", 0.5))
+    # 1. 개방성 (Openness) - N(상상/비유) vs S(현실/직관)
+    # 한국어는 조사가 많아 TTR이 높게 잡히는 경향이 있음 -> 가중치 조절
+    # 주제가 다양하고(Topic Div), 문장이 너무 짧지 않아야(단답형 아님) N 성향
+    openness = (0.5 * normalize(st["ttr"], 1.5)) + \
+               (0.3 * s.get("topic_div", 0.5)) + \
+               (0.2 * normalize(st["avg_len"] / 30)) # 문장이 너무 짧으면(단답) S일 확률 높음
 
-    # 2. 성실성 (Conscientiousness) - J(계획) vs P(즉흥)
-    # 문장 길이(avg_len)가 길면 신중한 것으로 봄
-    conscientiousness = (0.4 * normalize(st["certainty"], 10.0)) + \
-                        (0.3 * (1 - s["toxicity_avg"])) + \
-                        (0.3 * normalize(st["avg_len"] / 25))
+    # 2. 성실성 (Conscientiousness) - J(계획/체계) vs P(유연/즉흥)
+    # 문장 길이보다는 '확신어' 사용과 '리액션 절제'가 중요
+    # 리액션(ㅋㅋㅋ)이 너무 많으면 P 성향일 가능성 높음
+    conscientiousness = (0.4 * normalize(st["certainty"], 12.0)) + \
+                        (0.3 * (1 - normalize(st["laughs"], 5.0))) + \
+                        (0.3 * (1 - s["toxicity_avg"])) # 예의바름(격식)
 
-    # 3. 외향성 (Extraversion) - E(외향) vs I(내향)
-    # 긍정 비율 가중치를 높임
-    extraversion = (0.5 * normalize(s["positive_ratio"], 1.5)) + \
-                   (0.3 * normalize(st["avg_len"] / 20)) + \
-                   (0.2 * normalize(st["self_ref"], 10.0))
+    # 3. 외향성 (Extraversion) - E(사교/표현) vs I(내향/신중)
+    # 단순히 '나'를 많이 쓴다고 E가 아님. 
+    # 한국에서는 'ㅋㅋㅋ/ㅎㅎㅎ'(laughs)와 '긍정적 맞장구'가 E의 핵심 지표
+    extraversion = (0.4 * normalize(st["laughs"], 8.0)) + \
+                   (0.3 * normalize(s["positive_ratio"], 1.5)) + \
+                   (0.3 * normalize(st["self_ref"], 15.0)) # 자기 주관 표출
 
-    # 4. 우호성 (Agreeableness) - F(공감) vs T(논리)
-    # [수정] 중요! '중립' 비율(neutral_ratio)도 30% 점수에 반영
-    # 싸우지 않고 평범하게 말하면(Neutral) 착한(F) 것으로 인정해줌
-    neutral_score = s.get("neutral_ratio", 0.5) * 0.3
-    agreeableness = (0.4 * (1 - s["toxicity_avg"])) + \
-                    (0.3 * normalize(s["positive_ratio"], 1.2)) + \
-                    neutral_score + \
-                    (0.1 * normalize(st["uncertainty"], 5.0))
+    # 4. 우호성 (Agreeableness) - F(공감/관계) vs T(사실/논리)
+    # 리액션(ㅋㅋㅋ,ㅠㅠ)이 많고, 공격성(Toxicity)이 낮아야 함
+    # 중립(Neutral)은 싸우지 않는 성향으로 우호성에 기여
+    agreeableness = (0.3 * (1 - s["toxicity_avg"])) + \
+                    (0.3 * normalize(st["laughs"], 6.0)) + \
+                    (0.2 * normalize(s["positive_ratio"], 1.2)) + \
+                    (0.2 * s.get("neutral_ratio", 0.5))
 
-    # 5. 신경성 (Neuroticism)
+    # 5. 신경성 (Neuroticism) - 정서불안
+    # 부정어 비율과 불확실한 말투(아마, 글쎄..)가 높으면 불안정
     neuroticism = (0.5 * s["negative_ratio"]) + \
-                  (0.3 * normalize(st["uncertainty"], 5.0)) + \
+                  (0.3 * normalize(st["uncertainty"], 6.0)) + \
                   (0.2 * s["toxicity_avg"])
 
     return {
@@ -210,7 +236,7 @@ def infer_bigfive_korean(summary):
         "agreeableness": round(agreeableness * 100, 2),
         "neuroticism": round(neuroticism * 100, 2),
     }
-
+    
 def calculate_mbti_and_reasoning(big5, summary_data):
     e_type = 'E' if big5['extraversion'] >= 50 else 'I'
     n_type = 'N' if big5['openness'] >= 55 else 'S'     #N이 더 안나오도록 유도
