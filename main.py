@@ -24,7 +24,7 @@ import json
 import argparse
 from dataclasses import dataclass
 from typing import List, Dict, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 
 from dotenv import load_dotenv
 from openai import OpenAI
@@ -160,6 +160,8 @@ PROFILE_SCHEMA = {
         "properties": {
             "language": {"type": "string", "enum": ["ko"]},
             "overall_summary": {"type": "string", "minLength": 20, "maxLength": 1200},
+
+            # 1. 정성적 성향 지표 (사용자 리포트용)
             "communication_style": {
                 "type": "object",
                 "additionalProperties": False,
@@ -173,44 +175,64 @@ PROFILE_SCHEMA = {
                 },
                 "required": ["tone", "directness", "emotion_expression", "empathy_signals", "initiative", "conflict_style"],
             },
+
+            # 2. 정량적 성향 벡터 (사용자 매칭 알고리즘용)
+            "communication_vector": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "directness_score": {"type": "number", "minimum": 0, "maximum": 1, "description": "완곡(0) ~ 직설(1)"},
+                    "emotion_score": {"type": "number", "minimum": 0, "maximum": 1, "description": "이성적(0) ~ 감정적(1)"},
+                    "empathy_score": {"type": "number", "minimum": 0, "maximum": 1, "description": "낮음(0) ~ 높음(1)"},
+                    "initiative_score": {"type": "number", "minimum": 0, "maximum": 1, "description": "반응형(0) ~ 주도형(1)"},
+                    "tone_score": {"type": "number", "minimum": 0, "maximum": 1, "description": "공격적(0) ~ 친근/공손(1)"},
+                    "conflict_score": {"type": "number", "minimum": 0, "maximum": 1, "description": "회피형(0) ~ 직면/해결형(1)"}
+                },
+                "required": ["directness_score", "emotion_score", "empathy_score", "initiative_score", "tone_score", "conflict_score"]
+            },
+
             "notable_patterns": {
                 "type": "array",
                 "items": {"type": "string", "minLength": 5, "maxLength": 120},
                 "minItems": 3,
                 "maxItems": 10
             },
+
             "strengths": {
                 "type": "array",
                 "items": {"type": "string", "minLength": 5, "maxLength": 120},
                 "minItems": 2,
                 "maxItems": 6
             },
+
             "cautions": {
                 "type": "array",
                 "items": {"type": "string", "minLength": 5, "maxLength": 120},
                 "minItems": 2,
                 "maxItems": 6
             },
+
             "matching_tips": {
                 "type": "object",
                 "additionalProperties": False,
                 "properties": {
-                    "works_well_with": {"type": "array", "items": {"type": "string", "minLength": 5, "maxLength": 120}, "minItems": 2, "maxItems": 6},
-                    "may_clash_with": {"type": "array", "items": {"type": "string", "minLength": 5, "maxLength": 120}, "minItems": 2, "maxItems": 6},
+                    "works_well_with": {"type": "array", "items": {"type": "string"}, "minItems": 2, "maxItems": 6},
+                    "may_clash_with": {"type": "array", "items": {"type": "string"}, "minItems": 2, "maxItems": 6},
                 },
                 "required": ["works_well_with", "may_clash_with"]
+
             },
             "confidence": {"type": "number", "minimum": 0.0, "maximum": 1.0},
             "evidence_quotes": {
                 "type": "array",
-                "description": "원문을 길게 복사하지 말고 25자 내외로 의역/요약만",
                 "items": {"type": "string", "minLength": 5, "maxLength": 60},
                 "minItems": 3,
                 "maxItems": 8
             }
+
         },
         "required": [
-            "language", "overall_summary", "communication_style",
+            "language", "overall_summary", "communication_style", "communication_vector",
             "notable_patterns", "strengths", "cautions",
             "matching_tips", "confidence", "evidence_quotes"
         ]
@@ -237,6 +259,7 @@ def build_prompt(target_name: str, messages: List[str]) -> str:
 규칙:
 - 심리검사/의학적 진단처럼 단정하지 말고, 텍스트에서 관찰되는 경향만 기술하세요.
 - 개인정보(전화번호/이메일/실명/계좌 등)를 출력에 포함하지 마세요.
+- 출력하는 JSON의 모든 Value에는 \\u001b나 \\u001b[0m 같은 터미널 제어/색상 문자를 절대 포함하지 마세요.
 - 원문을 길게 인용하지 말고, evidence_quotes는 25자 내외 의역/요약만 하세요.
 - 출력은 반드시 제공된 JSON 스키마를 정확히 준수하세요.
 - 언어는 반드시 ko로 출력하세요.
@@ -301,7 +324,7 @@ def main():
         "source": "kakao_export_txt",
         "target_name": args.name,
         "message_count_used": len(msgs),
-        "generated_at": datetime.utcnow().isoformat() + "Z",
+        "generated_at": datetime.now(timezone.utc).isoformat(),
         "model": args.model
     }
 
