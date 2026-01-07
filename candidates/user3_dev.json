@@ -1,0 +1,44 @@
+{
+    "_meta": {
+        "target_name": "박코딩",
+        "model": "gpt-mock"
+    },
+    "language": "ko",
+    "overall_summary": "차분하면서도 유머러스한 개발자입니다.",
+    "communication_style": {
+        "tone": "중립적",
+        "directness": "상황따라변함",
+        "emotion_expression": "보통",
+        "empathy_signals": "보통",
+        "initiative": "혼합형",
+        "conflict_style": "완화"
+    },
+    "topics": [
+        "코딩",
+        "게임",
+        "주식",
+        "영화"
+    ],
+    "notable_patterns": [
+        "드립을 좋아함",
+        "질문형 대화"
+    ],
+    "strengths": [
+        "유연함",
+        "센스 있음"
+    ],
+    "cautions": [
+        "가끔 엉뚱함"
+    ],
+    "matching_tips": {
+        "works_well_with": [
+            "코드가 맞는 사람",
+            "티키타카 잘 되는 사람"
+        ],
+        "may_clash_with": [
+            "권언적인 사람",
+            "답답한 사람"
+        ]
+    },
+    "confidence": 0.88
+}

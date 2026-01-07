@@ -191,6 +191,13 @@ PROFILE_SCHEMA = {
                 "minItems": 2,
                 "maxItems": 6
             },
+            "topics": {
+                "type": "array",
+                "description": "대화에서 드러나는 핵심 관심사/키워드 (예: 주식, 아이돌, 운동, 여행, 코딩)",
+                "items": {"type": "string", "minLength": 2, "maxLength": 20},
+                "minItems": 3,
+                "maxItems": 10
+            },
             "matching_tips": {
                 "type": "object",
                 "additionalProperties": False,
@@ -200,19 +207,12 @@ PROFILE_SCHEMA = {
                 },
                 "required": ["works_well_with", "may_clash_with"]
             },
-            "confidence": {"type": "number", "minimum": 0.0, "maximum": 1.0},
-            "evidence_quotes": {
-                "type": "array",
-                "description": "원문을 길게 복사하지 말고 25자 내외로 의역/요약만",
-                "items": {"type": "string", "minLength": 5, "maxLength": 60},
-                "minItems": 3,
-                "maxItems": 8
-            }
+            "confidence": {"type": "number", "minimum": 0.0, "maximum": 1.0}
         },
         "required": [
             "language", "overall_summary", "communication_style",
-            "notable_patterns", "strengths", "cautions",
-            "matching_tips", "confidence", "evidence_quotes"
+            "topics", "notable_patterns", "strengths", "cautions",
+            "matching_tips", "confidence"
         ]
     }
 }
@@ -237,7 +237,7 @@ def build_prompt(target_name: str, messages: List[str]) -> str:
 규칙:
 - 심리검사/의학적 진단처럼 단정하지 말고, 텍스트에서 관찰되는 경향만 기술하세요.
 - 개인정보(전화번호/이메일/실명/계좌 등)를 출력에 포함하지 마세요.
-- 원문을 길게 인용하지 말고, evidence_quotes는 25자 내외 의역/요약만 하세요.
+- topics(관심사)는 대화에서 반복적으로 등장하거나 깊게 이야기한 주제를 명사 형태로 추출하세요.
 - 출력은 반드시 제공된 JSON 스키마를 정확히 준수하세요.
 - 언어는 반드시 ko로 출력하세요.
 

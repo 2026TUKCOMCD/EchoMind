@@ -1,79 +1,88 @@
-# KakaoPersona  
-카카오톡 대화 내보내기(txt)를 기반으로 **자신의 대화 성향을 분석하고 빅파이브 성격 지표를 탐색적으로 추정**하는 프로젝트입니다.  
-무료 AI API (Hugging Face Inference API + Google Perspective API)를 활용합니다.
+# EchoMind (CLI Version)
+
+카카오톡 대화 내역(`txt`)을 OpenAI GPT로 분석하여 **사용자의 대화 성향 프로필(`json`)을 생성**하고, 여러 사용자 간의 **매칭(궁합)을 분석**해주는 프로젝트입니다.
 
 ---
 
-## 🚀 기능
+## 🚀 주요 기능
 
-### 1. 데이터 파이프라인 및 전처리
-* **정교한 카카오톡 파싱:** 정규표현식(Regex)을 활용하여 대화 내역(`txt`)을 구조화된 데이터로 변환
-* **타겟 화자 자동 추출:** 분석 대상자의 발화만 자동으로 필터링하여 노이즈 제거
+### 1. 성향 분석 (`main.py`)
+*   **GPT 기반 심층 분석**: 대화 내용을 LLM(GPT)에게 전달하여 정성적/정량적 성향 분석.
+*   **구조화된 출력**: 분석 결과를 체계적인 JSON 포맷으로 생성 (`communication_style`, `topics` 등).
+*   **키워드 추출**: 대화에서 자주 등장하는 '관심사(Topics)' 자동 추출.
 
-### 2. 하이브리드 NLP 분석 시스템
-* **Kiwi 형태소 분석:** 한국어 특성에 최적화된 `Kiwi` 라이브러리를 사용하여 문장 구조, 어휘 다양성(TTR), 종결 어미 등을 정밀 분석
-* **AI 감성 & 독성 분석:** * `Hugging Face` 트랜스포머 모델을 활용한 고성능 감정(긍정/부정) 분류
-  * 욕설 및 비속어 필터링 알고리즘을 통한 독성(Toxicity) 수치화
-* **속도 최적화:** 대용량 대화 데이터 처리를 위한 **통계적 표본 추출(Statistical Sampling)** 기법 적용
+### 2. 매칭 추천 (`recommend.py`)
+*   **1:N 매칭 시스템**: 내 프로필과 N명의 후보자 프로필을 비교 분석.
+*   **3단계 점수 산출**:
+    1.  **스타일 유사도(50점)**: 대화 톤, 화법, 공감도 비교 (상호보완적 성향 고려).
+    2.  **관심사 일치도(30점)**: `topics` 키워드 교집합 분석.
+    3.  **AI 매칭 힌트(20점)**: GPT가 분석한 '잘 맞는 성향' 반영.
 
-### 3. 심리 프로파일링 알고리즘
-* **Big 5 (OCEAN) 추론:** 텍스트 마이닝 결과(언어 습관, 감정 패턴)를 기반으로 Big 5 성격 요인 산출
-* **MBTI 매핑:** Big 5 점수를 가중치 알고리즘을 통해 MBTI 유형으로 변환 및 논리적 근거 제시
+---
 
-### 4. 웹 대시보드 및 시각화
-* **Flask & MySQL 연동:** 회원가입/로그인부터 분석 결과 저장까지 풀스택(Full-Stack) 구조 구현
-* **인터랙티브 리포트:** 분석 결과를 직관적인 웹 대시보드(`result.html`)로 시각화하여 제공
+## 🛠️ 설치 및 설정
+
+### 1. 필수 라이브러리 설치
+```bash
+pip install openai python-dotenv
+```
+
+### 2. 환경 변수 설정 (.env)
+프로젝트 루트에 `.env` 파일을 만들고 OpenAI API 키를 입력하세요.
+```ini
+OPENAI_API_KEY=sk-proj-xxxxxxxxxxxxxxxxxxxxxxxx
+OPENAI_MODEL=gpt-5-mini  # 또는 gpt-3.5-turbo (선택 사항)
+```
+
+---
+
+## 📖 사용 방법 (Usage)
+
+### Step 1: 내 프로필 생성 (Analysis)
+카카오톡 대화 내보내기 파일(`.txt`)을 분석하여 JSON 프로필을 만듭니다.
+
+```bash
+# 기본 사용법
+python main.py --file "KakaoTalk_20240101.txt" --name "내이름" --out "my_profile.json"
+
+# 옵션: 분석할 말풍선 개수 지정 (기본 200개)
+python main.py --file "KakaoTalk_20240101.txt" --name "내이름" --out "my_profile.json" --limit 300
+```
+> **팁**: `--name`에는 카톡 대화방에서 쓰인 **본인의 닉네임**을 정확히 입력해야 합니다.
+
+### Step 2: 매칭 파트너 찾기 (Recommendation)
+내 프로필(`my_profile.json`)과 후보자들의 프로필 파일들이 있는 폴더를 비교합니다.
+
+```bash
+# 기본 사용법
+python recommend.py --my "my_profile.json" --dir "./candidates"
+```
+*   `--my`: 기준이 될 내 프로필 파일 경로
+*   `--dir`: 비교할 상대방 파일들이 모여있는 **폴더 경로**
+
+**실행 결과 예시:**
+```text
+[*] '최완우' 님의 베스트 파트너를 찾는 중... (후보: 3명)
+============================================================
+   MATCHING RESULTS FOR [최완우]
+============================================================
+[1위] 박코딩 (점수: 88.5점)
+  - 대화 스타일: 45.0 / 50
+  - 관심사 일치: 25.0 / 30 ['코딩', '주식']
+  - AI 분석매칭: 18.5 / 20
+...
+```
 
 ---
 
 ## 📂 파일 구조
-
-```
-KakaoPersona/
-│
-├── templates/               # 웹 페이지 화면 (HTML)
-│   ├── login.html           # 로그인 페이지
-│   ├── register.html        # 회원가입 페이지
-│   ├── upload.html          # 파일 업로드 화면
-│   └── result.html          # 분석 결과 대시보드
-│
-├── app.py                   # ★ 메인 실행 파일 (Flask 서버 + AI 분석 로직)
-├── main.py                  # (구버전) 초기 CLI 테스트용 코드
-├── requirements.txt         # 프로젝트 의존성 라이브러리 목록
-├── .gitignore               # 깃 업로드 제외 설정
-└── README.md                # 프로젝트 설명서
-│
-└─ out_report/
-   ├─ summary.md
-   ├─ report.json
-   └─ utterances.csv
-```
-
-## 🔑 환경 변수 설정
-
-
-1. `.env` 안에 실제 API 키를 입력합니다. (키는 팀별 개인 계정에서 발급)
-   ```
-   HF_TOKEN=hf_xxxxxxxxxxxxxxxxxxxxxxxxx
-   PERSPECTIVE_API_KEY=AIzaSyXXXXXXXXXXXXXXXXXXXX
-   ```
-
-> ⚠️ `.env` 파일은 `.gitignore`에 등록되어 있어 깃허브에 업로드되지 않습니다.  
-
----
-
-
-## 📊 결과물
-- `out_report/summary.md` : 사람이 읽기 쉬운 요약 리포트  
-- `out_report/report.json` : 세부 분석 JSON  
-- `out_report/utterances.csv` : 문장 단위 감성/독성 결과
+*   `main.py`: 대화 분석 및 프로필 생성 도구 (Creator)
+*   `recommend.py`: 매칭 및 랭킹 산출 도구 (Matcher)
+*   `candidates/`: 매칭 후보자들의 JSON 프로필을 모아두는 폴더
+*   `app.py`: (Legacy) 웹 서버 버전 (현재 사용 안 함)
 
 ---
 
 ## ⚠️ 주의사항
-- 본 프로젝트는 **탐색적 성향 분석 도구**입니다.  
-- 결과는 임상적 성격 검사나 심리 진단을 대체하지 않습니다.  
-- 대화 데이터는 **본인 동의 하에** 사용해야 하며, 개인정보 보호를 위해 `.env`, 실제 카톡 로그 파일은 절대 깃허브에 업로드하지 마세요.
-
----
-
+*   `main.py` 실행 시 OpenAI API 비용이 발생할 수 있습니다.
+*   대화 데이터에는 개인정보가 포함될 수 있으니 파일 관리에 유의하세요.

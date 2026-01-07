@@ -1,0 +1,45 @@
+{
+    "_meta": {
+        "target_name": "이아이돌",
+        "model": "gpt-mock"
+    },
+    "language": "ko",
+    "overall_summary": "감수성이 풍부하고 리액션이 좋은 K-pop 팬입니다.",
+    "communication_style": {
+        "tone": "친근함",
+        "directness": "완곡적",
+        "emotion_expression": "높음",
+        "empathy_signals": "높음",
+        "initiative": "반응형",
+        "conflict_style": "회피"
+    },
+    "topics": [
+        "아이돌",
+        "콘서트",
+        "덕질",
+        "맛집"
+    ],
+    "notable_patterns": [
+        "이모티콘 사용 많음",
+        "감탄사(헐, 대박) 자주 사용"
+    ],
+    "strengths": [
+        "공감 능력",
+        "분위기 메이커"
+    ],
+    "cautions": [
+        "거절을 잘 못함",
+        "감정 기복"
+    ],
+    "matching_tips": {
+        "works_well_with": [
+            "리액션 좋은 사람",
+            "취미가 같은 사람"
+        ],
+        "may_clash_with": [
+            "너무 진지한 사람",
+            "차가운 말투"
+        ]
+    },
+    "confidence": 0.85
+}
