@@ -1,46 +1,58 @@
 {
   "_meta": {
     "target_name": "김주식",
-    "model": "gpt-mock"
+    "model": "gpt-4-turbo"
   },
   "language": "ko",
-  "overall_summary": "논리적이고 직설적인 대화 스타일을 가진 투자 전문가입니다.",
+  "overall_summary": "논리적이고 분석적인 대화를 선호하며, 주식과 경제 흐름에 대한 통찰을 공유하는 것을 즐깁니다.",
   "communication_style": {
-    "tone": "건조함",
-    "directness": "직설적",
-    "emotion_expression": "낮음",
-    "empathy_signals": "낮음",
-    "initiative": "주도형",
-    "conflict_style": "직면"
+    "tone": 0.2,
+    "directness": 0.85,
+    "emotion_expression": 0.3,
+    "empathy_signals": 0.4,
+    "initiative": 0.7,
+    "conflict_style": 0.9
+  },
+  "stats": {
+    "msg_share": 65.0,
+    "avg_reply_latency": 15.5,
+    "question_ratio": 0.12
+  },
+  "dictionary_analysis": {
+    "toxicity_score": 0.05,
+    "sentiment_score": {
+      "positive": 0.2,
+      "negative": 0.3,
+      "neutral": 0.5
+    }
   },
   "topics": [
     "주식",
-    "재테크",
-    "비트코인",
-    "경제"
+    "경제",
+    "부동산",
+    "재테크"
   ],
   "notable_patterns": [
-    "수치 언급이 잦음",
-    "결론부터 말함"
+    "수치 근거 제시",
+    "뉴스 기사 공유"
   ],
   "strengths": [
-    "분석적",
-    "현실적",
-    "솔직함"
+    "객관적 판단",
+    "풍부한 정보"
   ],
   "cautions": [
-    "공감 부족",
-    "지루할 수 있음"
+    "지나치게 분석적일 수 있음",
+    "공감 표현 부족"
   ],
   "matching_tips": {
     "works_well_with": [
-      "논리적인 사람",
-      "감정 기복이 적은 사람"
+      "논리적인 토론을 즐기는 사람",
+      "정보 공유를 좋아하는 사람"
     ],
     "may_clash_with": [
-      "감성적인 사람",
-      "빙빙 돌려 말하는 사람"
+      "감정적인 공감을 원하는 사람",
+      "비논리적인 주장을 하는 사람"
     ]
   },
-  "confidence": 0.9
+  "confidence": 0.92
 }

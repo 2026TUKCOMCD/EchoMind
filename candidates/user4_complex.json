@@ -1,17 +1,30 @@
 {
     "_meta": {
         "target_name": "박츤데레",
-        "model": "gpt-mock"
+        "model": "gpt-4-turbo"
     },
     "language": "ko",
     "overall_summary": "말투는 무뚝뚝하고 차가워 보이지만, 실제로는 동료를 깊이 챙기고 섬세하게 배려하는 스타일입니다.",
     "communication_style": {
-        "tone": "건조함",
-        "directness": "직설적",
-        "emotion_expression": "낮음",
-        "empathy_signals": "높음",
-        "initiative": "반응형",
-        "conflict_style": "완화"
+        "tone": 0.4,
+        "directness": 0.7,
+        "emotion_expression": 0.3,
+        "empathy_signals": 0.8,
+        "initiative": 0.4,
+        "conflict_style": 0.5
+    },
+    "stats": {
+        "msg_share": 40.0,
+        "avg_reply_latency": 8.0,
+        "question_ratio": 0.15
+    },
+    "dictionary_analysis": {
+        "toxicity_score": 0.02,
+        "sentiment_score": {
+            "positive": 0.3,
+            "negative": 0.2,
+            "neutral": 0.5
+        }
     },
     "topics": [
         "고양이",

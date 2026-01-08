@@ -1,45 +1,58 @@
 {
     "_meta": {
-        "target_name": "이아이돌",
-        "model": "gpt-mock"
+        "target_name": "박덕질",
+        "model": "gpt-4-turbo"
     },
     "language": "ko",
-    "overall_summary": "감수성이 풍부하고 리액션이 좋은 K-pop 팬입니다.",
+    "overall_summary": "아이돌과 K-POP 문화를 사랑하며, 감정 표현이 풍부하고 에너지가 넘치는 대화 스타일입니다.",
     "communication_style": {
-        "tone": "친근함",
-        "directness": "완곡적",
-        "emotion_expression": "높음",
-        "empathy_signals": "높음",
-        "initiative": "반응형",
-        "conflict_style": "회피"
+        "tone": 0.95,
+        "directness": 0.4,
+        "emotion_expression": 0.9,
+        "empathy_signals": 0.9,
+        "initiative": 0.8,
+        "conflict_style": 0.2
+    },
+    "stats": {
+        "msg_share": 45.0,
+        "avg_reply_latency": 2.5,
+        "question_ratio": 0.25
+    },
+    "dictionary_analysis": {
+        "toxicity_score": 0.0,
+        "sentiment_score": {
+            "positive": 0.8,
+            "negative": 0.05,
+            "neutral": 0.15
+        }
     },
     "topics": [
         "아이돌",
         "콘서트",
         "덕질",
-        "맛집"
+        "K-POP"
     ],
     "notable_patterns": [
-        "이모티콘 사용 많음",
-        "감탄사(헐, 대박) 자주 사용"
+        "이모티콘 다량 사용",
+        "느낌표(!!) 남발"
     ],
     "strengths": [
-        "공감 능력",
-        "분위기 메이커"
+        "분위기 메이커",
+        "높은 공감 능력"
     ],
     "cautions": [
-        "거절을 잘 못함",
-        "감정 기복"
+        "감정 기복이 심해 보일 수 있음",
+        "다소 시끄러움"
     ],
     "matching_tips": {
         "works_well_with": [
-            "리액션 좋은 사람",
-            "취미가 같은 사람"
+            "함께 흥분해주는 사람",
+            "리액션이 좋은 사람"
         ],
         "may_clash_with": [
             "너무 진지한 사람",
-            "차가운 말투"
+            "시끄러운 것을 싫어하는 사람"
         ]
     },
-    "confidence": 0.85
+    "confidence": 0.95
 }

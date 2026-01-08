@@ -1,45 +1,58 @@
 {
     "_meta": {
-        "target_name": "최직관",
-        "model": "gpt-mock"
+        "target_name": "정직관",
+        "model": "gpt-4-turbo"
     },
     "language": "ko",
-    "overall_summary": "논리적 데이터보다는 직관과 통찰력을 바탕으로 빠르게 의사결정을 내리는 승부사 유형입니다.",
+    "overall_summary": "통찰력이 뛰어나고 기발한 아이디어를 자주 제시하지만, 세부적인 설명은 생략하는 편입니다.",
     "communication_style": {
-        "tone": "자신감",
-        "directness": "직설적",
-        "emotion_expression": "높음",
-        "empathy_signals": "낮음",
-        "initiative": "주도형",
-        "conflict_style": "직면"
+        "tone": 0.6,
+        "directness": 0.5,
+        "emotion_expression": 0.7,
+        "empathy_signals": 0.5,
+        "initiative": 0.8,
+        "conflict_style": 0.3
+    },
+    "stats": {
+        "msg_share": 55.0,
+        "avg_reply_latency": 45.0,
+        "question_ratio": 0.2
+    },
+    "dictionary_analysis": {
+        "toxicity_score": 0.0,
+        "sentiment_score": {
+            "positive": 0.5,
+            "negative": 0.1,
+            "neutral": 0.4
+        }
     },
     "topics": [
-        "사업",
-        "투자",
-        "심리",
-        "협상"
+        "미래 기술",
+        "예술",
+        "철학",
+        "여행"
     ],
     "notable_patterns": [
-        "비유적 표현",
-        "강한 확신"
+        "비유적인 표현",
+        "긴 장문 메시지"
     ],
     "strengths": [
-        "통찰력",
-        "결단력"
+        "창의성",
+        "비전 제시"
     ],
     "cautions": [
-        "근거 부족",
-        "독단적"
+        "현실성 부족",
+        "마무리가 약함"
     ],
     "matching_tips": {
         "works_well_with": [
-            "빠른 실행력을 가진 사람",
-            "센스 있는 사람"
+            "아이디어를 구체화해주는 사람",
+            "열린 마음을 가진 사람"
         ],
         "may_clash_with": [
-            "꼬치꼬치 따지는 사람",
-            "우유부단한 사람"
+            "절차를 중시하는 사람",
+            "세세하게 따지는 사람"
         ]
     },
-    "confidence": 0.92
+    "confidence": 0.85
 }

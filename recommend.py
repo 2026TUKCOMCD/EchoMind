@@ -3,6 +3,7 @@ import os
 import argparse
 import glob
 from typing import Dict, List, Any, Set
+from config import LEGACY_TO_SCORE_MAP
 
 try:
     from kiwipiepy import Kiwi
@@ -18,8 +19,6 @@ except ImportError:
 try:
     from sentence_transformers import SentenceTransformer, util
     # 한국어 성능이 좋은 경량화 모델 사용 (최초 실행 시 자동 다운로드)
-    # CPU에서도 무난하게 돌아가는 'paraphrase-multilingual-MiniLM-L12-v2' (470MB)
-    # 혹은 더 가벼운 'distiluse-base-multilingual-cased-v2'
     print("[*] SBERT 모델 로딩 중... (최초 실행 시 시간이 걸릴 수 있습니다)")
     sbert_model = SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')
     USE_SBERT = True
@@ -30,21 +29,14 @@ except ImportError:
     print("[Warning] sentence-transformers가 없습니다. 의미 기반 매칭(Semantic Matching)을 건너뜁니다.")
 
 
-
 # -------------------------------------------------------------------------
 # 1. Scoring Configuration (가중치 설정)
 # -------------------------------------------------------------------------
-WEIGHT_STYLE = 50   # 스타일 유사도 (50점)
-WEIGHT_TOPIC = 30   # 관심사 일치도 (30점)
-WEIGHT_LLM   = 20   # AI 매칭 힌트 (20점)
+WEIGHT_STYLE = 35   # 스타일 유사도 (35점)
+WEIGHT_STATS = 40   # 통계적 조화 (40점) - NEW
+WEIGHT_TOPIC = 20   # 관심사 일치도 (20점)
+WEIGHT_LLM   = 5    # AI 매칭 힌트 (5점)
 
-# 스타일 점수 매핑 (거리 계산용)
-STYLE_MAP = {
-    "tone": {"친근함": 0, "공손함": 1, "중립적": 2, "건조함": 3, "공격적": 4},
-    "directness": {"직설적": 0, "상황따라변함": 1, "완곡적": 2},
-    "emotion_expression": {"높음": 2, "보통": 1, "낮음": 0},
-    "empathy_signals": {"높음": 2, "보통": 1, "낮음": 0}
-}
 
 # -------------------------------------------------------------------------
 # 2. Helper Functions
@@ -64,8 +56,6 @@ def get_keywords(profile: Dict[str, Any]) -> Set[str]:
             keywords.add(t.replace(" ", "")) # 공백제거 비교
             
     # 2. notable_patterns (보조)
-    # 토픽이 너무 적으면 패턴에서도 일부 명사만 추출할 수 있으나, 
-    # 여기서는 단순 문자열 매칭보다는 topics 필드 의존도를 높임.
     return keywords
 
 def extract_meaningful_words(text: str) -> Set[str]:
@@ -93,107 +83,104 @@ def extract_meaningful_words(text: str) -> Set[str]:
         
     return words
 
+def normalize_style_value(key: str, val: Any) -> float:
+    """
+    스타일 값을 0.0 ~ 1.0 실수로 변환
+    """
+    if isinstance(val, (int, float)):
+        return max(0.0, min(1.0, float(val)))
+        
+    if isinstance(val, str):
+        if val in LEGACY_TO_SCORE_MAP:
+            return LEGACY_TO_SCORE_MAP[val]
+        return 0.5
+    return 0.5
+
 def calculate_style_score(p1: Dict[str, Any], p2: Dict[str, Any]) -> float:
     """
-    스타일 유사도 계산 (만점 1.0)
+    연속형 스타일 유사도 계산 (만점 1.0)
     """
     s1 = p1.get("communication_style", {})
     s2 = p2.get("communication_style", {})
     
-    score_sum = 0
-    max_sum = 0
+    metrics = ["tone", "directness", "emotion_expression", "empathy_signals", "initiative", "conflict_style"]
     
-    # A. 단순 유사도 (거리가 가까울수록 점수 높음)
-    for key in ["tone", "directness", "emotion_expression", "empathy_signals"]:
-        if key not in STYLE_MAP: continue
+    total_sim = 0.0
+    
+    for key in metrics:
+        v1 = normalize_style_value(key, s1.get(key))
+        v2 = normalize_style_value(key, s2.get(key))
         
-        val1 = s1.get(key)
-        val2 = s2.get(key)
+        dist = abs(v1 - v2)
+        sim = 1.0 - dist
+        total_sim += sim
+
+    return total_sim / len(metrics)
+
+def calculate_statistics_score(p1: Dict[str, Any], p2: Dict[str, Any]) -> float:
+    """
+    통계 기반 매칭 점수 (만점 1.0)
+    """
+    st1 = p1.get("stats", {})
+    st2 = p2.get("stats", {})
+    dic1 = p1.get("dictionary_analysis", {})
+    dic2 = p2.get("dictionary_analysis", {})
+    
+    if not st1 or not st2:
+        return 0.5
         
-        if val1 not in STYLE_MAP[key] or val2 not in STYLE_MAP[key]:
-            # 값이 없거나 모르는 값이면 중간 점수 부여
-            score_sum += 0.5
-        else:
-            # Normalized Distance (0~1)
-            v1 = STYLE_MAP[key][val1]
-            v2 = STYLE_MAP[key][val2]
-            max_dist = max(STYLE_MAP[key].values())
-            dist = abs(v1 - v2)
-            similarity = 1.0 - (dist / max_dist)
-            score_sum += similarity
-            
-        max_sum += 1
-
-    # B. 보완적 관계 (Initiative: 주도형+반응형=Good)
-    # 주도+주도(충돌), 반응+반응(침묵) 보다는 섞인게 낫다고 가정 (기획 반영)
-    i1 = s1.get("initiative")
-    i2 = s2.get("initiative")
+    score = 0.0
+    items = 0
     
-    initiative_score = 0.5 # 기본
-    if i1 and i2:
-        if i1 == i2:
-            if i1 == "혼합형": initiative_score = 1.0
-            else: initiative_score = 0.3 # 둘다 주도 혹은 둘다 반응 -> 감점
-        else:
-            # 서로 다르면 (주도+반응, 주도+혼합 등) -> 보완적 관계
-            initiative_score = 1.0
-            
-    score_sum += initiative_score
-    max_sum += 1
+    # 1. Share (Complementarity)
+    sh1 = st1.get("msg_share", 50.0)
+    sh2 = st2.get("msg_share", 50.0)
+    share_sum = sh1 + sh2
+    share_diff = abs(share_sum - 100.0)
+    score += max(0.0, 1.0 - (share_diff / 80.0))
+    items += 1
     
-    # C. 갈등 해결 (Conflict: 직면+회피=Bad)
-    c1 = s1.get("conflict_style")
-    c2 = s2.get("conflict_style")
-    conflict_score = 0.5
-    if c1 and c2:
-        if (c1 == "직면" and c2 == "회피") or (c1 == "회피" and c2 == "직면"):
-            conflict_score = 0.0 # 최악의 상성
-        elif c1 == c2:
-            conflict_score = 1.0
-        else:
-            conflict_score = 0.8
-            
-    score_sum += conflict_score
-    max_sum += 1
-
-    return score_sum / max_sum if max_sum > 0 else 0
+    # 2. Latency (Similarity)
+    lat1 = st1.get("avg_reply_latency", 0.0)
+    lat2 = st2.get("avg_reply_latency", 0.0)
+    lat_diff = abs(lat1 - lat2)
+    score += max(0.0, 1.0 - (lat_diff / 60.0))
+    items += 1
+    
+    # 3. Question (Complementarity)
+    q1 = st1.get("question_ratio", 0.0)
+    q2 = st2.get("question_ratio", 0.0)
+    q_diff = abs(q1 - q2)
+    score += min(1.0, q_diff / 0.15)
+    items += 1
+    
+    # 4. Toxicity (Penalty)
+    tox1 = dic1.get("toxicity_score", 0.0)
+    tox2 = dic2.get("toxicity_score", 0.0)
+    avg_tox = (tox1 + tox2) / 2.0
+    score += max(0.0, 1.0 - (avg_tox * 5))
+    items += 1
+    
+    return score / items if items > 0 else 0.5
 
 def calculate_topic_score(p1: Dict[str, Any], p2: Dict[str, Any]) -> float:
-    """
-    관심사 일치도 (만점 1.0)
-    """
     k1 = get_keywords(p1)
     k2 = get_keywords(p2)
     
     if not k1 or not k2:
         return 0.0
         
-    # 교집합 개수
     overlap = len(k1.intersection(k2))
-    
-    # 5개 이상 겹치면 만점 처리 (변별력 강화: 3 -> 5)
-    score = min(1.0, overlap / 5.0)
-    return score
+    return min(1.0, overlap / 5.0)
 
 def calculate_semantic_similarity(text1: str, text2: str) -> float:
-    """
-    SBERT를 이용한 문장 의미 유사도 (0.0 ~ 1.0)
-    """
     if not USE_SBERT or not text1 or not text2:
         return 0.0
-        
-    # Encode both texts
     emb1 = sbert_model.encode(text1, convert_to_tensor=True)
     emb2 = sbert_model.encode(text2, convert_to_tensor=True)
-    
-    # Cosine Similarity
-    score = util.cos_sim(emb1, emb2).item()
-    return score
+    return util.cos_sim(emb1, emb2).item()
 
 def calculate_llm_hint_score(me: Dict[str, Any], candidate: Dict[str, Any]) -> float:
-    """
-    LLM 힌트 매칭 (만점 1.0, 최저 -1.0)
-    """
     tips = me.get("matching_tips", {})
     works = tips.get("works_well_with", [])
     clash = tips.get("may_clash_with", [])
@@ -204,60 +191,42 @@ def calculate_llm_hint_score(me: Dict[str, Any], candidate: Dict[str, Any]) -> f
                    
     score = 0.0
     
-    # 긍정 힌트 찾기
     for w in works:
         matched = False
-        
-        # 1. SBERT Semantic Match (Prioritized)
         if USE_SBERT:
             sim = calculate_semantic_similarity(w, cand_summary)
-            # 유사도가 일정 수준(0.4) 이상이면 매칭 간주
             if sim > 0.4:  
-                score += 0.5 * min(1.0, sim * 1.5) # 유사도가 높을수록 점수 더 줌
+                score += 0.5 * min(1.0, sim * 1.5)
                 matched = True
-                
-        # 2. Kiwi Keyword Match (Fallback / Complementary)
         if not matched and USE_KIWI:
             w_keywords = extract_meaningful_words(w)
             cand_keywords = extract_meaningful_words(cand_summary)
             if w_keywords & cand_keywords:
                 score += 0.5
                 matched = True
-        
-        # 3. Simple String Match (Last Resort)
         if not matched and not USE_KIWI and not USE_SBERT:
              if w in cand_summary:
                 score += 0.5
 
-    # 부정 힌트 찾기
     for c in clash:
         matched = False
-        
-        # 1. SBERT
         if USE_SBERT:
             sim = calculate_semantic_similarity(c, cand_summary)
-            if sim > 0.45: # 부정 매칭은 좀 더 엄격하게(오탐 방지)
+            if sim > 0.45: 
                 score -= 0.5 * min(1.0, sim * 1.5)
                 matched = True
-                
-        # 2. Kiwi
         if not matched and USE_KIWI:
             c_keywords = extract_meaningful_words(c)
             cand_keywords = extract_meaningful_words(cand_summary)
-            # 부정 키워드 매칭 시, 단순 키워드 겹침은 오해의 소지가 큼(예: '감정'적 vs '감정' 표현 낮음)
-            # 따라서 SBERT가 켜져있으면 Kiwi 부정 매칭은 스킵하거나 보수적으로 적용
             if c_keywords & cand_keywords:
                 score -= 0.5
                 matched = True
-                
-        # 3. String
         if not matched and not USE_KIWI and not USE_SBERT:
             if c in cand_summary:
                 score -= 0.5
             
-    # Range Clamping (-1.0 ~ 1.0) -> Normalize to 0.0 ~ 1.0 for weighted sum?
-    # 여기서는 보너스 점수이므로 -점수도 허용하되, 최종 합산시 고려
     return max(-1.0, min(1.0, score))
+
 
 # -------------------------------------------------------------------------
 # 3. Main Logic
@@ -276,7 +245,6 @@ def recommend_best_match(my_file: str, candidates_dir: str):
     print(f"[*] '{my_name}' 님의 베스트 파트너를 찾는 중... (후보: {len(cand_files)}명)")
     
     for cf in cand_files:
-        # 내 파일은 제외
         if os.path.abspath(cf) == os.path.abspath(my_file):
             continue
             
@@ -288,20 +256,16 @@ def recommend_best_match(my_file: str, candidates_dir: str):
 
         cand_name = cand_profile.get("_meta", {}).get("target_name", "이름미상")
         
-        # 1. Calculate Scores
+        # Calculate Scores
         s_style = calculate_style_score(my_profile, cand_profile)
+        s_stats = calculate_statistics_score(my_profile, cand_profile)
         s_topic = calculate_topic_score(my_profile, cand_profile)
         s_llm   = calculate_llm_hint_score(my_profile, cand_profile)
         
-        # 2. Weighted Sum
-        # LLM Score는 -1~1 범위이므로, 0~1로 정규화하거나 그대로 보너스로 사용.
-        # 여기서는 기본 100점 만점 구조에 더하는 식으로 계산
-        # Style(50) + Topic(30) + LLM(20, but mapped from -1~1 to 0~1 ish)
-        
-        # LLM 점수 변환: -1(0점) ~ 0(10점) ~ 1(20점)
-        llm_mapped = (s_llm + 1.0) / 2.0  # 0.0 ~ 1.0
+        llm_mapped = (s_llm + 1.0) / 2.0
         
         total = (s_style * WEIGHT_STYLE) + \
+                (s_stats * WEIGHT_STATS) + \
                 (s_topic * WEIGHT_TOPIC) + \
                 (llm_mapped * WEIGHT_LLM)
                 
@@ -311,25 +275,25 @@ def recommend_best_match(my_file: str, candidates_dir: str):
             "total_score": round(total, 1),
             "details": {
                 "style": round(s_style * WEIGHT_STYLE, 1),
+                "stats": round(s_stats * WEIGHT_STATS, 1),
                 "topic": round(s_topic * WEIGHT_TOPIC, 1),
                 "llm":   round(llm_mapped * WEIGHT_LLM, 1)
             },
             "topics": list(get_keywords(my_profile).intersection(get_keywords(cand_profile)))
         })
         
-    # 3. Rank
     results.sort(key=lambda x: x["total_score"], reverse=True)
     
-    # 4. Output
     print("\n" + "="*60)
     print(f"   MATCHING RESULTS FOR [{my_name}]")
     print("="*60)
     
     for rank, res in enumerate(results[:5], 1): # Top 5
         print(f"\n[{rank}위] {res['name']} (점수: {res['total_score']}점)")
-        print(f"  - 대화 스타일: {res['details']['style']} / {WEIGHT_STYLE}")
-        print(f"  - 관심사 일치: {res['details']['topic']} / {WEIGHT_TOPIC} {res['topics']}")
-        print(f"  - AI 분석매칭: {res['details']['llm']} / {WEIGHT_LLM}")
+        print(f"  - 대화 성향(Style): {res['details']['style']} / {WEIGHT_STYLE}")
+        print(f"  - 통계 데이터(Stats): {res['details']['stats']} / {WEIGHT_STATS}")
+        print(f"  - 관심사 일치(Topic): {res['details']['topic']} / {WEIGHT_TOPIC} {res['topics']}")
+        print(f"  - AI 분석매칭(Hint):  {res['details']['llm']} / {WEIGHT_LLM}")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="EchoMind Recommendation System")
