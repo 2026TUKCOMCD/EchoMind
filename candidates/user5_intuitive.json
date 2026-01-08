@@ -1,0 +1,45 @@
+{
+    "_meta": {
+        "target_name": "최직관",
+        "model": "gpt-mock"
+    },
+    "language": "ko",
+    "overall_summary": "논리적 데이터보다는 직관과 통찰력을 바탕으로 빠르게 의사결정을 내리는 승부사 유형입니다.",
+    "communication_style": {
+        "tone": "자신감",
+        "directness": "직설적",
+        "emotion_expression": "높음",
+        "empathy_signals": "낮음",
+        "initiative": "주도형",
+        "conflict_style": "직면"
+    },
+    "topics": [
+        "사업",
+        "투자",
+        "심리",
+        "협상"
+    ],
+    "notable_patterns": [
+        "비유적 표현",
+        "강한 확신"
+    ],
+    "strengths": [
+        "통찰력",
+        "결단력"
+    ],
+    "cautions": [
+        "근거 부족",
+        "독단적"
+    ],
+    "matching_tips": {
+        "works_well_with": [
+            "빠른 실행력을 가진 사람",
+            "센스 있는 사람"
+        ],
+        "may_clash_with": [
+            "꼬치꼬치 따지는 사람",
+            "우유부단한 사람"
+        ]
+    },
+    "confidence": 0.92
+}

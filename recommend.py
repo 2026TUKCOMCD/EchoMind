@@ -4,6 +4,33 @@ import argparse
 import glob
 from typing import Dict, List, Any, Set
 
+try:
+    from kiwipiepy import Kiwi
+    kiwi = Kiwi()
+    STOP_WORDS = {"사람", "성격", "성향", "분", "편", "것", "점", "수", "등", "나", "저"}
+    USE_KIWI = True
+except ImportError:
+    kiwi = None
+    STOP_WORDS = set()
+    USE_KIWI = False
+    print("[Warning] kiwipiepy(Kiwi)가 없습니다. 단순 텍스트 매칭만 수행합니다.")
+
+try:
+    from sentence_transformers import SentenceTransformer, util
+    # 한국어 성능이 좋은 경량화 모델 사용 (최초 실행 시 자동 다운로드)
+    # CPU에서도 무난하게 돌아가는 'paraphrase-multilingual-MiniLM-L12-v2' (470MB)
+    # 혹은 더 가벼운 'distiluse-base-multilingual-cased-v2'
+    print("[*] SBERT 모델 로딩 중... (최초 실행 시 시간이 걸릴 수 있습니다)")
+    sbert_model = SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')
+    USE_SBERT = True
+    print("[OK] SBERT 모델 로드 완료!")
+except ImportError:
+    sbert_model = None
+    USE_SBERT = False
+    print("[Warning] sentence-transformers가 없습니다. 의미 기반 매칭(Semantic Matching)을 건너뜁니다.")
+
+
+
 # -------------------------------------------------------------------------
 # 1. Scoring Configuration (가중치 설정)
 # -------------------------------------------------------------------------
@@ -40,6 +67,31 @@ def get_keywords(profile: Dict[str, Any]) -> Set[str]:
     # 토픽이 너무 적으면 패턴에서도 일부 명사만 추출할 수 있으나, 
     # 여기서는 단순 문자열 매칭보다는 topics 필드 의존도를 높임.
     return keywords
+
+def extract_meaningful_words(text: str) -> Set[str]:
+    """
+    텍스트에서 의미 있는 단어(명사, 어근)만 추출 (2글자 이상)
+    """
+    if not text: return set()
+    
+    # Kiwi가 없으면 띄어쓰기 단위로 대충 분리
+    if not USE_KIWI:
+        return set(text.split())
+
+    words = set()
+    try:
+        # 형태소 분석
+        tokens = kiwi.tokenize(text)
+        for t in tokens:
+            # 명사(N..) 또는 어근(XR)이면서, 한 글자가 아닌 것
+            if (t.tag.startswith('N') or t.tag.startswith('XR')) and len(t.form) > 1:
+                if t.form not in STOP_WORDS:
+                    words.add(t.form)
+    except Exception as e:
+        print(f"[NLP Error] {e}")
+        pass
+        
+    return words
 
 def calculate_style_score(p1: Dict[str, Any], p2: Dict[str, Any]) -> float:
     """
@@ -119,8 +171,23 @@ def calculate_topic_score(p1: Dict[str, Any], p2: Dict[str, Any]) -> float:
     # 교집합 개수
     overlap = len(k1.intersection(k2))
     
-    # 3개 이상 겹치면 만점 처리 (너무 엄격하지 않게)
-    score = min(1.0, overlap / 3.0)
+    # 5개 이상 겹치면 만점 처리 (변별력 강화: 3 -> 5)
+    score = min(1.0, overlap / 5.0)
+    return score
+
+def calculate_semantic_similarity(text1: str, text2: str) -> float:
+    """
+    SBERT를 이용한 문장 의미 유사도 (0.0 ~ 1.0)
+    """
+    if not USE_SBERT or not text1 or not text2:
+        return 0.0
+        
+    # Encode both texts
+    emb1 = sbert_model.encode(text1, convert_to_tensor=True)
+    emb2 = sbert_model.encode(text2, convert_to_tensor=True)
+    
+    # Cosine Similarity
+    score = util.cos_sim(emb1, emb2).item()
     return score
 
 def calculate_llm_hint_score(me: Dict[str, Any], candidate: Dict[str, Any]) -> float:
@@ -139,13 +206,54 @@ def calculate_llm_hint_score(me: Dict[str, Any], candidate: Dict[str, Any]) -> f
     
     # 긍정 힌트 찾기
     for w in works:
-        if w in cand_summary:
-            score += 0.5 # 하나라도 있으면 크게 가점
-            
+        matched = False
+        
+        # 1. SBERT Semantic Match (Prioritized)
+        if USE_SBERT:
+            sim = calculate_semantic_similarity(w, cand_summary)
+            # 유사도가 일정 수준(0.4) 이상이면 매칭 간주
+            if sim > 0.4:  
+                score += 0.5 * min(1.0, sim * 1.5) # 유사도가 높을수록 점수 더 줌
+                matched = True
+                
+        # 2. Kiwi Keyword Match (Fallback / Complementary)
+        if not matched and USE_KIWI:
+            w_keywords = extract_meaningful_words(w)
+            cand_keywords = extract_meaningful_words(cand_summary)
+            if w_keywords & cand_keywords:
+                score += 0.5
+                matched = True
+        
+        # 3. Simple String Match (Last Resort)
+        if not matched and not USE_KIWI and not USE_SBERT:
+             if w in cand_summary:
+                score += 0.5
+
     # 부정 힌트 찾기
     for c in clash:
-        if c in cand_summary:
-            score -= 0.5
+        matched = False
+        
+        # 1. SBERT
+        if USE_SBERT:
+            sim = calculate_semantic_similarity(c, cand_summary)
+            if sim > 0.45: # 부정 매칭은 좀 더 엄격하게(오탐 방지)
+                score -= 0.5 * min(1.0, sim * 1.5)
+                matched = True
+                
+        # 2. Kiwi
+        if not matched and USE_KIWI:
+            c_keywords = extract_meaningful_words(c)
+            cand_keywords = extract_meaningful_words(cand_summary)
+            # 부정 키워드 매칭 시, 단순 키워드 겹침은 오해의 소지가 큼(예: '감정'적 vs '감정' 표현 낮음)
+            # 따라서 SBERT가 켜져있으면 Kiwi 부정 매칭은 스킵하거나 보수적으로 적용
+            if c_keywords & cand_keywords:
+                score -= 0.5
+                matched = True
+                
+        # 3. String
+        if not matched and not USE_KIWI and not USE_SBERT:
+            if c in cand_summary:
+                score -= 0.5
             
     # Range Clamping (-1.0 ~ 1.0) -> Normalize to 0.0 ~ 1.0 for weighted sum?
     # 여기서는 보너스 점수이므로 -점수도 허용하되, 최종 합산시 고려
@@ -172,7 +280,12 @@ def recommend_best_match(my_file: str, candidates_dir: str):
         if os.path.abspath(cf) == os.path.abspath(my_file):
             continue
             
-        cand_profile = load_json(cf)
+        try:
+            cand_profile = load_json(cf)
+        except Exception as e:
+            print(f"[Skip] 파일 로드 실패 ({os.path.basename(cf)}): {e}")
+            continue
+
         cand_name = cand_profile.get("_meta", {}).get("target_name", "이름미상")
         
         # 1. Calculate Scores
