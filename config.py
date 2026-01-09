@@ -114,11 +114,8 @@ LEGACY_TO_SCORE_MAP = {
 # -------------------------------------------------------------------------
 # 5. Dictionary & Analysis Config
 # -------------------------------------------------------------------------
-# 욕설/비속어 리스트 (독성 분석용 - 예시 데이터, 필요시 확장)
-BAD_WORDS = {
-    "시발", "씨발", "병신", "개새끼", "존나", "미친", 
-    "죽어", "꺼져", "년", "놈", "닥쳐", "졸라"
-}
+# 욕설/비속어 리스트 파일 (korean_bad_words.json)
+BAD_WORDS_FILE = "korean_bad_words.json"
 
 # KNU 감성 사전 파일명 (main.py와 같은 경로 가정)
 SENTIMENT_DICT_FILE = "SentiWord_info.json"

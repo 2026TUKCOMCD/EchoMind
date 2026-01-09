@@ -155,7 +155,7 @@ def extract_target_messages(rows: List[Dict[str, str]], target_name: str, limit:
 # ----------------------------
 # 2-1) Stat & Dictionary Helper
 # ----------------------------
-from config import BAD_WORDS, SENTIMENT_DICT_FILE
+from config import BAD_WORDS_FILE, SENTIMENT_DICT_FILE
 
 # Kiwi Init (Safe)
 try:
@@ -270,11 +270,26 @@ def analyze_dictionary_based(messages: List[str], senti_db: dict) -> dict:
     # 1. Toxicity
     toxic_count = 0
     total = len(messages)
-    for m in messages:
-        for bad in BAD_WORDS:
-            if bad in m:
-                toxic_count += 1
-                break
+    
+    # Load Bad Words (Lazy load or load here)
+    bad_words_list = []
+    if os.path.exists(BAD_WORDS_FILE):
+        try:
+            with open(BAD_WORDS_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                # 'abuse' flag가 1인 것만 필터링 (필요시 otherHate 등도 포함 가능)
+                bad_words_list = [item["text"] for item in data if item.get("abuse") == 1]
+            print(f"[*] 욕설 사전 로드 완료 ({len(bad_words_list)}개)")
+        except Exception as e:
+            print(f"[Warning] 욕설 사전 로드 실패: {e}")
+            
+    if bad_words_list:
+        for m in messages:
+            for bad in bad_words_list:
+                if bad in m:
+                    toxic_count += 1
+                    break
+    
     tox_score = toxic_count / total if total > 0 else 0.0
     
     # 2. Sentiment
