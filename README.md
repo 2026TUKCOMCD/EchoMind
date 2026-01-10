@@ -8,7 +8,7 @@
 
 ## 📁 시스템 구조도
 
-![KakaoTalk_20260110_163913577](https://github.com/user-attachments/assets/bffec802-ab5b-4279-bcbc-071caf60eae2)
+![system](https://github.com/user-attachments/assets/95e83d65-fe4a-4a84-a885-d02b1c9967e9)
 
 <br>
 
@@ -128,5 +128,6 @@
 
 ## 3. 프로젝트 로드맵
 
-<img width="1408" height="752" alt="roadmap" src="https://github.com/user-attachments/assets/a45bc52d-51c0-44db-a93d-1572cc8249ee" />
+<img width="1408" height="752" alt="roadmap" src="https://github.com/user-attachments/assets/f95fe632-3fff-4a77-9f27-25f7e3c40784" />
+
 
