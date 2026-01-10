@@ -102,7 +102,7 @@
 | 구분 | 환경 |
 | :---: | :---: |
 | **운영체제** | Windows 10 / 11 |
-| **개발 도구** | Visual Studio Code |
+| **개발 도구** | Visual Studio Code, PyCharm |
 | **언어** | Python 3.9+ (Virtualenv 권장) |
 | **데이터베이스** | Local MySQL / SQLite |
 | **버전 관리** | Git & GitHub |
