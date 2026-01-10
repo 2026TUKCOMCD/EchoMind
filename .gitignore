@@ -1,0 +1,6 @@
+.venv/
+.env
+sample_chat.txt
+report.json
+output/
+.idea/

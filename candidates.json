@@ -1,0 +1,164 @@
+{
+  "candidates": [
+    {
+      "user_id": "u_001",
+      "message_count": 512,
+      "rhythm": {
+        "avg_msg_len": 18.6,
+        "question_ratio": 0.29,
+        "avg_gap_sec": 410.3
+      },
+      "language": {
+        "honorific_ratio": 0.91,
+        "casual_ratio": 0.06,
+        "emoji_ratio": 0.08,
+        "hedge_ratio": 0.17
+      },
+      "confidence": 0.85
+    },
+    {
+      "user_id": "u_002",
+      "message_count": 184,
+      "rhythm": {
+        "avg_msg_len": 12.9,
+        "question_ratio": 0.18,
+        "avg_gap_sec": 980.0
+      },
+      "language": {
+        "honorific_ratio": 0.54,
+        "casual_ratio": 0.31,
+        "emoji_ratio": 0.22,
+        "hedge_ratio": 0.09
+      },
+      "confidence": 0.78
+    },
+    {
+      "user_id": "u_003",
+      "message_count": 96,
+      "rhythm": {
+        "avg_msg_len": 26.4,
+        "question_ratio": 0.34,
+        "avg_gap_sec": 260.7
+      },
+      "language": {
+        "honorific_ratio": 0.95,
+        "casual_ratio": 0.03,
+        "emoji_ratio": 0.04,
+        "hedge_ratio": 0.26
+      },
+      "confidence": 0.78
+    },
+    {
+      "user_id": "u_004",
+      "message_count": 62,
+      "rhythm": {
+        "avg_msg_len": 9.7,
+        "question_ratio": 0.11,
+        "avg_gap_sec": null
+      },
+      "language": {
+        "honorific_ratio": 0.22,
+        "casual_ratio": 0.56,
+        "emoji_ratio": 0.31,
+        "hedge_ratio": 0.04
+      },
+      "confidence": 0.6
+    },
+    {
+      "user_id": "u_005",
+      "message_count": 402,
+      "rhythm": {
+        "avg_msg_len": 21.1,
+        "question_ratio": 0.27,
+        "avg_gap_sec": 540.5
+      },
+      "language": {
+        "honorific_ratio": 0.88,
+        "casual_ratio": 0.08,
+        "emoji_ratio": 0.12,
+        "hedge_ratio": 0.14
+      },
+      "confidence": 0.85
+    },
+    {
+      "user_id": "u_006",
+      "message_count": 148,
+      "rhythm": {
+        "avg_msg_len": 14.2,
+        "question_ratio": 0.24,
+        "avg_gap_sec": 130.2
+      },
+      "language": {
+        "honorific_ratio": 0.47,
+        "casual_ratio": 0.33,
+        "emoji_ratio": 0.09,
+        "hedge_ratio": 0.12
+      },
+      "confidence": 0.78
+    },
+    {
+      "user_id": "u_007",
+      "message_count": 236,
+      "rhythm": {
+        "avg_msg_len": 28.9,
+        "question_ratio": 0.41,
+        "avg_gap_sec": 300.0
+      },
+      "language": {
+        "honorific_ratio": 0.97,
+        "casual_ratio": 0.01,
+        "emoji_ratio": 0.06,
+        "hedge_ratio": 0.31
+      },
+      "confidence": 0.78
+    },
+    {
+      "user_id": "u_008",
+      "message_count": 84,
+      "rhythm": {
+        "avg_msg_len": 10.8,
+        "question_ratio": 0.14,
+        "avg_gap_sec": 1800.0
+      },
+      "language": {
+        "honorific_ratio": 0.12,
+        "casual_ratio": 0.62,
+        "emoji_ratio": 0.18,
+        "hedge_ratio": 0.05
+      },
+      "confidence": 0.73
+    },
+    {
+      "user_id": "u_009",
+      "message_count": 610,
+      "rhythm": {
+        "avg_msg_len": 16.1,
+        "question_ratio": 0.33,
+        "avg_gap_sec": 210.4
+      },
+      "language": {
+        "honorific_ratio": 0.86,
+        "casual_ratio": 0.09,
+        "emoji_ratio": 0.21,
+        "hedge_ratio": 0.19
+      },
+      "confidence": 0.85
+    },
+    {
+      "user_id": "u_010",
+      "message_count": 132,
+      "rhythm": {
+        "avg_msg_len": 19.8,
+        "question_ratio": 0.22,
+        "avg_gap_sec": 720.0
+      },
+      "language": {
+        "honorific_ratio": 0.72,
+        "casual_ratio": 0.18,
+        "emoji_ratio": 0.09,
+        "hedge_ratio": 0.13
+      },
+      "confidence": 0.78
+    }
+  ]
+}
