@@ -50,7 +50,7 @@
 <table>
   <tr>
     <td align="center">
-      <img src="https://ko.wikipedia.org/wiki/%EC%95%84%EB%A7%88%EC%A1%B4_%EC%9B%B9_%EC%84%9C%EB%B9%84%EC%8A%A4#/media/%ED%8C%8C%EC%9D%BC:Amazon_Web_Services_Logo.svg" alt="AWS" width="50" height="50"/>
+      <img src="https://cdn.simpleicons.org/amazonaws/FF9900" alt="AWS" width="50" height="50"/>
       <br>AWS
     </td>
     <td align="center">
