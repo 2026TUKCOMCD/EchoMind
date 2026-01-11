@@ -104,7 +104,7 @@
 | **운영체제** | Windows 10 / 11 |
 | **개발 도구** | Visual Studio Code, PyCharm |
 | **언어** | Python 3.9+ (Virtualenv 권장) |
-| **데이터베이스** | Local MySQL / SQLite |
+| **데이터베이스** | MySQL |
 | **버전 관리** | Git & GitHub |
 
 <br>
@@ -120,7 +120,7 @@
 | **데이터베이스** | Amazon RDS (MySQL) |
 | **웹 서버** | Nginx (Reverse Proxy) |
 | **WSGI 서버** | Gunicorn |
-| **AI 모델** | OpenAI GPT-5.1 mini (API) |
+| **AI 모델** | OpenAI GPT (API) |
 
 **※ 배포:** GitHub Actions를 통한 CI/CD 파이프라인 구축 (예정)
 
