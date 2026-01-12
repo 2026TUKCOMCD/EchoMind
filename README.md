@@ -61,10 +61,6 @@
       <img src="https://cdn.simpleicons.org/nginx/009639" alt="Nginx" width="50" height="50"/>
       <br>Nginx
     </td>
-    <td align="center">
-      <img src="https://cdn.simpleicons.org/gunicorn/499848" alt="Gunicorn" width="50" height="50"/>
-      <br>Gunicorn
-    </td>
   </tr>
 </table>
 
