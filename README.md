@@ -119,7 +119,6 @@
 | **서버 운영체제** | Ubuntu Linux 24.04 LTS |
 | **데이터베이스** | Amazon RDS (MySQL) |
 | **웹 서버** | Nginx (Reverse Proxy) |
-| **WSGI 서버** | Gunicorn |
 | **AI 모델** | OpenAI GPT (API) |
 
 
