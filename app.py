@@ -76,31 +76,140 @@ except Exception as e:
 # [2] 분석 로직 모음 (MBTI Linguistic Features)
 # -----------------------
 LINE_RE = re.compile(r"^\[(?P<name>.+?)\]\s+\[(?P<time>.*?)\]\s+(?P<msg>.+)$")
-SKIP_TOKENS = {"사진", "이모티콘", "동영상", "삭제된 메시지입니다.", "보이스톡 해요.", "파일", "샵검색"}
-BAD_WORDS = {"시발", "씨발", "병신", "개새끼", "존나", "미친", "죽어", "꺼져", "년", "놈"}
+# -----------------------
+# [1.1] 욕설/독성 사전 로딩 (korean_bad_words.json)
+# -----------------------
+print(">>> 독성(욕설) 사전을 로딩 중입니다...")
+BAD_WORDS = set()
+try:
+    with open('korean_bad_words.json', encoding='utf-8') as f:
+        bad_data = json.load(f)
+        # bad_data가 리스트인지, 딕셔너리인지 확인 필요 (보통 리스트 ['시발', ...])
+        # 만약 {"bad_words": [...]} 형태면 keys 확인
+        if isinstance(bad_data, list):
+            BAD_WORDS = set(bad_data)
+        elif isinstance(bad_data, dict) and "bad_words" in bad_data:
+            BAD_WORDS = set(bad_data["bad_words"])
+        else:
+            # 딕셔너리 키 자체가 단어일 수도 있음
+            BAD_WORDS = set(bad_data.keys())
+            
+    # 핵심 욕설은 강제 추가 (누락 방지)
+    BAD_WORDS.update(["시발", "씨발", "병신", "개새끼", "존나", "미친", "죽어", "꺼져", "년", "놈"])
+    print(f">>> 독성 사전 로딩 완료! (단어 수: {len(BAD_WORDS)}개)")
+except Exception as e:
+    print(f">>> [경고] 'korean_bad_words.json' 파일이 없습니다! 기본 욕설 목록만 사용합니다.")
+    BAD_WORDS = {"시발", "씨발", "병신", "개새끼", "존나", "미친", "죽어", "꺼져", "년", "놈"}
+
 
 # =============================================================================
 # [사용자 설정] MBTI 가중치 조절
-# 숫자가 클수록 해당 성향이 나올 확률이 높아집니다.
-# 예: 내향형(I)이 너무 많이 나오면, WEIGHT_E를 1.5로 늘리거나 WEIGHT_I를 1.0으로 줄이세요.
-# =============================================================================
-WEIGHT_E = 1.0   # 외향형(E) 가중치
-WEIGHT_I = 1.2   # 내향형(I) 가중치 (기본적으로 한국인은 I성향이 강해 1.2배 보정)
-
-WEIGHT_S = 1.0   # 감각형(S) 가중치
-WEIGHT_N = 1.2   # 직관형(N) 가중치 (S단어가 일상에 너무 많아 N에 보정치 1.2 부여)
-
-WEIGHT_T = 1.0   # 사고형(T) 가중치
-WEIGHT_F = 1.0   # 감정형(F) 가중치
-
-WEIGHT_J = 1.0   # 판단형(J) 가중치
-WEIGHT_P = 1.0   # 인식형(P) 가중치
+# ... (기존 설정 유지) ...
+WEIGHT_E = 1.0; WEIGHT_I = 1.2
+WEIGHT_S = 1.0; WEIGHT_N = 1.1
+WEIGHT_T = 1.0; WEIGHT_F = 1.0
+WEIGHT_J = 1.0; WEIGHT_P = 1.0
 # =============================================================================
 
-# [단어 사전 정의]
-# 1. E vs I
-E_ENDINGS = {'어', '자', '까', '해', '봐', '지', '니', '냐'} # 권유, 질문, 공감 유도
-I_ENDINGS = {'다', '음', '임', '셈', '함', '듯', '네'} # 서술, 독백, 단답
+# ... (기존 키워드 유지) ...
+E_ENDINGS = {'어', '자', '까', '해', '봐', '지', '니', '냐'}
+I_ENDINGS = {'다', '음', '임', '셈', '함', '듯', '네'}
+# ...
+
+# -----------------------------------------------------------------------------
+# [추가] Big5 고도화를 위한 한국어 스타일 분석 (API 로직 이식)
+# -----------------------------------------------------------------------------
+def analyze_korean_style_features(sentences):
+    """
+    Big5 산출을 위한 정밀 언어 스타일 분석
+    - TTR (어휘 다양성 -> 개방성)
+    - Self-Ref (자기 지칭 -> 외향성)
+    - Laughs (리액션 -> 외향성/친화성)
+    - Certainty (확신어 -> 성실성/J)
+    """
+    full_text = " ".join(sentences[:5000])
+    tokens = kiwi.tokenize(full_text)
+    total_words = len(tokens)
+    if total_words == 0: total_words = 1
+    
+    unique_morphs = set()
+    self_ref_count = 0
+    certainty_count = 0
+    uncertainty_count = 0
+    laugh_count = 0 
+    
+    # 자기지시어 (나, 저, 우리...)
+    self_pronouns = {"나", "저", "우리", "내", "제"}
+    # 확신어
+    certainty_words = {"진짜", "정말", "너무", "완전", "확실히", "분명", "반드시", "물론", "절대", "당연"}
+    # 불확신어
+    uncertainty_words = {"아마", "글쎄", "약간", "좀", "어쩌면", "모르", "듯"}
+    
+    for t in tokens:
+        m, tag = t.form, t.tag
+        unique_morphs.add(m)
+        
+        # 1. 자기지칭 (NP: 대명사, MM: 관형사)
+        if m in self_pronouns and (tag.startswith('N') or tag == 'MM'):
+            self_ref_count += 1
+            
+        # 2. 리액션 (ㅋ, ㅎ, ㅠ) - 웃음소리
+        if any(c in m for c in ['ㅋ', 'ㅎ', 'ㅠ', 'ㅜ']):
+            laugh_count += 1
+            
+        # 3. 확신/불확신
+        if m in certainty_words: certainty_count += 1
+        if m in uncertainty_words: uncertainty_count += 1
+            
+    # Normalize (빈도 비율)
+    style = {
+        "avg_len": sum(len(s.split()) for s in sentences) / len(sentences) if sentences else 0, # 어절 기준 평균 길이
+        "ttr": len(unique_morphs) / total_words,               # 어휘 다양성
+        "self_ref": self_ref_count / total_words,              # 자기 중심성
+        "laughs": laugh_count / total_words,                   # 리액션 비율
+        "certainty": certainty_count / total_words,            # 확신 비율
+        "uncertainty": uncertainty_count / total_words         # 불확신 비율
+    }
+    return style
+
+def calculate_advanced_big5(style, tox_ratio, pos_ratio, neg_ratio):
+    """
+    스타일(Style) + 감성(Sentiment) + 독성(Toxicity) -> Big5 점수 산출
+    (API 로직의 가중치를 참고하여 튜닝)
+    """
+    def normalize(val, factor=100):
+        # 작은 비율 값을 0~1 스케일로 변환하기 위한 헬퍼
+        return min(1.0, val * factor)
+
+    # 1. 개방성 (Openness): 어휘가 다양하고(TTR), 긍정적 표현(감성)이 풍부할수록 높음
+    # TTR은 보통 0.1~0.3 사이 -> *3 하면 0.3~0.9
+    raw_open = (style['ttr'] * 3.0) + (pos_ratio * 0.5)
+    
+    # 2. 성실성 (Conscientiousness): 확신에 찬 어조(Certainty), 독성 낮음
+    # 독성이 높으면(충동적) 감점
+    raw_consc = (style['certainty'] * 5.0) + (1.0 - tox_ratio * 5.0) * 0.5
+    
+    # 3. 외향성 (Extraversion): 리액션(Laughs) 많고, 긍정적, 자기표현(Unique/Self)
+    raw_extra = (style['laughs'] * 5.0) + (pos_ratio * 1.5) + (style['self_ref'] * 2.0)
+    
+    # 4. 친화성 (Agreeableness): 리액션 많고, 긍정적이고, 독성이 '매우' 낮아야 함
+    # 독성에 아주 민감하게 반응 (-Weight 높음)
+    raw_agree = (style['laughs'] * 3.0) + (pos_ratio * 2.0) - (tox_ratio * 10.0)
+    
+    # 5. 신경성 (Neuroticism): 부정적, 불확신, 독성 높음
+    raw_neuro = (neg_ratio * 2.0) + (style['uncertainty'] * 5.0) + (tox_ratio * 5.0)
+
+    # 0~100 스케일 매핑 및 클램핑
+    def clamp(x): return int(max(10, min(95, x * 100 / 1.5))) # 대략 1.5를 Max로 잡고 백분율
+
+    big5 = {
+        "openness": clamp(raw_open),
+        "conscientiousness": clamp(raw_consc),
+        "extraversion": clamp(raw_extra),
+        "agreeableness": clamp(raw_agree),
+        "neuroticism": clamp(raw_neuro)
+    }
+    return big5
 
 # 2. S vs N
 # [수정] S 키워드에서 너무 흔한 시점 단어 제거 ('오늘', '어제', '내일', '지금' 등은 누구나 씀)
@@ -423,64 +532,7 @@ def analyze_sentiment_score(sentences):
     
     return pos_ratio, neg_ratio, total_score
 
-def calculate_real_big5(mbti_type, toxicity_score, pos_ratio, neg_ratio):
-    """
-    MBTI + 독성(Toxicity) + 감성(Sentiment) 점수를 종합하여 Big5 산출
-    - 독성 높음 -> 신경성(N) 높음, 친화성(A) 낮음
-    - 긍정 높음 -> 외향성(E) 높음, 친화성(A) 높음
-    """
-    # 1. Base from MBTI (기본 골격)
-    # E->Extraversion, N->Openness, F->Agreeableness, J->Conscientiousness
-    mapping = {
-        'E': 65, 'I': 40,
-        'N': 70, 'S': 40,
-        'F': 65, 'T': 40,
-        'J': 70, 'P': 40
-    }
-    
-    extra = mapping[mbti_type[0]]
-    openness = mapping[mbti_type[1]]
-    agree = mapping[mbti_type[2]]
-    consc = mapping[mbti_type[3]]
-    neuro = 50.0 # 기본값
-    
-    # 2. Adjust with Sentiment & Toxicity
-    # 독성(0.0 ~ 1.0 가정 -> 보통 0.01~0.1 수준)
-    # 감성(pos_ratio 0.0 ~ 1.0)
-    
-    # [친화성 Agreeableness]
-    # 긍정이 많으면 UP, 독성이 있으면 대폭 DOWN
-    agree += (pos_ratio * 30) 
-    agree -= (toxicity_score * 200) # 독성 10%만 되도 20점 깎임
-    
-    # [신경성 Neuroticism]
-    # 부정/독성이 많으면 UP, 긍정이 많으면 DOWN
-    neuro += (neg_ratio * 30) + (toxicity_score * 100)
-    neuro -= (pos_ratio * 20)
-    
-    # [외향성 Extraversion]
-    # 긍정적 에너지가 높으면 외향성 보너스
-    extra += (pos_ratio * 20)
-    
-    # [개방성 Openness]
-    # 정서가 풍부하면(감성표현 많음) 약간 UP
-    if (pos_ratio + neg_ratio) > 0.5:
-        openness += 10
-        
-    # [성실성 Conscientiousness]
-    # 독성이 높으면(충동적) 약간 DOWN
-    consc -= (toxicity_score * 50)
 
-    # 3. Clamp (0~100)
-    def clamp(x): return max(10, min(95, x))
-    
-    return {
-        "extraversion": int(clamp(extra)),
-        "openness": int(clamp(openness)),
-        "agreeableness": int(clamp(agree)),
-        "conscientiousness": int(clamp(consc)),
-        "neuroticism": int(clamp(neuro))
-    }
 
 
 # -----------------------
@@ -605,10 +657,10 @@ def upload_api():
             mbti_prediction = calculate_final_mbti(full_features)[0] 
             reasoning_text = calculate_final_mbti(full_features)[1]
 
-            # 4. 정밀 통계 (독성, 긍부정) - KNU 및 BAD_WORDS 활용
+            # 4. 정밀 통계 (독성, 긍부정, 스타일)
             tox_count = 0
             for s in target_sentences:
-                # 독성 (BAD_WORDS)
+                # 독성 (korean_bad_words.json + 기본 욕설)
                 if any(bad in s for bad in BAD_WORDS): tox_count += 1
             
             total_sent = len(target_sentences)
@@ -617,8 +669,11 @@ def upload_api():
             # KNU 감성 분석
             pos_ratio, neg_ratio, _ = analyze_sentiment_score(target_sentences)
             
-            # 5. Big5 산출 (MBTI + 감성 + 독성 기반)
-            big5_result = calculate_real_big5(mbti_prediction, tox_ratio, pos_ratio, neg_ratio)
+            # [신규] 한국어 스타일 심층 분석 (TTR, 리액션 등)
+            style_feats = analyze_korean_style_features(target_sentences)
+            
+            # 5. Big5 산출 (스타일 + 감성 + 독성 기반 고도화)
+            big5_result = calculate_advanced_big5(style_feats, tox_ratio, pos_ratio, neg_ratio)
 
             # [디버깅] 중간 계산 값을 콘솔에 출력
             print("\n" + "="*50)
@@ -629,11 +684,11 @@ def upload_api():
             print(f"   - S: {debug_feats['s_score']:.1f} vs N: {debug_feats['n_score']:.1f}")
             print(f"   - T: {debug_feats['t_score']:.1f} vs F: {debug_feats['f_score']:.1f}")
             print(f"   - J: {debug_feats['j_score']:.1f} vs P: {debug_feats['p_score']:.1f}")
-            print(f"2. 언어 습관: 독성 {tox_ratio*100:.1f}%, 긍정 {pos_ratio*100:.1f}%, 부정 {neg_ratio*100:.1f}%")
+            print(f"2. 언어 특징: 독성 {tox_ratio*100:.1f}%, 긍정 {pos_ratio*100:.1f}%, TTR {style_feats['ttr']:.2f}, 리액션 {style_feats['laughs']:.2f}")
             print(f"3. Big5 추론: Open({big5_result['openness']}), Consc({big5_result['conscientiousness']}), Extra({big5_result['extraversion']}), Agree({big5_result['agreeableness']}), Neuro({big5_result['neuroticism']})")
             print("="*50 + "\n")
-
-            summary_text = f"분석 문장: {total_sent}개. MBTI 및 정서 기반 성향 분석 결과."
+            
+            summary_text = f"분석 문장: {total_sent}개. 정밀 스타일 분석 기반 성향 도출."
 
             with conn.cursor() as cursor:
                 sql_log = "INSERT INTO chat_logs (user_id, file_name, file_path, target_name, process_status) VALUES (%s, %s, %s, %s, 'COMPLETED')"
