@@ -122,7 +122,6 @@
 | **WSGI 서버** | Gunicorn |
 | **AI 모델** | OpenAI GPT (API) |
 
-**※ 배포:** GitHub Actions를 통한 CI/CD 파이프라인 구축 (예정)
 
 ---
 
