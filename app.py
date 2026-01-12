@@ -79,14 +79,33 @@ LINE_RE = re.compile(r"^\[(?P<name>.+?)\]\s+\[(?P<time>.*?)\]\s+(?P<msg>.+)$")
 SKIP_TOKENS = {"사진", "이모티콘", "동영상", "삭제된 메시지입니다.", "보이스톡 해요.", "파일", "샵검색"}
 BAD_WORDS = {"시발", "씨발", "병신", "개새끼", "존나", "미친", "죽어", "꺼져", "년", "놈"}
 
+# =============================================================================
+# [사용자 설정] MBTI 가중치 조절
+# 숫자가 클수록 해당 성향이 나올 확률이 높아집니다.
+# 예: 내향형(I)이 너무 많이 나오면, WEIGHT_E를 1.5로 늘리거나 WEIGHT_I를 1.0으로 줄이세요.
+# =============================================================================
+WEIGHT_E = 1.0   # 외향형(E) 가중치
+WEIGHT_I = 1.2   # 내향형(I) 가중치 (기본적으로 한국인은 I성향이 강해 1.2배 보정)
+
+WEIGHT_S = 1.0   # 감각형(S) 가중치
+WEIGHT_N = 1.2   # 직관형(N) 가중치 (S단어가 일상에 너무 많아 N에 보정치 1.2 부여)
+
+WEIGHT_T = 1.0   # 사고형(T) 가중치
+WEIGHT_F = 1.0   # 감정형(F) 가중치
+
+WEIGHT_J = 1.0   # 판단형(J) 가중치
+WEIGHT_P = 1.0   # 인식형(P) 가중치
+# =============================================================================
+
 # [단어 사전 정의]
 # 1. E vs I
 E_ENDINGS = {'어', '자', '까', '해', '봐', '지', '니', '냐'} # 권유, 질문, 공감 유도
 I_ENDINGS = {'다', '음', '임', '셈', '함', '듯', '네'} # 서술, 독백, 단답
 
 # 2. S vs N
-S_KEYWORDS = {'원', '개', '번', '시', '분', '초', '년', '월', '일', '미터', 'kg', '오늘', '어제', '내일', '지금'} # 구체적 단위/시점
-N_KEYWORDS = {'만약', '혹시', '아마', '미래', '의미', '상상', '느낌', '분위기', '기분', '우주', '영원', '사랑', '꿈'} # 추상적/가정
+# [수정] S 키워드에서 너무 흔한 시점 단어 제거 ('오늘', '어제', '내일', '지금' 등은 누구나 씀)
+S_KEYWORDS = {'원', '개', '번', '시', '분', '초', '년', '월', '일', '미터', 'kg', '퍼센트', '확률'} 
+N_KEYWORDS = {'만약', '혹시', '아마', '미래', '의미', '상상', '느낌', '분위기', '기분', '우주', '영원', '사랑', '꿈', '가능성', '아이디어'} 
 
 # 3. T vs F
 T_KEYWORDS = {'왜', '그래서', '때문에', '결과', '이유', '원인', '효율', '해결', '분석', '팩트', '따라서', '즉', '결론'} # 인과/논리
@@ -253,11 +272,14 @@ def analyze_linguistic_features(sentences, feats):
         m, tag = t.form, t.tag
         
         # S vs N
-        # 명사(NNG, NNP), 수사(NR), 관형사(MM) 위주 확인
-        if m in S_KEYWORDS or tag == 'SN': # 숫자 포함
-            feats['s_score'] += 1.5
+        # [수정] S 가중치 너프, N 가중치 버프
+        if m in S_KEYWORDS: 
+            feats['s_score'] += 1.0 # (기존 1.5)
+        elif tag == 'SN': # 숫자
+            feats['s_score'] += 0.5 # (기존 1.5 - 숫자는 너무 많이 나옴)
+
         if m in N_KEYWORDS:
-            feats['n_score'] += 1.5
+            feats['n_score'] += 2.0 # (기존 1.5)
         # 가정/추상 표현: '듯', '것', '수' (의존명사 NNB) -> N 성향 약간
         if tag == 'NNB': 
             feats['n_score'] += 0.5
@@ -301,36 +323,40 @@ def calculate_final_mbti(feats):
     # E factors: Fast Reply (< 2 min), Initiation, Turn Length(Short & Frequent), Endings
     # I factors: Slow Reply (> 5 min), Long Turn, Endings
     
-    # Reply Time Score: (Standard 5 min = 0)
-    # < 2 min: E+2, > 10 min: I+2
-    if feats['avg_reply_time'] < 2: feats['e_score'] += 3.0
-    elif feats['avg_reply_time'] > 10: feats['i_score'] += 3.0
+    # [수정] 답장 속도 기준 완화 및 I 점수 강화
+    # 한국인 특성상 '빨리빨리'가 많아 E가 과대평가됨. 기준을 더 엄격하게.
+    if feats['avg_reply_time'] < 1.0: feats['e_score'] += 3.0 # 1분 미만이어야 E점수 (기존 2분)
+    elif feats['avg_reply_time'] > 5.0: feats['i_score'] += 3.0 # 5분만 넘어도 I점수 (기존 10분)
     
-    # Turn Length: Short burst (1~2) -> E / Long paragraph (3+) -> I
-    if feats['turn_length_avg'] < 1.5: feats['e_score'] += 2.0
-    else: feats['i_score'] += 2.0
+    # [수정] 턴 길이: 카톡은 누구나 짧게 침. E 점수 가중치 낮춤.
+    if feats['turn_length_avg'] < 1.3: feats['e_score'] += 1.0 # (기존 2.0)
+    elif feats['turn_length_avg'] >= 2.0: feats['i_score'] += 2.0 
     
     # Initiation
-    if feats['initiation_count'] > 5: feats['e_score'] += 2.0
+    if feats['initiation_count'] > 5: feats['e_score'] += 1.5 # (기존 2.0)
     
     # E/I Decision
-    e_total = feats['e_score']
-    i_total = feats['i_score']
-    # Default Bias to I (Korean Data) -> E needs +15% more
-    e_final = 'E' if e_total > i_total * 0.9 else 'I'
+    e_total = feats['e_score'] * WEIGHT_E
+    i_total = feats['i_score'] * WEIGHT_I
+    
+    # [수정] 사용자가 설정한 가중치 적용
+    e_final = 'E' if e_total > i_total else 'I'
     
     # 2. Sensing (S) vs Intuition (N)
-    # S factors: Concrete numbers, S_KEYWORDS
-    # N factors: Abstract words, N_KEYWORDS
-    s_final = 'S' if feats['s_score'] > feats['n_score'] else 'N'
+    # [수정] 사용자가 설정한 가중치 적용
+    s_score_final = feats['s_score'] * WEIGHT_S
+    n_score_final = feats['n_score'] * WEIGHT_N
+    s_final = 'S' if s_score_final > n_score_final else 'N'
     
     # 3. Thinking (T) vs Feeling (F)
-    # T factors: Logic words
-    # F factors: Emotion words
-    f_final = 'F' if feats['f_score'] > feats['t_score'] else 'T'
+    t_score_final = feats['t_score'] * WEIGHT_T
+    f_score_final = feats['f_score'] * WEIGHT_F
+    f_final = 'F' if f_score_final > t_score_final else 'T'
     
     # 4. Judging (J) vs Perceiving (P)
-    j_final = 'J' if feats['j_score'] > feats['p_score'] else 'P'
+    j_score_final = feats['j_score'] * WEIGHT_J
+    p_score_final = feats['p_score'] * WEIGHT_P
+    j_final = 'J' if j_score_final > p_score_final else 'P'
     
     mbti = f"{e_final}{s_final}{f_final}{j_final}"
     
@@ -355,26 +381,105 @@ def calculate_final_mbti(feats):
 
     return mbti, "<br>".join(reasons), feats
 
-# [유틸리티] 톡방 요약 (Big5는 호환성 유지 위해 더미값 리턴하거나 대충 계산)
-def infer_bigfive_dummy(mbti):
-    # Map MBTI back to Big5 roughly to prevent SQL errors
-    # E -> Extraversion
-    # N -> Openness
-    # F -> Agreeableness
-    # J -> Conscientiousness
-    # T/A (Neuroticism) -> Random
+# -----------------------------------------------------------------------------
+# [추가] 감성/독성 기반 Big5 정밀 산출
+# -----------------------------------------------------------------------------
+def analyze_sentiment_score(sentences):
+    """
+    KNU 감성 사전을 이용하여 문장들의 평균 긍정/부정 점수를 계산
+    Return: (pos_ratio, neg_ratio, avg_sentiment)
+    """
+    total_score = 0
+    pos_score = 0
+    neg_score = 0
+    word_count = 0
+    
+    # KNU 사전을 활용 (SENTIMENT_DB)
+    for sent in sentences:
+        # 간단한 토큰화 (띄어쓰기 기준) 또는 Kiwi 토큰 활용 가능
+        # 여기서는 Kiwi 토큰화가 이미 되어있지 않으므로 간단히 처리하거나,
+        # app.py 상단의 kiwipiepy는 analyze_linguistic_features에서만 쓰임.
+        # 성능을 위해 띄어쓰기 + 일부 조사 제거 매칭 시도
+        words = sent.split()
+        for w in words:
+            # 조사 제거 등의 정규화는 복잡하므로, 있는 그대로 매칭하되
+            # 사전에 있는 루트 단어도 매칭 (정확도는 떨어질 수 있으나 속도 중요)
+            s = SENTIMENT_DB.get(w)
+            if s is not None:
+                word_count += 1
+                total_score += s
+                if s > 0: pos_score += s
+                elif s < 0: neg_score += abs(s)
+    
+    if word_count == 0: return 0.0, 0.0, 0.0
+    
+    # 0~100점 스케일로 정규화된 지표를 만들기 위해 비율 계산
+    # (단순 개수가 아니라 점수 비중)
+    total_abs = pos_score + neg_score
+    if total_abs == 0: return 0.0, 0.0, 0.0
+    
+    pos_ratio = pos_score / total_abs # 0.0 ~ 1.0
+    neg_ratio = neg_score / total_abs # 0.0 ~ 1.0
+    
+    return pos_ratio, neg_ratio, total_score
+
+def calculate_real_big5(mbti_type, toxicity_score, pos_ratio, neg_ratio):
+    """
+    MBTI + 독성(Toxicity) + 감성(Sentiment) 점수를 종합하여 Big5 산출
+    - 독성 높음 -> 신경성(N) 높음, 친화성(A) 낮음
+    - 긍정 높음 -> 외향성(E) 높음, 친화성(A) 높음
+    """
+    # 1. Base from MBTI (기본 골격)
+    # E->Extraversion, N->Openness, F->Agreeableness, J->Conscientiousness
     mapping = {
-        'E': 75, 'I': 35,
-        'N': 75, 'S': 35,
-        'F': 75, 'T': 35,
-        'J': 75, 'P': 35
+        'E': 65, 'I': 40,
+        'N': 70, 'S': 40,
+        'F': 65, 'T': 40,
+        'J': 70, 'P': 40
     }
+    
+    extra = mapping[mbti_type[0]]
+    openness = mapping[mbti_type[1]]
+    agree = mapping[mbti_type[2]]
+    consc = mapping[mbti_type[3]]
+    neuro = 50.0 # 기본값
+    
+    # 2. Adjust with Sentiment & Toxicity
+    # 독성(0.0 ~ 1.0 가정 -> 보통 0.01~0.1 수준)
+    # 감성(pos_ratio 0.0 ~ 1.0)
+    
+    # [친화성 Agreeableness]
+    # 긍정이 많으면 UP, 독성이 있으면 대폭 DOWN
+    agree += (pos_ratio * 30) 
+    agree -= (toxicity_score * 200) # 독성 10%만 되도 20점 깎임
+    
+    # [신경성 Neuroticism]
+    # 부정/독성이 많으면 UP, 긍정이 많으면 DOWN
+    neuro += (neg_ratio * 30) + (toxicity_score * 100)
+    neuro -= (pos_ratio * 20)
+    
+    # [외향성 Extraversion]
+    # 긍정적 에너지가 높으면 외향성 보너스
+    extra += (pos_ratio * 20)
+    
+    # [개방성 Openness]
+    # 정서가 풍부하면(감성표현 많음) 약간 UP
+    if (pos_ratio + neg_ratio) > 0.5:
+        openness += 10
+        
+    # [성실성 Conscientiousness]
+    # 독성이 높으면(충동적) 약간 DOWN
+    consc -= (toxicity_score * 50)
+
+    # 3. Clamp (0~100)
+    def clamp(x): return max(10, min(95, x))
+    
     return {
-        "extraversion": mapping[mbti[0]],
-        "openness": mapping[mbti[1]],
-        "agreeableness": mapping[mbti[2]],
-        "conscientiousness": mapping[mbti[3]],
-        "neuroticism": 50.0
+        "extraversion": int(clamp(extra)),
+        "openness": int(clamp(openness)),
+        "agreeableness": int(clamp(agree)),
+        "conscientiousness": int(clamp(consc)),
+        "neuroticism": int(clamp(neuro))
     }
 
 
@@ -496,42 +601,35 @@ def upload_api():
             full_features = analyze_linguistic_features(target_sentences, full_features)
             
             # 3. MBTI 및 설명 생성
-            mbti_prediction, reasoning_text, debug_feats = calculate_final_mbti(full_features)
-            big5_result = infer_bigfive_dummy(mbti_prediction) # DB 호환용 더미
+            debug_feats = calculate_final_mbti(full_features)[2] # mbti_prediction은 아래에서 다시 계산 or feats만 씀
+            mbti_prediction = calculate_final_mbti(full_features)[0] 
+            reasoning_text = calculate_final_mbti(full_features)[1]
 
-            # 4. 기존 통계 (독성, 긍부정) - DB 저장용 단순 계산
-            # (기존 함수가 삭제되었으므로 여기서 약식으로 계산하여 호환성 유지)
+            # 4. 정밀 통계 (독성, 긍부정) - KNU 및 BAD_WORDS 활용
             tox_count = 0
-            pos_count = 0
-            neg_count = 0
-            total_sent = len(target_sentences)
-            
             for s in target_sentences:
-                # 독성
+                # 독성 (BAD_WORDS)
                 if any(bad in s for bad in BAD_WORDS): tox_count += 1
-                # 긍부정 (간이)
-                if any(w in s for w in F_KEYWORDS): pos_count += 1
-                elif any(w in s for w in T_KEYWORDS): neg_count += 0.5 # T단어는 부정까진 아니지만... 감성사전이 없으니 약식
             
-            tox_avg = tox_count / total_sent if total_sent else 0
-            # SentiWord_info.json을 다시 로드하지 않고 키워드로 대체 or 0.0 처리
-            # (사용자가 MBTI 정확도를 원했으니 감성점수는 크게 중요치 않음)
-            pos_ratio = pos_count / total_sent if total_sent else 0
-            neg_ratio = 0.0 # 약식
+            total_sent = len(target_sentences)
+            tox_ratio = tox_count / total_sent if total_sent else 0.0
             
+            # KNU 감성 분석
+            pos_ratio, neg_ratio, _ = analyze_sentiment_score(target_sentences)
+            
+            # 5. Big5 산출 (MBTI + 감성 + 독성 기반)
+            big5_result = calculate_real_big5(mbti_prediction, tox_ratio, pos_ratio, neg_ratio)
+
             # [디버깅] 중간 계산 값을 콘솔에 출력
             print("\n" + "="*50)
-            print(f"   [MBTI 언어 특징 분석 - 대상: {target_name}]")
+            print(f"   [상세 성향 분석 - 대상: {target_name}]")
             print("="*50)
-            print(f"1. E/I - 답장속도: {debug_feats['avg_reply_time']:.1f}분, 선톡: {debug_feats['initiation_count']}회")
-            print(f"         E점수: {debug_feats['e_score']:.2f} vs I점수: {debug_feats['i_score']:.2f}")
-            print(f"2. S/N - 구체어(S): {debug_feats['s_score']:.2f} vs 추상어(N): {debug_feats['n_score']:.2f}")
-            print(f"3. T/F - 논리어(T): {debug_feats['t_score']:.2f} vs 공감어(F): {debug_feats['f_score']:.2f}")
-            print(f"4. J/P - 계획어(J): {debug_feats['j_score']:.2f} vs 유연어(P): {debug_feats['p_score']:.2f}")
-            print(f"▶ 최종 결과: {mbti_prediction}")
+            print(f"1. MBTI 결정: {mbti_prediction} (E:{debug_feats['e_score']:.1f} S:{debug_feats['s_score']:.1f} T:{debug_feats['t_score']:.1f} J:{debug_feats['j_score']:.1f})")
+            print(f"2. 언어 습관: 독성 {tox_ratio*100:.1f}%, 긍정 {pos_ratio*100:.1f}%, 부정 {neg_ratio*100:.1f}%")
+            print(f"3. Big5 추론: Open({big5_result['openness']}), Consc({big5_result['conscientiousness']}), Extra({big5_result['extraversion']}), Agree({big5_result['agreeableness']}), Neuro({big5_result['neuroticism']})")
             print("="*50 + "\n")
 
-            summary_text = f"분석 문장: {total_sent}개. 주요 특징 기반 MBTI 추론 결과."
+            summary_text = f"분석 문장: {total_sent}개. MBTI 및 정서 기반 성향 분석 결과."
 
             with conn.cursor() as cursor:
                 sql_log = "INSERT INTO chat_logs (user_id, file_name, file_path, target_name, process_status) VALUES (%s, %s, %s, %s, 'COMPLETED')"
@@ -550,7 +648,7 @@ def upload_api():
                     big5_result['extraversion'], big5_result['agreeableness'], 
                     big5_result['neuroticism'], 
                     summary_text, mbti_prediction, reasoning_text,
-                    tox_avg, pos_ratio, neg_ratio
+                    tox_ratio, pos_ratio, neg_ratio
                 ))
             conn.commit()
             return redirect(url_for('result_page', log_id=log_id))
