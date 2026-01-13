@@ -5,10 +5,6 @@ import json
 import time
 import statistics
 import pymysql
-import requests
-import numpy as np
-import pandas as pd
-import getpass
 import random
 from flask import Flask, render_template, request, redirect, url_for, session, flash
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -76,7 +72,8 @@ except Exception as e:
 # -----------------------
 # [2] 분석 로직 모음 (MBTI Linguistic Features)
 # -----------------------
-LINE_RE = re.compile(r"^\[(?P<name>.+?)\]\s+\[(?P<time>.*?)\]\s+(?P<msg>.+)$")
+LINE_RE = re.compile(r"^\[(?P<name>.+?)\] \[(?P<time>.+?)\] (?P<msg>.*)")
+ANDROID_RE = re.compile(r"^(?P<time>\d{4}년 \d{1,2}월 \d{1,2}일 (오전|오후) \d{1,2}:\d{2}), (?P<name>.+?) : (?P<msg>.*)")
 # -----------------------
 # [1.1] 욕설/독성 사전 로딩 (korean_bad_words.json)
 # -----------------------
@@ -112,10 +109,10 @@ except Exception as e:
 # =============================================================================
 # [사용자 설정] MBTI 가중치 조절
 # ... (기존 설정 유지) ...
-WEIGHT_E = 1.0; WEIGHT_I = 1.3
-WEIGHT_S = 1.3; WEIGHT_N = 1.1
+WEIGHT_E = 1.0; WEIGHT_I = 1.2
+WEIGHT_S = 1.0; WEIGHT_N = 1.0
 WEIGHT_T = 1.0; WEIGHT_F = 1.0
-WEIGHT_J = 1.0; WEIGHT_P = 1.0
+WEIGHT_J = 1.0; WEIGHT_P = 1.2
 # =============================================================================
 
 # ... (기존 키워드 유지) ...
@@ -249,16 +246,16 @@ def calculate_advanced_big5(style, tox_ratio, pos_ratio, neg_ratio):
 
 # 2. S vs N
 # [수정] S 키워드에서 너무 흔한 시점 단어 제거 ('오늘', '어제', '내일', '지금' 등은 누구나 씀)
-S_KEYWORDS = {'원', '개', '번', '시', '분', '초', '년', '월', '일', '미터', 'kg', '퍼센트', '확률'} 
-N_KEYWORDS = {'만약', '혹시', '아마', '미래', '의미', '상상', '느낌', '분위기', '기분', '우주', '영원', '사랑', '꿈', '가능성', '아이디어'} 
+S_KEYWORDS = {'현실', '사실', '팩트', '데이터', '검증', '증명', '확인', '경험', '관찰', '실제', '구체', '디테일', '세부', '오감', '체험', '실용', '도구', '재료', '수치', '통계', '증거', '기록', '지금', '오늘', '여기'} # [수정] 복구된 표현 키워드
+N_KEYWORDS = {'상상', '만약', '혹시', '가능성', '미래', '의미', '비전', '아이디어', '직관', '영감', '철학', '우주', '가치관', '컨셉', '비유', '은유', '상징', '추상', '망상', '꿈', '이상', '원리', '패턴', '아마'} # [수정] 복구된 표현 키워드
 
 # 3. T vs F
-T_KEYWORDS = {'왜', '그래서', '때문에', '결과', '이유', '원인', '효율', '해결', '분석', '팩트', '따라서', '즉', '결론'} # 인과/논리
-F_KEYWORDS = {'고마워', '미안', '대박', '진짜', '너무', '완전', '헐', 'ㅠㅠ', 'ㅜㅜ', '행복', '슬퍼', '좋아', '싫어', '걱정'} # 감정/공감/리액션
+T_KEYWORDS = {'분석', '논리', '원인', '결과', '이유', '근거', '효율', '비판', '평가', '판단', '객관', '원칙', '정의', '검토', '해결', '방법', '시스템', '기능', '성능', '설명', '이해', '인과', '왜', '때문에', '그러므로', '즉'} # [수정] 복구된 표현 키워드
+F_KEYWORDS = {'공감', '감동', '서운', '행복', '감사', '미안', '고마워', '소중', '배려', '응원', '위로', '좋아', '싫어', '마음', '기분', '느낌', '센스', '조화', '관계', '사람', '사랑', '우정', '감정', '화이팅', '진짜', '너무', '완전', '대박', '헐', 'ㅠㅠ', 'ㅜㅜ'} # [수정] 복구된 표현 키워드
 
 # 4. J vs P
-J_KEYWORDS = {'계획', '일정', '예약', '시간', '준비', '확인', '정리', '미리', '약속', '규칙', '순서', '목표', '완료'} # 계획/체계
-P_KEYWORDS = {'갑자기', '일단', '그냥', '대충', '나중에', '언젠가', '아무거나', '변동', '자유', '내맘', '그때'} # 유연/즉흥
+J_KEYWORDS = {'계획', '일정', '준비', '정리', '체계', '순서', '단계', '목표', '마감', '기한', '완료', '달성', '약속', '규칙', '통제', '미리', '예약', '스케줄', '리스트', '절차', '확정'} # [수정] 복구된 표현 키워드
+P_KEYWORDS = {'상황', '변동', '유동', '그때', '봐서', '즉흥', '자유', '재미', '과정', '탐색', '경험', '오픈', '가능', '융통', '적응', '변화', '어떻게든', '놀자', '여유', '몰라', '아무거나', '그냥', '일단'} # [수정] 복구된 표현 키워드
 
 def parse_kakao_txt(path: str):
     rows = []
@@ -267,13 +264,22 @@ def parse_kakao_txt(path: str):
             for line in f:
                 line = line.rstrip("\n")
                 m = LINE_RE.match(line)
-                if not m:
+                if m:
+                    rows.append({
+                        "speaker": m.group("name").strip(),
+                        "time": m.group("time"),
+                        "text": m.group("msg").strip(),
+                    })
                     continue
-                rows.append({
-                    "speaker": m.group("name").strip(),
-                    "time": m.group("time"),
-                    "text": m.group("msg").strip(),
-                })
+
+                m2 = ANDROID_RE.match(line)
+                if m2:
+                    rows.append({
+                        "speaker": m2.group("name").strip(),
+                        "time": m2.group("time"),
+                        "text": m2.group("msg").strip(),
+                    })
+                    continue
     except Exception as e:
         print(f"File parsing error: {e}")
     return rows
@@ -299,10 +305,11 @@ def parse_time_diff(t1_str, t2_str):
             is_am = '오전' in ts or 'AM' in ts or 'am' in ts
             
             # 숫자와 콜론만 남기고 제거
-            time_part = re.sub(r"[^0-9:]", "", ts)
-            if ':' not in time_part: return -1 # 파싱 실패
-            
-            hh, mm = map(int, time_part.split(':'))
+            # 숫자와 콜론만 남기고 제거 (날짜 제외하고 시간만 추출하기 위해 수정)
+            # Ex: "2024년 5월 20일 오후 3:15" -> "3:15" 추출
+            time_match = re.search(r"(\d{1,2}):(\d{2})", ts)
+            if not time_match: return -1
+            hh, mm = int(time_match.group(1)), int(time_match.group(2))
             
             if is_pm and hh != 12: hh += 12
             elif is_am and hh == 12: hh = 0
@@ -458,6 +465,17 @@ def analyze_linguistic_features(sentences, feats):
     feats['p_score'] *= scale
     feats['e_score'] *= scale
     feats['i_score'] *= scale
+
+    # [수정] 키워드 점수 비중 축소 (행동 점수 강조를 위해 0.2배 적용)
+    # [수정] E/I는 행동 점수가 크므로 키워드 비중을 낮춤 (0.2배)
+    for k in ['e_score', 'i_score']:
+        feats[k] *= 0.2
+
+    # [수정] 나머지는 행동 점수가 없으므로, 키워드 점수를 대폭 상향 (5.0배)
+    # 정제된 희귀 키워드이므로 발견 시 높은 점수 부여 필요
+    for k in ['s_score', 'n_score', 't_score', 'f_score', 'j_score', 'p_score']:
+        # [수정] 흔한 단어 복구로 빈도가 늘었으므로 가중치 소폭 하향 (5.0 -> 3.0)
+        feats[k] *= 3.0
     
     return feats
 
@@ -470,16 +488,34 @@ def calculate_final_mbti(feats):
     
     # [수정] 답장 속도 기준 완화 및 I 점수 강화
     # 한국인 특성상 '빨리빨리'가 많아 E가 과대평가됨. 기준을 더 엄격하게.
-    if feats['avg_reply_time'] < 1.0: feats['e_score'] += 3.0 # 1분 미만이어야 E점수 (기존 2분)
-    elif feats['avg_reply_time'] > 5.0: feats['i_score'] += 3.0 # 5분만 넘어도 I점수 (기존 10분)
+    # [수정] 답장 속도 (비례 점수제): 3분 이내면 점수 부여 (빠를수록 고득점, 최대 1.0점/기본 가중치 1.0)
+    # 0분(즉시) -> 1.0점, 1.5분 -> 0.5점, 3분 -> 0점
+    reply_score = max(0, (3.0 - feats['avg_reply_time']) / 3.0)
+    # [수정] E 과대평가 방지: 답장 속도 가중치 1.0 -> 0.5로 축소
+    feats['e_score'] += min(0.5, reply_score * 0.5)
+    feats['e_score'] += min(1.0, reply_score)
     
-    # [수정] 턴 길이: 카톡은 누구나 짧게 침. E 점수 가중치 낮춤.
-    if feats['turn_length_avg'] < 1.3: feats['e_score'] += 1.0 # (기존 2.0)
-    elif feats['turn_length_avg'] >= 2.0: feats['i_score'] += 2.0 
+    # 느린 답장(I 성향)은 기존 유지 (5분 이상이면 I +3.0)
+    # [수정] 느린 답장 기준 완화: 3분만 넘어도 I 점수 부여
+    if feats['avg_reply_time'] > 3.0: feats['i_score'] += 3.0
     
-    # Initiation
-    if feats['initiation_count'] > 5: feats['e_score'] += 1.5 # (기존 2.0)
+    # [수정] 턴 길이 (비례 점수제): 2.5어절 미만이면 점수 부여 (짧을수록 고득점, 최대 1.0점)
+    turn_score = max(0, (2.5 - feats['turn_length_avg']) * 0.6)
+    feats['e_score'] += min(1.0, turn_score)
     
+    # 긴 턴(I 성향)은 기존 유지
+    if feats['turn_length_avg'] >= 2.0: feats['i_score'] += 2.0
+    
+    # [수정] Initiation (비례 점수제): 횟수당 0.8점 (최대 4.0점)
+    # 1회: 0.8점, 3회: 2.4점, 5회+: 4.0점
+    # [수정] 선톡 3회부터 인정 (1~2회는 무시)
+    # [수정] 선톡 점수 완화: 0.5점씩 천천히 증가 (최대 3.0점)
+    # [수정] 선톡이 가장 중요함: 가중치 대폭 상향 (최대 15.0점)
+    # 1~2회 무시, 3회부터 회당 1.5점씩 팍팍 부여
+    init_score = max(0, (feats['initiation_count'] - 2) * 1.5)
+    feats['e_score'] += min(15.0, init_score)
+    # [수정] I 보너스: 선톡이 적으면(2회 이하) 내향형 점수 부여 (+5.0)
+    if feats['initiation_count'] <= 2: feats['i_score'] += 5.0
     # E/I Decision
     e_total = feats['e_score'] * WEIGHT_E
     i_total = feats['i_score'] * WEIGHT_I
