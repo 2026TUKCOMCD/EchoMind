@@ -1,4 +1,5 @@
 import os
+import sys
 import re
 import json
 import time
@@ -111,8 +112,8 @@ except Exception as e:
 # =============================================================================
 # [사용자 설정] MBTI 가중치 조절
 # ... (기존 설정 유지) ...
-WEIGHT_E = 1.0; WEIGHT_I = 1.2
-WEIGHT_S = 1.0; WEIGHT_N = 1.1
+WEIGHT_E = 1.0; WEIGHT_I = 1.3
+WEIGHT_S = 1.3; WEIGHT_N = 1.1
 WEIGHT_T = 1.0; WEIGHT_F = 1.0
 WEIGHT_J = 1.0; WEIGHT_P = 1.0
 # =============================================================================
@@ -523,6 +524,17 @@ def calculate_final_mbti(feats):
     if j_final == 'J': reasons.append(f"계획 및 일정을 언급하는 빈도({feats['j_score']:.1f})가 높아 계획적인 **판단형(J)**입니다.")
     else: reasons.append(f"상황에 따른 변동성이나 유연한 표현({feats['p_score']:.1f})이 많아 즉흥적인 **인식형(P)**입니다.")
 
+    # [추가] 상세 수치 표기
+    reasons.append(f"""
+    <div style='background:#f8f9fa; padding:10px; border-radius:5px; margin-top:10px; font-size:0.9em;'>
+        <strong>📊 상세 지표 점수 (가중치 적용됨)</strong><br>
+        E({e_total:.1f}) vs I({i_total:.1f})<br>
+        S({s_score_final:.1f}) vs N({n_score_final:.1f})<br>
+        T({t_score_final:.1f}) vs F({f_score_final:.1f})<br>
+        J({j_score_final:.1f}) vs P({p_score_final:.1f})
+    </div>
+    """)
+
     return mbti, "<br>".join(reasons), feats
 
 # -----------------------------------------------------------------------------
@@ -688,12 +700,25 @@ def upload_page():
 
 @app.route('/api/upload_chat', methods=['POST'])
 def upload_api():
-    if 'user_id' not in session: return redirect(url_for('login'))
-    if 'chat_file' not in request.files: return redirect(request.url)
+    print(">>> [DEBUG] /api/upload_chat 호출됨")
+    sys.stdout.flush()
+
+    if 'user_id' not in session: 
+        print(">>> [DEBUG] 로그인 세션 없음 -> redirect")
+        sys.stdout.flush()
+        return redirect(url_for('login'))
+
+    if 'chat_file' not in request.files: 
+        print(">>> [DEBUG] 파일 없음 -> redirect")
+        sys.stdout.flush()
+        return redirect(request.url)
     
     file = request.files['chat_file']
     target_name = request.form.get('target_name', '').strip()
     
+    print(f">>> [DEBUG] 파일명: {file.filename}, 분석대상: {target_name}")
+    sys.stdout.flush()
+
     if not target_name:
         flash('분석할 대화명을 입력해주세요.')
         return redirect(request.url)
@@ -733,9 +758,9 @@ def upload_api():
             full_features = analyze_linguistic_features(target_sentences, full_features)
             
             # 3. MBTI 및 설명 생성
-            debug_feats = calculate_final_mbti(full_features)[2] # mbti_prediction은 아래에서 다시 계산 or feats만 씀
-            mbti_prediction = calculate_final_mbti(full_features)[0] 
-            reasoning_text = calculate_final_mbti(full_features)[1]
+            # [수정] 함수를 여러 번 호출하면 feats 점수가 중복 누적되는 버그 수정
+            # 한번만 호출해서 결과를 unpacking
+            mbti_prediction, reasoning_text, debug_feats = calculate_final_mbti(full_features)
 
             # 4. 정밀 통계 (독성, 긍부정, 스타일)
             tox_count = 0
@@ -767,6 +792,7 @@ def upload_api():
             print(f"2. 언어 특징: 독성 {tox_ratio*100:.1f}%, 긍정 {pos_ratio*100:.1f}%, TTR {style_feats['ttr']:.2f}, 리액션 {style_feats['laughs']:.2f}")
             print(f"3. Big5 추론: Open({big5_result['openness']}), Consc({big5_result['conscientiousness']}), Extra({big5_result['extraversion']}), Agree({big5_result['agreeableness']}), Neuro({big5_result['neuroticism']})")
             print("="*50 + "\n")
+            sys.stdout.flush()  # [추가] 출력 강제 플러시
             
             summary_text = f"분석 문장: {total_sent}개. 정밀 스타일 분석 기반 성향 도출."
 
