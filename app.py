@@ -87,7 +87,13 @@ try:
         # bad_data가 리스트인지, 딕셔너리인지 확인 필요 (보통 리스트 ['시발', ...])
         # 만약 {"bad_words": [...]} 형태면 keys 확인
         if isinstance(bad_data, list):
-            BAD_WORDS = set(bad_data)
+            # Check if elements are dicts or strings
+            if bad_data and isinstance(bad_data[0], dict):
+                # Structure: [{"text": "word", ...}, ...]
+                BAD_WORDS = {item.get('text') for item in bad_data if item.get('text')}
+            else:
+                # Structure: ["word", ...]
+                BAD_WORDS = set(bad_data)
         elif isinstance(bad_data, dict) and "bad_words" in bad_data:
             BAD_WORDS = set(bad_data["bad_words"])
         else:
@@ -115,6 +121,9 @@ WEIGHT_J = 1.0; WEIGHT_P = 1.0
 E_ENDINGS = {'어', '자', '까', '해', '봐', '지', '니', '냐'}
 I_ENDINGS = {'다', '음', '임', '셈', '함', '듯', '네'}
 # ...
+
+# [추가] SKIP_TOKENS 정의 (누락 수정)
+SKIP_TOKENS = {'사진', '동영상', '이모티콘', '보이스톡 해요.', '페이스톡 해요.', '파일'}
 
 # -----------------------------------------------------------------------------
 # [추가] Big5 고도화를 위한 한국어 스타일 분석 (API 로직 이식)
@@ -175,41 +184,67 @@ def analyze_korean_style_features(sentences):
 def calculate_advanced_big5(style, tox_ratio, pos_ratio, neg_ratio):
     """
     스타일(Style) + 감성(Sentiment) + 독성(Toxicity) -> Big5 점수 산출
-    (API 로직의 가중치를 참고하여 튜닝)
+    [v3] 정규화 가중합 방식 - 0~100 전 범위 사용 가능
     """
-    def normalize(val, factor=100):
-        # 작은 비율 값을 0~1 스케일로 변환하기 위한 헬퍼
-        return min(1.0, val * factor)
+    
+    def normalize(val, scale=1.0, offset=0.0):
+        """값을 0~1 범위로 정규화 (스케일 증폭 + 오프셋 지원)"""
+        val = (val * scale) + offset
+        return min(1.0, max(0.0, val))
 
-    # 1. 개방성 (Openness): 어휘가 다양하고(TTR), 긍정적 표현(감성)이 풍부할수록 높음
-    # TTR은 보통 0.1~0.3 사이 -> *3 하면 0.3~0.9
-    raw_open = (style['ttr'] * 3.0) + (pos_ratio * 0.5)
-    
-    # 2. 성실성 (Conscientiousness): 확신에 찬 어조(Certainty), 독성 낮음
-    # 독성이 높으면(충동적) 감점
-    raw_consc = (style['certainty'] * 5.0) + (1.0 - tox_ratio * 5.0) * 0.5
-    
-    # 3. 외향성 (Extraversion): 리액션(Laughs) 많고, 긍정적, 자기표현(Unique/Self)
-    raw_extra = (style['laughs'] * 5.0) + (pos_ratio * 1.5) + (style['self_ref'] * 2.0)
-    
-    # 4. 친화성 (Agreeableness): 리액션 많고, 긍정적이고, 독성이 '매우' 낮아야 함
-    # 독성에 아주 민감하게 반응 (-Weight 높음)
-    raw_agree = (style['laughs'] * 3.0) + (pos_ratio * 2.0) - (tox_ratio * 10.0)
-    
-    # 5. 신경성 (Neuroticism): 부정적, 불확신, 독성 높음
-    raw_neuro = (neg_ratio * 2.0) + (style['uncertainty'] * 5.0) + (tox_ratio * 5.0)
+    # ==========================================================================
+    # 1. 개방성 (Openness) - 어휘 다양성 + 문장 길이(단답형 X)
+    # TTR이 높고, 문장이 너무 짧지 않으면 개방적
+    # ==========================================================================
+    openness = (0.6 * normalize(style['ttr'], 2.5)) + \
+               (0.2 * normalize(style['avg_len'] / 15)) + \
+               (0.2 * normalize(pos_ratio, 1.2))
 
-    # 0~100 스케일 매핑 및 클램핑
-    def clamp(x): return int(max(10, min(95, x * 100 / 1.5))) # 대략 1.5를 Max로 잡고 백분율
+    # ==========================================================================
+    # 2. 성실성 (Conscientiousness) - 확신어 + 리액션 절제 + 예의(독성↓)
+    # 확신어 많고, ㅋㅋㅋ 적당하고, 욕설 없으면 성실
+    # ==========================================================================
+    conscientiousness = (0.4 * normalize(style['certainty'], 15.0)) + \
+                        (0.3 * (1 - normalize(style['laughs'], 5.0))) + \
+                        (0.3 * (1 - tox_ratio))
 
-    big5 = {
-        "openness": clamp(raw_open),
-        "conscientiousness": clamp(raw_consc),
-        "extraversion": clamp(raw_extra),
-        "agreeableness": clamp(raw_agree),
-        "neuroticism": clamp(raw_neuro)
+    # ==========================================================================
+    # 3. 외향성 (Extraversion) - 리액션 + 긍정 + 자기표현
+    # ㅋㅋㅋ 많고, 긍정적이고, 자기 이야기 많이 하면 외향
+    # ==========================================================================
+    extraversion = (0.4 * normalize(style['laughs'], 10.0)) + \
+                   (0.3 * normalize(pos_ratio, 1.5)) + \
+                   (0.3 * normalize(style['self_ref'], 20.0))
+
+    # ==========================================================================
+    # 4. 친화성 (Agreeableness) - 독성↓ + 리액션 + 긍정
+    # 욕설 없고, 리액션 좋고, 긍정적이면 친화적
+    # ==========================================================================
+    neutral_ratio = 1 - pos_ratio - neg_ratio  # 중립 비율 추정
+    agreeableness = (0.35 * (1 - tox_ratio)) + \
+                    (0.25 * normalize(style['laughs'], 8.0)) + \
+                    (0.2 * normalize(pos_ratio, 1.2)) + \
+                    (0.2 * max(0, neutral_ratio))
+
+    # ==========================================================================
+    # 5. 신경성 (Neuroticism) - 부정 + 불확신 + 독성
+    # 부정적이고, 불확실하고, 공격적이면 신경증 높음
+    # ** 모두 0이면 0점, 모두 높으면 100점 **
+    # ==========================================================================
+    neuroticism = (0.5 * neg_ratio) + \
+                  (0.3 * normalize(style['uncertainty'], 8.0)) + \
+                  (0.2 * tox_ratio)
+
+    # ==========================================================================
+    # 최종: 0~1 값을 0~100으로 변환 (반올림)
+    # ==========================================================================
+    return {
+        "openness": round(openness * 100, 1),
+        "conscientiousness": round(conscientiousness * 100, 1),
+        "extraversion": round(extraversion * 100, 1),
+        "agreeableness": round(agreeableness * 100, 1),
+        "neuroticism": round(neuroticism * 100, 1),
     }
-    return big5
 
 # 2. S vs N
 # [수정] S 키워드에서 너무 흔한 시점 단어 제거 ('오늘', '어제', '내일', '지금' 등은 누구나 씀)
@@ -601,6 +636,51 @@ def logout():
     session.clear()
     return redirect(url_for('login'))
 
+# [추가] 게스트 로그인 로직
+def get_or_create_guest_user():
+    conn = get_db_connection()
+    try:
+        with conn.cursor() as cursor:
+            # 1. Check if guest exists
+            sql = "SELECT * FROM users WHERE email = 'guest@echomind.com'"
+            cursor.execute(sql)
+            user = cursor.fetchone()
+            
+            if user:
+                return user
+            
+            # 2. Create if not exists
+            # 비밀번호는 랜덤 혹은 고정값 (로그인할 일이 없으므로 크게 중요치 않음)
+            guest_pw = generate_password_hash("guest1234") 
+            sql_insert = """
+                INSERT INTO users (email, password_hash, username, nickname, gender, birth_date)
+                VALUES ('guest@echomind.com', %s, 'GuestUser', '게스트', 'Non-Binary', '2000-01-01')
+            """
+            cursor.execute(sql_insert, (guest_pw,))
+            conn.commit()
+            
+            # 3. Retrieve created user
+            cursor.execute(sql)
+            return cursor.fetchone()
+    finally:
+        conn.close()
+
+@app.route('/guest_login')
+def guest_login():
+    try:
+        user = get_or_create_guest_user()
+        if user:
+            session['user_id'] = user['user_id']
+            session['nickname'] = user['nickname']
+            flash("비회원(게스트)로 로그인되었습니다.")
+            return redirect(url_for('upload_page'))
+        else:
+            flash("게스트 로그인 실패: 계정 생성 오류")
+            return redirect(url_for('login'))
+    except Exception as e:
+        flash(f"Error: {e}")
+        return redirect(url_for('login'))
+
 @app.route('/upload', methods=['GET'])
 def upload_page():
     if 'user_id' not in session: return redirect(url_for('login'))
@@ -743,4 +823,4 @@ def result_page(log_id):
         conn.close()
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    app.run(host='0.0.0.0', debug=True, port=5000)
