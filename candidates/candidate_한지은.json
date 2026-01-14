@@ -1,0 +1,34 @@
+{
+  "language": "ko",
+  "big5": {
+    "openness": 0.86,
+    "conscientiousness": 0.25,
+    "extraversion": 0.06,
+    "agreeableness": 0.4,
+    "neuroticism": 0.82
+  },
+  "communication_style": {
+    "tone": 0.77,
+    "directness": 0.37,
+    "emotion_expression": 0.84,
+    "empathy_signals": 0.66,
+    "initiative": 0.9,
+    "conflict_style": 1.0
+  },
+  "topics": [
+    "파이썬",
+    "롤",
+    "넷플릭스",
+    "드라이브"
+  ],
+  "confidence": 0.96,
+  "stats": {
+    "msg_share": 35.1,
+    "avg_reply_latency": 74.9,
+    "question_ratio": 0.04
+  },
+  "_meta": {
+    "source": "dummy_generator",
+    "target_name": "한지은"
+  }
+}

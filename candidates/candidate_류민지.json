@@ -1,0 +1,34 @@
+{
+  "language": "ko",
+  "big5": {
+    "openness": 0.36,
+    "conscientiousness": 0.76,
+    "extraversion": 0.11,
+    "agreeableness": 0.89,
+    "neuroticism": 0.45
+  },
+  "communication_style": {
+    "tone": 0.43,
+    "directness": 0.71,
+    "emotion_expression": 0.99,
+    "empathy_signals": 0.76,
+    "initiative": 0.12,
+    "conflict_style": 0.11
+  },
+  "topics": [
+    "여행",
+    "자동차",
+    "파이썬",
+    "쇼핑"
+  ],
+  "confidence": 0.9,
+  "stats": {
+    "msg_share": 43.6,
+    "avg_reply_latency": 15.2,
+    "question_ratio": 0.21
+  },
+  "_meta": {
+    "source": "dummy_generator",
+    "target_name": "류민지"
+  }
+}

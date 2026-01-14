@@ -1,0 +1,31 @@
+{
+  "language": "ko",
+  "big5": {
+    "openness": 0.6,
+    "conscientiousness": 0.62,
+    "extraversion": 0.21,
+    "agreeableness": 0.01,
+    "neuroticism": 0.92
+  },
+  "communication_style": {
+    "tone": 0.52,
+    "directness": 0.37,
+    "emotion_expression": 0.23,
+    "empathy_signals": 0.13,
+    "initiative": 0.18,
+    "conflict_style": 0.89
+  },
+  "topics": [
+    "독서"
+  ],
+  "confidence": 0.87,
+  "stats": {
+    "msg_share": 59.8,
+    "avg_reply_latency": 67.0,
+    "question_ratio": 0.28
+  },
+  "_meta": {
+    "source": "dummy_generator",
+    "target_name": "임도현"
+  }
+}

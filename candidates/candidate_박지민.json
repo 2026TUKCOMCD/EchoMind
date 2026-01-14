@@ -1,0 +1,35 @@
+{
+  "language": "ko",
+  "big5": {
+    "openness": 0.66,
+    "conscientiousness": 0.15,
+    "extraversion": 0.18,
+    "agreeableness": 0.43,
+    "neuroticism": 0.9
+  },
+  "communication_style": {
+    "tone": 0.11,
+    "directness": 0.08,
+    "emotion_expression": 0.68,
+    "empathy_signals": 0.8,
+    "initiative": 0.93,
+    "conflict_style": 0.78
+  },
+  "topics": [
+    "자동차",
+    "게임",
+    "헬스",
+    "여행",
+    "쇼핑"
+  ],
+  "confidence": 0.74,
+  "stats": {
+    "msg_share": 60.8,
+    "avg_reply_latency": 15.0,
+    "question_ratio": 0.39
+  },
+  "_meta": {
+    "source": "dummy_generator",
+    "target_name": "박지민"
+  }
+}

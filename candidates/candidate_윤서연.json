@@ -1,0 +1,32 @@
+{
+  "language": "ko",
+  "big5": {
+    "openness": 0.32,
+    "conscientiousness": 0.86,
+    "extraversion": 0.5,
+    "agreeableness": 0.99,
+    "neuroticism": 0.34
+  },
+  "communication_style": {
+    "tone": 0.51,
+    "directness": 0.2,
+    "emotion_expression": 0.95,
+    "empathy_signals": 0.69,
+    "initiative": 0.22,
+    "conflict_style": 0.03
+  },
+  "topics": [
+    "자동차",
+    "헬스"
+  ],
+  "confidence": 0.72,
+  "stats": {
+    "msg_share": 54.8,
+    "avg_reply_latency": 48.0,
+    "question_ratio": 0.21
+  },
+  "_meta": {
+    "source": "dummy_generator",
+    "target_name": "윤서연"
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "language": "ko",
+  "big5": {
+    "openness": 0.09,
+    "conscientiousness": 0.64,
+    "extraversion": 0.06,
+    "agreeableness": 0.03,
+    "neuroticism": 0.9
+  },
+  "communication_style": {
+    "tone": 0.91,
+    "directness": 0.26,
+    "emotion_expression": 0.18,
+    "empathy_signals": 0.62,
+    "initiative": 0.01,
+    "conflict_style": 0.8
+  },
+  "topics": [
+    "부동산"
+  ],
+  "confidence": 0.9,
+  "stats": {
+    "msg_share": 54.6,
+    "avg_reply_latency": 10.9,
+    "question_ratio": 0.08
+  },
+  "_meta": {
+    "source": "dummy_generator",
+    "target_name": "최민수"
+  }
+}

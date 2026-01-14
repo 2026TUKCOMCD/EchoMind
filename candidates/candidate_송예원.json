@@ -1,0 +1,33 @@
+{
+  "language": "ko",
+  "big5": {
+    "openness": 0.92,
+    "conscientiousness": 0.89,
+    "extraversion": 0.55,
+    "agreeableness": 0.49,
+    "neuroticism": 0.69
+  },
+  "communication_style": {
+    "tone": 0.54,
+    "directness": 0.01,
+    "emotion_expression": 0.12,
+    "empathy_signals": 0.48,
+    "initiative": 0.18,
+    "conflict_style": 0.41
+  },
+  "topics": [
+    "주식",
+    "부동산",
+    "자동차"
+  ],
+  "confidence": 0.84,
+  "stats": {
+    "msg_share": 34.6,
+    "avg_reply_latency": 24.6,
+    "question_ratio": 0.45
+  },
+  "_meta": {
+    "source": "dummy_generator",
+    "target_name": "송예원"
+  }
+}

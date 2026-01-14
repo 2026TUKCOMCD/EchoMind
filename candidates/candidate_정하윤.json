@@ -1,0 +1,33 @@
+{
+  "language": "ko",
+  "big5": {
+    "openness": 0.34,
+    "conscientiousness": 0.7,
+    "extraversion": 0.5,
+    "agreeableness": 0.22,
+    "neuroticism": 0.18
+  },
+  "communication_style": {
+    "tone": 0.92,
+    "directness": 0.79,
+    "emotion_expression": 0.41,
+    "empathy_signals": 0.25,
+    "initiative": 0.04,
+    "conflict_style": 0.62
+  },
+  "topics": [
+    "넷플릭스",
+    "노래방",
+    "게임"
+  ],
+  "confidence": 0.8,
+  "stats": {
+    "msg_share": 68.8,
+    "avg_reply_latency": 23.2,
+    "question_ratio": 0.38
+  },
+  "_meta": {
+    "source": "dummy_generator",
+    "target_name": "정하윤"
+  }
+}

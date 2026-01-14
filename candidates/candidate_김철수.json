@@ -1,0 +1,35 @@
+{
+  "language": "ko",
+  "big5": {
+    "openness": 0.58,
+    "conscientiousness": 0.03,
+    "extraversion": 0.92,
+    "agreeableness": 0.5,
+    "neuroticism": 0.98
+  },
+  "communication_style": {
+    "tone": 0.25,
+    "directness": 0.46,
+    "emotion_expression": 0.53,
+    "empathy_signals": 0.04,
+    "initiative": 0.4,
+    "conflict_style": 0.8
+  },
+  "topics": [
+    "부동산",
+    "패션",
+    "노래방",
+    "음악",
+    "넷플릭스"
+  ],
+  "confidence": 0.82,
+  "stats": {
+    "msg_share": 45.1,
+    "avg_reply_latency": 77.9,
+    "question_ratio": 0.45
+  },
+  "_meta": {
+    "source": "dummy_generator",
+    "target_name": "김철수"
+  }
+}

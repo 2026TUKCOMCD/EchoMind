@@ -1,0 +1,33 @@
+{
+  "language": "ko",
+  "big5": {
+    "openness": 0.87,
+    "conscientiousness": 1.0,
+    "extraversion": 0.08,
+    "agreeableness": 0.72,
+    "neuroticism": 0.17
+  },
+  "communication_style": {
+    "tone": 0.23,
+    "directness": 0.44,
+    "emotion_expression": 0.14,
+    "empathy_signals": 0.87,
+    "initiative": 0.08,
+    "conflict_style": 0.56
+  },
+  "topics": [
+    "독서",
+    "코딩",
+    "드라이브"
+  ],
+  "confidence": 0.8,
+  "stats": {
+    "msg_share": 38.8,
+    "avg_reply_latency": 14.0,
+    "question_ratio": 0.13
+  },
+  "_meta": {
+    "source": "dummy_generator",
+    "target_name": "강서준"
+  }
+}

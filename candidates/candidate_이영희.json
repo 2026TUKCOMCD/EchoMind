@@ -1,0 +1,33 @@
+{
+  "language": "ko",
+  "big5": {
+    "openness": 0.44,
+    "conscientiousness": 0.56,
+    "extraversion": 0.53,
+    "agreeableness": 0.25,
+    "neuroticism": 0.6
+  },
+  "communication_style": {
+    "tone": 0.62,
+    "directness": 0.11,
+    "emotion_expression": 0.61,
+    "empathy_signals": 0.12,
+    "initiative": 0.42,
+    "conflict_style": 0.91
+  },
+  "topics": [
+    "쇼핑",
+    "주식",
+    "음악"
+  ],
+  "confidence": 0.71,
+  "stats": {
+    "msg_share": 34.1,
+    "avg_reply_latency": 81.9,
+    "question_ratio": 0.25
+  },
+  "_meta": {
+    "source": "dummy_generator",
+    "target_name": "이영희"
+  }
+}

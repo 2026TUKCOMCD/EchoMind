@@ -1,0 +1,34 @@
+{
+  "language": "ko",
+  "big5": {
+    "openness": 0.41,
+    "conscientiousness": 0.21,
+    "extraversion": 0.66,
+    "agreeableness": 0.6,
+    "neuroticism": 0.85
+  },
+  "communication_style": {
+    "tone": 0.91,
+    "directness": 0.97,
+    "emotion_expression": 0.8,
+    "empathy_signals": 0.16,
+    "initiative": 0.47,
+    "conflict_style": 0.91
+  },
+  "topics": [
+    "부동산",
+    "드라이브",
+    "노래방",
+    "독서"
+  ],
+  "confidence": 0.93,
+  "stats": {
+    "msg_share": 65.0,
+    "avg_reply_latency": 52.9,
+    "question_ratio": 0.25
+  },
+  "_meta": {
+    "source": "dummy_generator",
+    "target_name": "신우진"
+  }
+}
