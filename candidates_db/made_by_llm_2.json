@@ -1,0 +1,72 @@
+{
+  "meta": {
+    "source": "kakao_export_txt",
+    "generated_at_utc": "2026-01-18T20:04:42.887100Z",
+    "file": "KakaoTalk_Chat.txt",
+    "speaker_name": "박서연",
+    "user_id": "u_202",
+    "model": "gpt-5-mini"
+  },
+  "parse_quality": {
+    "total_lines": 2430,
+    "parsed_lines": 910,
+    "parse_failed_lines": 1010,
+    "filtered_system_lines": 61,
+    "empty_text_lines": 18,
+    "pii_masked_hits": 0
+  },
+  "llm_profile": {
+    "summary": {
+      "one_paragraph": "사용자는 팀 내 소통에서 의견 조율과 피드백에 적극적이며, 상대의 제안을 요약·정리해 공유하는 역할을 자주 수행합니다. 비교적 정중하고 협업 친화적인 톤이 특징입니다.",
+      "communication_style_bullets": [
+        "요약·정리 중심 발언",
+        "의견 조율에 적극적",
+        "정중한 표현 유지",
+        "피드백 제공 빈도 높음",
+        "팀 분위기 안정화 기여"
+      ]
+    },
+    "mbti": {
+      "type": "ISFJ",
+      "confidence": 0.60,
+      "reasons": [
+        "협업과 조화를 중시",
+        "실무적 지원 역할 선호",
+        "감정 표현은 절제됨",
+        "책임감 있는 태도"
+      ]
+    },
+    "big5": {
+      "scores_0_100": {
+        "openness": 58,
+        "conscientiousness": 78,
+        "extraversion": 38,
+        "agreeableness": 80,
+        "neuroticism": 32
+      },
+      "confidence": 0.58,
+      "reasons": [
+        "새로운 아이디어에 비교적 개방적",
+        "과업 수행 신뢰도 높음",
+        "외향성은 낮은 편",
+        "높은 친화성",
+        "정서 반응은 보통 수준"
+      ]
+    },
+    "socionics": {
+      "type": "ESI",
+      "confidence": 0.52,
+      "reasons": [
+        "관계 안정 중시",
+        "책임 있는 협업 태도",
+        "현실적 판단 선호"
+      ]
+    },
+    "caveats": [
+      "그룹 채팅 특성 반영",
+      "상황 의존적 행동 가능",
+      "성격 모델은 참고용",
+      "정량 지표에는 오차 존재"
+    ]
+  }
+}

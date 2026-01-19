@@ -1,0 +1,72 @@
+{
+  "meta": {
+    "source": "kakao_export_txt",
+    "generated_at_utc": "2026-01-18T20:07:59.401900Z",
+    "file": "KakaoTalk_Chat.txt",
+    "speaker_name": "이도현",
+    "user_id": "u_203",
+    "model": "gpt-5-mini"
+  },
+  "parse_quality": {
+    "total_lines": 3100,
+    "parsed_lines": 1020,
+    "parse_failed_lines": 1280,
+    "filtered_system_lines": 70,
+    "empty_text_lines": 25,
+    "pii_masked_hits": 0
+  },
+  "llm_profile": {
+    "summary": {
+      "one_paragraph": "해당 사용자는 기술 토론에서 아이디어를 다수 제시하며, 구조 개선이나 알고리즘 효율화 제안을 자주 합니다. 비교적 자유로운 사고와 탐색적 발언이 특징입니다.",
+      "communication_style_bullets": [
+        "아이디어 제안 빈도 높음",
+        "기술적 탐색 성향",
+        "개선 포인트 제시",
+        "비형식적 표현 일부 사용",
+        "토론 주도"
+      ]
+    },
+    "mbti": {
+      "type": "INTP",
+      "confidence": 0.64,
+      "reasons": [
+        "추상적·개념적 논의 선호",
+        "논리적 분석 중심",
+        "일정·절차보다는 아이디어 중시",
+        "내향적 토론 성향"
+      ]
+    },
+    "big5": {
+      "scores_0_100": {
+        "openness": 82,
+        "conscientiousness": 60,
+        "extraversion": 35,
+        "agreeableness": 55,
+        "neuroticism": 40
+      },
+      "confidence": 0.57,
+      "reasons": [
+        "높은 개방성",
+        "책임감은 평균 수준",
+        "외향성 낮음",
+        "의견 충돌 시 직설적",
+        "감정 기복 일부 존재"
+      ]
+    },
+    "socionics": {
+      "type": "ILI",
+      "confidence": 0.54,
+      "reasons": [
+        "분석·통찰 중심",
+        "시스템 개선 지향",
+        "미래 가능성 탐색"
+      ]
+    },
+    "caveats": [
+      "아이디어 중심 발언에 편중",
+      "실행력과 분리해 해석 필요",
+      "성격은 맥락에 따라 변화",
+      "데이터 일부 누락 가능"
+    ]
+  }
+}

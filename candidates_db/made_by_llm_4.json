@@ -1,0 +1,72 @@
+{
+  "meta": {
+    "source": "kakao_export_txt",
+    "generated_at_utc": "2026-01-18T20:11:21.550200Z",
+    "file": "KakaoTalk_Chat.txt",
+    "speaker_name": "최유진",
+    "user_id": "u_204",
+    "model": "gpt-5-mini"
+  },
+  "parse_quality": {
+    "total_lines": 1870,
+    "parsed_lines": 640,
+    "parse_failed_lines": 900,
+    "filtered_system_lines": 49,
+    "empty_text_lines": 12,
+    "pii_masked_hits": 0
+  },
+  "llm_profile": {
+    "summary": {
+      "one_paragraph": "사용자는 팀 내 분위기와 진행 상황을 동시에 고려하며, 문제 발생 시 중재자 역할을 수행합니다. 표현은 부드럽고 감정적 배려가 비교적 높은 편입니다.",
+      "communication_style_bullets": [
+        "배려 중심 표현",
+        "중재·조율 역할",
+        "긍정적 피드백 제공",
+        "갈등 완화 발언",
+        "협력 강조"
+      ]
+    },
+    "mbti": {
+      "type": "INFJ",
+      "confidence": 0.58,
+      "reasons": [
+        "타인 감정 고려",
+        "전체 흐름 파악",
+        "조용하지만 영향력 있음",
+        "가치 중심 판단"
+      ]
+    },
+    "big5": {
+      "scores_0_100": {
+        "openness": 70,
+        "conscientiousness": 72,
+        "extraversion": 42,
+        "agreeableness": 85,
+        "neuroticism": 35
+      },
+      "confidence": 0.56,
+      "reasons": [
+        "아이디어와 사람 모두 고려",
+        "책임감 안정적",
+        "중간 수준 외향성",
+        "높은 친화성",
+        "감정 민감도 다소 있음"
+      ]
+    },
+    "socionics": {
+      "type": "IEI",
+      "confidence": 0.50,
+      "reasons": [
+        "감정 흐름 인식",
+        "의미 중심 사고",
+        "관계 조율 능력"
+      ]
+    },
+    "caveats": [
+      "감정적 맥락 반영됨",
+      "공식/비공식 상황 차이",
+      "성격 분류는 가설적",
+      "표본 크기 제한"
+    ]
+  }
+}

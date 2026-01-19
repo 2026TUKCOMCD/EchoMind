@@ -1,0 +1,72 @@
+{
+  "meta": {
+    "source": "kakao_export_txt",
+    "generated_at_utc": "2026-01-18T20:14:47.903800Z",
+    "file": "KakaoTalk_Chat.txt",
+    "speaker_name": "정우성",
+    "user_id": "u_205",
+    "model": "gpt-5-mini"
+  },
+  "parse_quality": {
+    "total_lines": 2650,
+    "parsed_lines": 830,
+    "parse_failed_lines": 1100,
+    "filtered_system_lines": 65,
+    "empty_text_lines": 20,
+    "pii_masked_hits": 0
+  },
+  "llm_profile": {
+    "summary": {
+      "one_paragraph": "해당 사용자는 논의의 방향을 빠르게 정리하고 결론 도출을 선호하며, 실행 가능성을 기준으로 의사결정을 주도합니다. 단호하지만 명확한 커뮤니케이션이 특징입니다.",
+      "communication_style_bullets": [
+        "결론 중심 발언",
+        "의사결정 주도",
+        "명확한 지시",
+        "불필요한 논의 최소화",
+        "속도 중시"
+      ]
+    },
+    "mbti": {
+      "type": "ENTJ",
+      "confidence": 0.67,
+      "reasons": [
+        "주도적 발언",
+        "목표 지향적",
+        "논리 기반 결정",
+        "외향적 리더십"
+      ]
+    },
+    "big5": {
+      "scores_0_100": {
+        "openness": 65,
+        "conscientiousness": 88,
+        "extraversion": 70,
+        "agreeableness": 50,
+        "neuroticism": 22
+      },
+      "confidence": 0.62,
+      "reasons": [
+        "현실적 창의성",
+        "매우 높은 책임감",
+        "외향적 행동",
+        "친화성은 평균",
+        "정서적 안정"
+      ]
+    },
+    "socionics": {
+      "type": "LIE",
+      "confidence": 0.57,
+      "reasons": [
+        "성과 중심 사고",
+        "전략적 판단",
+        "효율 최우선"
+      ]
+    },
+    "caveats": [
+      "리더 역할이 반영됨",
+      "상황 의존성 큼",
+      "성격은 고정 불가",
+      "정량 점수는 추정치"
+    ]
+  }
+}

@@ -1,0 +1,72 @@
+{
+  "meta": {
+    "source": "kakao_export_txt",
+    "generated_at_utc": "2026-01-18T20:01:10.112300Z",
+    "file": "KakaoTalk_Chat.txt",
+    "speaker_name": "김민준",
+    "user_id": "u_201",
+    "model": "gpt-5-mini"
+  },
+  "parse_quality": {
+    "total_lines": 1980,
+    "parsed_lines": 720,
+    "parse_failed_lines": 880,
+    "filtered_system_lines": 54,
+    "empty_text_lines": 22,
+    "pii_masked_hits": 0
+  },
+  "llm_profile": {
+    "summary": {
+      "one_paragraph": "해당 사용자는 프로젝트 논의에서 구현 가능성과 일정 준수를 중시하며, 기술적 제약을 빠르게 정리해 공유하는 경향이 강합니다. 감정적 표현은 제한적이고 논리 중심의 메시지가 많아 실무형 협업 태도가 두드러집니다.",
+      "communication_style_bullets": [
+        "핵심 위주의 간결한 전달",
+        "기술·일정 리스크를 사전에 공유",
+        "불필요한 감정 표현 최소화",
+        "문제 발생 시 즉각적인 대안 제시",
+        "역할 분담에 적극적"
+      ]
+    },
+    "mbti": {
+      "type": "ISTJ",
+      "confidence": 0.66,
+      "reasons": [
+        "현실적 제약과 절차를 중시하는 발언이 많음",
+        "체계적인 일정 관리 성향",
+        "감정보다 논리를 우선시함",
+        "내향적이지만 책임감 있는 참여"
+      ]
+    },
+    "big5": {
+      "scores_0_100": {
+        "openness": 55,
+        "conscientiousness": 85,
+        "extraversion": 30,
+        "agreeableness": 62,
+        "neuroticism": 25
+      },
+      "confidence": 0.61,
+      "reasons": [
+        "새로운 아이디어 수용은 제한적이나 실용적",
+        "높은 책임감과 마감 준수",
+        "사회적 발언은 최소화",
+        "협업에는 우호적",
+        "정서적으로 안정적"
+      ]
+    },
+    "socionics": {
+      "type": "LSI",
+      "confidence": 0.56,
+      "reasons": [
+        "규칙과 구조를 중시",
+        "논리적 판단 기반 의사결정",
+        "감정보다 시스템 우선"
+      ]
+    },
+    "caveats": [
+      "분석은 제한된 채팅 데이터에 근거함",
+      "과제 상황 중심 데이터임",
+      "성격 유형은 확정적 진단이 아님",
+      "문화적 표현 차이는 고려하지 않음"
+    ]
+  }
+}
