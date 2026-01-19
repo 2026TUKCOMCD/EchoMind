@@ -17,4 +17,6 @@ kiwipiepy>=0.17.0
 
 #Open AI LLM
 openai>=1.50.0
- 
+
+# 과학/수학 연산 (Cosine Similarity 계산용)
+scipy>=1.13.0
