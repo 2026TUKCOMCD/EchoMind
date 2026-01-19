@@ -1,0 +1,26 @@
+{
+  "user_id": "최유나",
+  "communication_vector": {
+    "activity_score": 0.712,
+    "emotional_score": 0.834,
+    "politeness_score": 0.678,
+    "impact_score": 0.567,
+    "avg_reply_gap": 0.445,
+    "initiation_ratio": 0.601,
+    "night_owl_score": 0.512,
+    "vocab_ttr": 0.889,
+    "data_entropy": 0.867,
+    "toxicity_score": 0.289
+  },
+  "_meta": {
+    "generated_at": "2026-01-12T15:58:03.445678",
+    "algorithm": "rule_based_scientific_v5",
+    "parse_stats": {
+      "total_lines": 85,
+      "parsed_lines": 78,
+      "target_count": 24,
+      "other_count": 54
+    },
+    "reliability_check": "PASS"
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "user_id": "문소율",
+  "communication_vector": {
+    "activity_score": 0.984,
+    "emotional_score": 0.692,
+    "politeness_score": 0.134,
+    "impact_score": 0.956,
+    "avg_reply_gap": 0.112,
+    "initiation_ratio": 0.967,
+    "night_owl_score": 0.945,
+    "vocab_ttr": 0.876,
+    "data_entropy": 0.989,
+    "toxicity_score": 0.804
+  },
+  "_meta": {
+    "generated_at": "2026-01-12T15:47:03.112987",
+    "algorithm": "rule_based_scientific_v5",
+    "parse_stats": {
+      "total_lines": 156,
+      "parsed_lines": 148,
+      "target_count": 56,
+      "other_count": 92
+    },
+    "reliability_check": "PASS"
+  }
+}

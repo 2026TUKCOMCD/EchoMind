@@ -1,0 +1,26 @@
+{
+  "user_id": "신예린",
+  "communication_vector": {
+    "activity_score": 0.278,
+    "emotional_score": 0.945,
+    "politeness_score": 0.956,
+    "impact_score": 0.145,
+    "avg_reply_gap": 0.892,
+    "initiation_ratio": 0.076,
+    "night_owl_score": 0.054,
+    "vocab_ttr": 0.967,
+    "data_entropy": 0.654,
+    "toxicity_score": 0.028
+  },
+  "_meta": {
+    "generated_at": "2026-01-12T15:52:14.334567",
+    "algorithm": "rule_based_scientific_v5",
+    "parse_stats": {
+      "total_lines": 51,
+      "parsed_lines": 46,
+      "target_count": 11,
+      "other_count": 35
+    },
+    "reliability_check": "PASS"
+  }
+}

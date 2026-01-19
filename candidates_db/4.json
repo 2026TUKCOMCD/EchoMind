@@ -1,0 +1,26 @@
+{
+  "user_id": "서태양",
+  "communication_vector": {
+    "activity_score": 0.788,
+    "emotional_score": 0.562,
+    "politeness_score": 0.345,
+    "impact_score": 0.678,
+    "avg_reply_gap": 0.298,
+    "initiation_ratio": 0.745,
+    "night_owl_score": 0.812,
+    "vocab_ttr": 0.856,
+    "data_entropy": 0.914,
+    "toxicity_score": 0.419
+  },
+  "_meta": {
+    "generated_at": "2026-01-12T15:33:22.176543",
+    "algorithm": "rule_based_scientific_v5",
+    "parse_stats": {
+      "total_lines": 97,
+      "parsed_lines": 89,
+      "target_count": 31,
+      "other_count": 58
+    },
+    "reliability_check": "PASS"
+  }
+}

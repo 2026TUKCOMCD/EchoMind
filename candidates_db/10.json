@@ -1,0 +1,26 @@
+{
+  "user_id": "허민재",
+  "communication_vector": {
+    "activity_score": 0.509,
+    "emotional_score": 0.876,
+    "politeness_score": 0.809,
+    "impact_score": 0.321,
+    "avg_reply_gap": 0.612,
+    "initiation_ratio": 0.443,
+    "night_owl_score": 0.376,
+    "vocab_ttr": 0.901,
+    "data_entropy": 0.834,
+    "toxicity_score": 0.215
+  },
+  "_meta": {
+    "generated_at": "2026-01-12T15:49:38.776543",
+    "algorithm": "rule_based_scientific_v5",
+    "parse_stats": {
+      "total_lines": 69,
+      "parsed_lines": 64,
+      "target_count": 18,
+      "other_count": 46
+    },
+    "reliability_check": "PASS"
+  }
+}

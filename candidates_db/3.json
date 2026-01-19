@@ -1,0 +1,26 @@
+{
+  "user_id": "오하늘",
+  "communication_vector": {
+    "activity_score": 0.432,
+    "emotional_score": 0.957,
+    "politeness_score": 0.891,
+    "impact_score": 0.204,
+    "avg_reply_gap": 0.776,
+    "initiation_ratio": 0.187,
+    "night_owl_score": 0.098,
+    "vocab_ttr": 0.945,
+    "data_entropy": 0.701,
+    "toxicity_score": 0.031
+  },
+  "_meta": {
+    "generated_at": "2026-01-12T15:30:09.445678",
+    "algorithm": "rule_based_scientific_v5",
+    "parse_stats": {
+      "total_lines": 59,
+      "parsed_lines": 54,
+      "target_count": 12,
+      "other_count": 42
+    },
+    "reliability_check": "PASS"
+  }
+}

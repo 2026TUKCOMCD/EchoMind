@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="text-center mb-5">
+        <h2 class="fw-bold mb-2">AI 매칭 리더보드</h2>
+        <p class="text-muted">내 성향(Style)과 라이프스타일(Life)을 분석하여 최적의 파트너를 추천합니다.</p>
+    </div>
+
+    <div class="d-flex justify-content-end mb-3">
+        <div class="btn-group" role="group">
+            <button type="button" class="btn btn-outline-secondary active">종합순</button>
+            <button type="button" class="btn btn-outline-secondary">성향순</button>
+            <button type="button" class="btn btn-outline-secondary">라이프스타일순</button>
+        </div>
+    </div>
+
+    <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
+        {% for match in results %}
+        <div class="col">
+            <div class="card h-100 border-0 shadow-sm hover-shadow transition-card position-relative">
+                {% if loop.index <= 3 %}
+                <div class="position-absolute top-0 start-0 m-3 z-1">
+                    <span class="badge rounded-pill bg-{{ 'warning text-dark' if loop.index==1 else ('secondary' if loop.index==2 else 'light text-dark border') }} fs-6 shadow-sm">
+                        {{ ["🥇", "🥈", "🥉"][loop.index-1] }} Rank {{ loop.index }}
+                    </span>
+                </div>
+                {% endif %}
+
+                <div class="card-body text-center pt-5">
+                    <img src="https://api.dicebear.com/7.x/identicon/svg?seed={{ match.user_id }}" 
+                         class="rounded-circle mb-3 border border-3 border-white shadow-sm" 
+                         width="80" height="80" alt="Avatar">
+                    
+                    <h4 class="card-title fw-bold text-truncate">{{ match.user_id }}</h4>
+                    <p class="card-text text-muted small fst-italic mb-3">"{{ match.comment }}"</p>
+
+                    <div class="d-flex justify-content-center align-items-center mb-3">
+                        <h2 class="fw-bold text-primary mb-0 me-2">{{ "%.0f"|format(match.info.total) }}</h2>
+                        <span class="text-muted">점</span>
+                    </div>
+
+                    <div class="text-start small px-3">
+                        <div class="d-flex justify-content-between mb-1">
+                            <span>성향 (Style)</span>
+                            <span class="fw-bold">{{ "%.0f"|format(match.info.style * 100) }}%</span>
+                        </div>
+                        <div class="progress mb-2" style="height: 6px;">
+                            <div class="progress-bar bg-info" style="width: {{ match.info.style * 100 }}%"></div>
+                        </div>
+
+                        <div class="d-flex justify-content-between mb-1">
+                            <span>라이프 (Life)</span>
+                            <span class="fw-bold">{{ "%.0f"|format(match.info.life * 100) }}%</span>
+                        </div>
+                        <div class="progress mb-2" style="height: 6px;">
+                            <div class="progress-bar bg-success" style="width: {{ match.info.life * 100 }}%"></div>
+                        </div>
+
+                        {% if match.info.penalty > 0 %}
+                        <div class="mt-2 text-danger fw-bold d-flex align-items-center">
+                            <i class="bi bi-exclamation-circle-fill me-1"></i>
+                            <span>독성 패널티: -{{ "%.1f"|format(match.info.penalty * 100) }}점</span>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <div class="card-footer bg-white border-top-0 pb-3">
+                    <button class="btn btn-outline-primary w-100 rounded-pill fw-bold">
+                        상세 프로필 보기
+                    </button>
+                </div>
+            </div>
+        </div>
+        {% else %}
+        <div class="col-12 text-center py-5">
+            <i class="bi bi-people text-muted" style="font-size: 3rem;"></i>
+            <h4 class="text-muted mt-3">매칭할 파트너 데이터가 아직 없습니다.</h4>
+            <p class="text-muted">다른 사용자들의 분석이 완료되면 이곳에 표시됩니다.</p>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<style>
+    .hover-shadow:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 .5rem 1rem rgba(0,0,0,.15)!important;
+    }
+    .transition-card {
+        transition: all 0.3s ease;
+    }
+</style>
+{% endblock %}

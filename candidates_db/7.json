@@ -1,0 +1,26 @@
+{
+  "user_id": "류하린",
+  "communication_vector": {
+    "activity_score": 0.621,
+    "emotional_score": 0.903,
+    "politeness_score": 0.712,
+    "impact_score": 0.398,
+    "avg_reply_gap": 0.567,
+    "initiation_ratio": 0.512,
+    "night_owl_score": 0.289,
+    "vocab_ttr": 0.934,
+    "data_entropy": 0.792,
+    "toxicity_score": 0.167
+  },
+  "_meta": {
+    "generated_at": "2026-01-12T15:41:47.223456",
+    "algorithm": "rule_based_scientific_v5",
+    "parse_stats": {
+      "total_lines": 74,
+      "parsed_lines": 68,
+      "target_count": 21,
+      "other_count": 47
+    },
+    "reliability_check": "PASS"
+  }
+}

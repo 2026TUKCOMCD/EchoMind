@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container d-flex justify-content-center align-items-center" style="min-height: 80vh;">
+    <div class="card shadow-lg p-4" style="width: 100%; max-width: 400px; border-radius: 20px;">
+        <div class="card-body">
+            <div class="text-center mb-4">
+                <i class="bi bi-chat-quote-fill text-primary" style="font-size: 3rem;"></i>
+                <h3 class="fw-bold mt-2">EchoMind</h3>
+                <p class="text-muted">대화의 깊이를 분석하다</p>
+            </div>
+
+            <form action="{{ url_for('login') }}" method="POST" class="needs-validation" novalidate id="loginForm">
+                <div class="form-floating mb-3">
+                    <input type="email" class="form-control" id="email" name="email" placeholder="name@example.com" required>
+                    <label for="email">이메일 주소</label>
+                    <div class="invalid-feedback">올바른 이메일 형식을 입력해주세요.</div>
+                </div>
+                
+                <div class="form-floating mb-4">
+                    <input type="password" class="form-control" id="password" name="password" placeholder="Password" required>
+                    <label for="password">비밀번호</label>
+                    <div class="invalid-feedback">비밀번호를 입력해주세요.</div>
+                </div>
+
+                <div class="d-grid gap-2">
+                    <button type="submit" class="btn btn-primary btn-lg fw-bold" id="loginBtn">
+                        <span class="spinner-border spinner-border-sm d-none" id="loadingSpinner" role="status" aria-hidden="true"></span>
+                        로그인
+                    </button>
+                </div>
+            </form>
+
+            <div class="d-flex justify-content-between mt-4 text-sm">
+                <a href="#" class="text-decoration-none text-muted small">비밀번호 찾기</a>
+                <a href="/register" class="text-decoration-none fw-bold small">새 계정 만들기</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // 부트스트랩 유효성 검사 및 로딩 스피너 로직
+    (() => {
+        'use strict'
+        const form = document.getElementById('loginForm')
+        const btn = document.getElementById('loginBtn')
+        const spinner = document.getElementById('loadingSpinner')
+
+        form.addEventListener('submit', event => {
+            if (!form.checkValidity()) {
+                event.preventDefault()
+                event.stopPropagation()
+            } else {
+                // 유효성 통과 시 로딩 상태로 변경
+                btn.disabled = true;
+                spinner.classList.remove('d-none');
+            }
+            form.classList.add('was-validated')
+        }, false)
+    })()
+</script>
+{% endblock %}

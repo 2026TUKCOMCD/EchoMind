@@ -1,0 +1,26 @@
+{
+  "user_id": "장우빈",
+  "communication_vector": {
+    "activity_score": 0.893,
+    "emotional_score": 0.478,
+    "politeness_score": 0.189,
+    "impact_score": 0.821,
+    "avg_reply_gap": 0.234,
+    "initiation_ratio": 0.891,
+    "night_owl_score": 0.876,
+    "vocab_ttr": 0.817,
+    "data_entropy": 0.945,
+    "toxicity_score": 0.634
+  },
+  "_meta": {
+    "generated_at": "2026-01-12T15:39:12.554987",
+    "algorithm": "rule_based_scientific_v5",
+    "parse_stats": {
+      "total_lines": 112,
+      "parsed_lines": 104,
+      "target_count": 38,
+      "other_count": 66
+    },
+    "reliability_check": "PASS"
+  }
+}

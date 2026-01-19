@@ -1,0 +1,26 @@
+{
+  "user_id": "김철수",
+  "communication_vector": {
+    "activity_score": 0.693,
+    "emotional_score": 0.962,
+    "politeness_score": 0.0,
+    "impact_score": 0.218,
+    "avg_reply_gap": 0.759,
+    "initiation_ratio": 0.0,
+    "night_owl_score": 0.211,
+    "vocab_ttr": 0.89,
+    "data_entropy": 0.963,
+    "toxicity_score": 0.0263
+  },
+  "_meta": {
+    "generated_at": "2026-01-12T14:59:10.917240",
+    "algorithm": "rule_based_scientific_v5",
+    "parse_stats": {
+      "total_lines": 80,
+      "parsed_lines": 72,
+      "target_count": 19,
+      "other_count": 48
+    },
+    "reliability_check": "PASS"
+  }
+}

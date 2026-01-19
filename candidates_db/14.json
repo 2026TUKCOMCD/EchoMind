@@ -1,0 +1,26 @@
+{
+  "user_id": "김도현",
+  "communication_vector": {
+    "activity_score": 0.956,
+    "emotional_score": 0.567,
+    "politeness_score": 0.098,
+    "impact_score": 0.934,
+    "avg_reply_gap": 0.167,
+    "initiation_ratio": 0.945,
+    "night_owl_score": 0.978,
+    "vocab_ttr": 0.798,
+    "data_entropy": 0.976,
+    "toxicity_score": 0.812
+  },
+  "_meta": {
+    "generated_at": "2026-01-12T16:01:37.112345",
+    "algorithm": "rule_based_scientific_v5",
+    "parse_stats": {
+      "total_lines": 137,
+      "parsed_lines": 129,
+      "target_count": 49,
+      "other_count": 80
+    },
+    "reliability_check": "PASS"
+  }
+}

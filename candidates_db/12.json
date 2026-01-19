@@ -1,0 +1,26 @@
+{
+  "user_id": "정하준",
+  "communication_vector": {
+    "activity_score": 0.845,
+    "emotional_score": 0.401,
+    "politeness_score": 0.223,
+    "impact_score": 0.789,
+    "avg_reply_gap": 0.321,
+    "initiation_ratio": 0.834,
+    "night_owl_score": 0.901,
+    "vocab_ttr": 0.832,
+    "data_entropy": 0.923,
+    "toxicity_score": 0.678
+  },
+  "_meta": {
+    "generated_at": "2026-01-12T15:55:29.998765",
+    "algorithm": "rule_based_scientific_v5",
+    "parse_stats": {
+      "total_lines": 108,
+      "parsed_lines": 99,
+      "target_count": 35,
+      "other_count": 64
+    },
+    "reliability_check": "PASS"
+  }
+}

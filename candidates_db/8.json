@@ -1,0 +1,26 @@
+{
+  "user_id": "백시우",
+  "communication_vector": {
+    "activity_score": 0.347,
+    "emotional_score": 0.219,
+    "politeness_score": 0.456,
+    "impact_score": 0.765,
+    "avg_reply_gap": 0.834,
+    "initiation_ratio": 0.298,
+    "night_owl_score": 0.678,
+    "vocab_ttr": 0.743,
+    "data_entropy": 0.619,
+    "toxicity_score": 0.528
+  },
+  "_meta": {
+    "generated_at": "2026-01-12T15:44:19.887654",
+    "algorithm": "rule_based_scientific_v5",
+    "parse_stats": {
+      "total_lines": 82,
+      "parsed_lines": 73,
+      "target_count": 19,
+      "other_count": 54
+    },
+    "reliability_check": "PASS"
+  }
+}

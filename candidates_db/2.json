@@ -1,0 +1,26 @@
+{
+  "user_id": "윤서준",
+  "communication_vector": {
+    "activity_score": 0.921,
+    "emotional_score": 0.334,
+    "politeness_score": 0.057,
+    "impact_score": 0.912,
+    "avg_reply_gap": 0.189,
+    "initiation_ratio": 0.876,
+    "night_owl_score": 0.934,
+    "vocab_ttr": 0.795,
+    "data_entropy": 0.968,
+    "toxicity_score": 0.783
+  },
+  "_meta": {
+    "generated_at": "2026-01-12T15:27:41.098721",
+    "algorithm": "rule_based_scientific_v5",
+    "parse_stats": {
+      "total_lines": 143,
+      "parsed_lines": 132,
+      "target_count": 47,
+      "other_count": 85
+    },
+    "reliability_check": "PASS"
+  }
+}

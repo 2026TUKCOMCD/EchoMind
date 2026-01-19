@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="fw-bold mb-0">
+                <i class="bi bi-clipboard-data text-primary me-2"></i>분석 리포트
+            </h2>
+            <p class="text-muted mt-1">분석 대상: <strong>{{ profile_data._meta.user_id }}</strong> | 분석일: {{ profile_data._meta.generated_at[:10] }}</p>
+        </div>
+        <a href="/upload" class="btn btn-outline-secondary"><i class="bi bi-arrow-counterclockwise me-1"></i>재분석</a>
+    </div>
+
+    <div class="row g-4">
+        <div class="col-lg-4">
+            <div class="card shadow-sm h-100 border-0">
+                <div class="card-body text-center p-4">
+                    <div class="mb-4">
+                        <img src="https://api.dicebear.com/7.x/identicon/svg?seed={{ profile_data._meta.user_id }}" 
+                             class="rounded-circle shadow-sm mb-3" width="100" height="100" alt="User Avatar">
+                        <h4 class="fw-bold">{{ profile_data._meta.user_id }}</h4>
+                        <span class="badge bg-light text-dark border rounded-pill mb-2">#{{ "적극적" if profile_data.communication_vector.activity_score > 0.6 else "신중한" }}</span>
+                    </div>
+
+                    <ul class="list-group list-group-flush text-start">
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <span><i class="bi bi-translate me-2 text-info"></i>어휘 다양성</span>
+                            <span class="fw-bold">{{ "%.2f"|format(profile_data.communication_vector.vocab_ttr) }}</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <span><i class="bi bi-shield-check me-2 text-success"></i>데이터 신뢰도</span>
+                            <span class="fw-bold">{{ "%.2f"|format(profile_data.communication_vector.data_entropy) }}</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <span><i class="bi bi-exclamation-triangle me-2 text-danger"></i>독성(위험) 지수</span>
+                            {% set tox = profile_data.communication_vector.toxicity_score %}
+                            <span class="badge bg-{{ 'danger' if tox > 0.2 else 'success' }} rounded-pill">{{ "%.2f"|format(tox) }}</span>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-8">
+            <div class="card shadow-sm h-100 border-0">
+                <div class="card-header bg-white py-3">
+                    <h5 class="fw-bold mb-0"><i class="bi bi-radar me-2"></i>6차원 성향 분석</h5>
+                </div>
+                <div class="card-body d-flex justify-content-center align-items-center">
+                    <div style="width: 100%; max-width: 600px; height: 400px;">
+                        <canvas id="profileChart"></canvas>
+                    </div>
+                </div>
+                <div class="card-footer bg-light text-end">
+                    <a href="/matching" class="btn btn-primary fw-bold">
+                        <i class="bi bi-people-fill me-2"></i>나와 맞는 파트너 찾기
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    const ctx = document.getElementById('profileChart').getContext('2d');
+    const vector = {{ profile_data.communication_vector | tojson }};
+    
+    // 차트 데이터 구성 (독성 지수 제외 -> 6각형)
+    const data = {
+        labels: [
+            ['🏃 활동성', '(Activity)'], ['🎩 정중함', '(Polite)'], ['💥 직설성', '(Impact)'], 
+            ['🚩 주도성', '(Initiative)'], 
+            ['📚 어휘력', '(Vocab)'], ['🧩 신뢰도', '(Entropy)']
+        ],
+        datasets: [{
+            label: '나의 성향 점수',
+            data: [
+                vector.activity_score, vector.politeness_score, vector.impact_score,
+                vector.initiation_ratio,
+                vector.vocab_ttr, vector.data_entropy
+            ],
+            backgroundColor: 'rgba(13, 110, 253, 0.2)', // Bootstrap Primary Color (transparent)
+            borderColor: '#0d6efd',
+            pointBackgroundColor: '#0d6efd',
+            pointBorderColor: '#fff',
+            pointHoverBackgroundColor: '#fff',
+            pointHoverBorderColor: '#0d6efd',
+            borderWidth: 2,
+            pointRadius: 4,
+            pointHoverRadius: 6
+        }]
+    };
+
+    new Chart(ctx, {
+        type: 'radar',
+        data: data,
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                r: {
+                    angleLines: { color: '#e9ecef' },
+                    grid: { color: '#e9ecef' },
+                    pointLabels: {
+                        font: { size: 12, family: "'Noto Sans KR', sans-serif", weight: 'bold' },
+                        color: '#495057'
+                    },
+                    suggestedMin: 0,
+                    suggestedMax: 1.0,
+                    ticks: { display: false, stepSize: 0.2 }
+                }
+            },
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return context.label + ': ' + context.raw.toFixed(2);
+                        }
+                    }
+                }
+            }
+        }
+    });
+</script>
+{% endblock %}

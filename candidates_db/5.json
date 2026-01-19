@@ -1,0 +1,26 @@
+{
+  "user_id": "임수진",
+  "communication_vector": {
+    "activity_score": 0.156,
+    "emotional_score": 0.784,
+    "politeness_score": 0.923,
+    "impact_score": 0.087,
+    "avg_reply_gap": 0.967,
+    "initiation_ratio": 0.034,
+    "night_owl_score": 0.021,
+    "vocab_ttr": 0.912,
+    "data_entropy": 0.538,
+    "toxicity_score": 0.012
+  },
+  "_meta": {
+    "generated_at": "2026-01-12T15:36:55.901234",
+    "algorithm": "rule_based_scientific_v5",
+    "parse_stats": {
+      "total_lines": 36,
+      "parsed_lines": 31,
+      "target_count": 6,
+      "other_count": 25
+    },
+    "reliability_check": "PASS"
+  }
+}

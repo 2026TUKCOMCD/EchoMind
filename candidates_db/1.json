@@ -1,0 +1,26 @@
+{
+  "user_id": "한지민",
+  "communication_vector": {
+    "activity_score": 0.675,
+    "emotional_score": 0.819,
+    "politeness_score": 0.784,
+    "impact_score": 0.541,
+    "avg_reply_gap": 0.503,
+    "initiation_ratio": 0.629,
+    "night_owl_score": 0.147,
+    "vocab_ttr": 0.921,
+    "data_entropy": 0.882,
+    "toxicity_score": 0.092
+  },
+  "_meta": {
+    "generated_at": "2026-01-12T15:24:17.332145",
+    "algorithm": "rule_based_scientific_v5",
+    "parse_stats": {
+      "total_lines": 88,
+      "parsed_lines": 81,
+      "target_count": 28,
+      "other_count": 53
+    },
+    "reliability_check": "PASS"
+  }
+}
