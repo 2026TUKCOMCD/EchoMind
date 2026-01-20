@@ -3,4 +3,6 @@
 .vscode/
 .idea/
 uploads/
+__pycache__/
+*.pyc
 data
