@@ -10,7 +10,7 @@ load_dotenv()
 # ==========================================
 # 로컬(윈도우)에서 실행할 경우, 여기에 직접 RDS 엔드포인트를 입력하거나 
 # .env 파일에 DB_HOST=... 형식으로 저장해서 사용할 수 있습니다.
-RDS_HOST = os.getenv("DB_HOST", "여기에_RDS_엔드포인트_입력") 
+RDS_HOST = os.getenv("DB_HOST", "echomind-db.cbqkoi8kaesl.ap-northeast-2.rds.amazonaws.com") 
 RDS_USER = os.getenv("DB_USER", "admin")
 RDS_PASSWORD = os.getenv("DB_PASSWORD", "mypassword1234")
 DB_NAME = "echomind"

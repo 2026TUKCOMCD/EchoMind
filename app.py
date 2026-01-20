@@ -31,10 +31,10 @@ print("   EchoMind DB 접속 설정")
 print("="*40)
 
 db_config = {
-    'host': 'localhost',
-    'user': 'root',        # 사용자님이 설정한 ID
-    'password': '1234',    # 사용자님이 설정한 비번
-    'db': 'echomind_db',
+    'host': 'echomind-db.cbqkoi8kaesl.ap-northeast-2.rds.amazonaws.com',
+    'user': 'admin',        # 사용자님이 설정한 ID
+    'password': 'mypassword1234',    # 사용자님이 설정한 비번
+    'db': 'echomind',
     'charset': 'utf8mb4',
     'cursorclass': pymysql.cursors.DictCursor
 }
