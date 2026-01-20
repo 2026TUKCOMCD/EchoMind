@@ -138,13 +138,35 @@ db_config = {
 4. '규칙 저장'.
 5. 다시 브라우저에서 `http://<퍼블릭 IP>:5000` 접속 확인.
 
-## 8. 상시 구동 (백그라운드 실행)
-터미널을 꺼도 서버가 계속 돌아가게 하려면 `nohup`을 사용합니다.
+## [중요] 보안 업데이트: .env 파일 생성
+방금 코드에서 비밀번호를 숨기는 보안이 적용되었습니다. 따라서 **서버에도 비밀번호 파일(.env)을 따로 만들어줘야 합니다.** (깃허브에는 이 파일이 안 올라가거든요!)
 
-```bash
-# 백그라운드 실행 (로그는 nohup.out에 저장됨)
-nohup gunicorn -b 0.0.0.0:5000 app:app &
-```
+1. EC2 터미널 접속 & 폴더 이동
+   ```bash
+   cd EchoMind
+   ```
+
+2. `.env` 파일 생성
+   ```bash
+   nano .env
+   ```
+
+3. 아래 내용을 복사해서 붙여넣기 (마우스 우클릭)
+   ```ini
+   DB_HOST=echomind-db.cbqkoi8kaesl.ap-northeast-2.rds.amazonaws.com
+   DB_USER=admin
+   DB_PASSWORD=mypassword1234
+   DB_NAME=echomind
+   SECRET_KEY=echomind_secret_key_secure_random_string
+   ```
+   (저장: `Ctrl + O` -> `Enter` -> `Ctrl + X`)
+
+4. 최신 코드 받기 & 서버 재시작
+   ```bash
+   git pull
+   pkill gunicorn
+   nohup gunicorn -b 0.0.0.0:5000 app:app &
+   ```
 
 이제 터미널을 종료해도 서버는 계속 실행됩니다.
 
@@ -161,6 +183,7 @@ pkill gunicorn
 
 ---
 **축하합니다! 이제 당신의 서비스가 AWS EC2 위에 배포되었습니다.**
+---
 메모
 1. 처음에 키 만들면 잘 보관해야함. 없으면 ㅈ댐. 
 2. 리전을 처음부터 서울에 제대로 해야함. 옮기려면 삭제 후 인스턴스 재생성해야함
@@ -170,3 +193,4 @@ pkill gunicorn
 6. 보안그룹 인바운드에서 rds는 규칙2개: tcp - 3306 포트, 위 규칙 아이디 복사해서 ec2 보안그룹 인바운드에 붙여넣기
 7. 깃 클론 명령에서 -b 는 특정브랜치만 가져오는 명령
 8. 서버 실행하고 cat nohup.out 명령어로 로그 확인 가능
+9. 프리 티어 남은 사용량 확인: AWS 콘솔 우측 상단 계정명 클릭 -> '결제 및 비용 관리(Billing)' -> 왼쪽 메뉴 '프리 티어(Free Tier)'

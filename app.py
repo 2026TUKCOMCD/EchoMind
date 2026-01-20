@@ -18,7 +18,7 @@ from soynlp.normalizer import repeat_normalize
 # -----------------------
 load_dotenv()
 app = Flask(__name__)
-app.secret_key = 'echomind_secret_key_secure_random_string'
+app.secret_key = os.getenv('SECRET_KEY', 'echomind_secret_key_secure_random_string')
 
 # Kiwi 형태소 분석기 초기화
 kiwi = Kiwi()
@@ -31,10 +31,10 @@ print("   EchoMind DB 접속 설정")
 print("="*40)
 
 db_config = {
-    'host': 'echomind-db.cbqkoi8kaesl.ap-northeast-2.rds.amazonaws.com',
-    'user': 'admin',        # 사용자님이 설정한 ID
-    'password': 'mypassword1234',    # 사용자님이 설정한 비번
-    'db': 'echomind',
+    'host': os.getenv('DB_HOST', 'localhost'),
+    'user': os.getenv('DB_USER', 'root'),
+    'password': os.getenv('DB_PASSWORD', '1234'),
+    'db': os.getenv('DB_NAME', 'echomind'),
     'charset': 'utf8mb4',
     'cursorclass': pymysql.cursors.DictCursor
 }
