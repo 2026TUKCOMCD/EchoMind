@@ -7,9 +7,11 @@ requests>=2.32.3
 # 데이터 처리
 pandas>=2.2.2
 numpy>=1.26.4
+scipy>=1.13.0
 
 # 웹 서버 및 데이터베이스
 Flask>=3.0.0
+Flask-SQLAlchemy>=3.1.1
 PyMySQL>=1.1.0
 
 #한국어 분석 라이브러리
@@ -18,5 +20,5 @@ kiwipiepy>=0.17.0
 #Open AI LLM
 openai>=1.50.0
 
-# 과학/수학 연산 (Cosine Similarity 계산용)
-scipy>=1.13.0
+# 보안 및 유틸리티
+Werkzeug>=3.0.0
