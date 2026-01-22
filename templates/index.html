@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+
+{% block title %}홈{% endblock %}
+
+{% block content %}
+<div class="text-center py-20">
+    <h1 class="text-5xl font-extrabold text-slate-900 tracking-tight mb-6">
+        <span class="block">나만의 대화 패턴을 발견하세요</span>
+        <span class="block text-indigo-600">EchoMind Insight</span>
+    </h1>
+    <p class="mt-4 max-w-2xl mx-auto text-xl text-slate-500">
+        카카오톡 대화 내용을 분석하여 나의 성향, MBTI, 그리고 내면의 소시오닉스 유형까지.<br>
+        과학적인 분석과 함께 나에게 딱 맞는 소울메이트를 찾아보세요.
+    </p>
+
+    <div class="mt-10 flex justify-center gap-4">
+        {% if g.user %}
+        <a href="{{ url_for('upload_chat') }}"
+            class="px-8 py-3 border border-transparent text-base font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 md:py-4 md:text-lg shadow-lg">
+            지금 분석 시작하기
+        </a>
+        <a href="{{ url_for('view_result') }}"
+            class="px-8 py-3 border border-transparent text-base font-medium rounded-md text-indigo-700 bg-indigo-100 hover:bg-indigo-200 md:py-4 md:text-lg">
+            내 결과 보기
+        </a>
+        {% else %}
+        <a href="{{ url_for('login') }}"
+            class="px-8 py-3 border border-transparent text-base font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 md:py-4 md:text-lg shadow-lg">
+            로그인하고 시작하기
+        </a>
+        <a href="{{ url_for('register') }}"
+            class="px-8 py-3 border border-transparent text-base font-medium rounded-md text-indigo-700 bg-indigo-100 hover:bg-indigo-200 md:py-4 md:text-lg">
+            회원가입
+        </a>
+        {% endif %}
+    </div>
+
+    <!-- Feature Grid -->
+    <div class="mt-24 grid grid-cols-1 md:grid-cols-3 gap-8 text-left max-w-5xl mx-auto">
+        <div class="glass-panel p-6 rounded-xl hover:shadow-lg transition-shadow">
+            <div class="text-4xl mb-4">🧠</div>
+            <h3 class="text-lg font-bold text-slate-900 mb-2">프리미엄 성향 분석</h3>
+            <p class="text-slate-600">단순한 통계를 넘어, 카톡 대화의 뉘앙스를 분석하여 Big5와 MBTI를 정밀하게 추정합니다.</p>
+        </div>
+        <div class="glass-panel p-6 rounded-xl hover:shadow-lg transition-shadow">
+            <div class="text-4xl mb-4">💞</div>
+            <h3 class="text-lg font-bold text-slate-900 mb-2">소시오닉스 매칭</h3>
+            <p class="text-slate-600">단순히 성격이 비슷한 사람이 아닌, 서로를 보완해주는 '이원 관계(Duality)'를 찾아드립니다.</p>
+        </div>
+        <div class="glass-panel p-6 rounded-xl hover:shadow-lg transition-shadow">
+            <div class="text-4xl mb-4">🔒</div>
+            <h3 class="text-lg font-bold text-slate-900 mb-2">철저한 보안</h3>
+            <p class="text-slate-600">업로드된 파일은 분석 즉시 파기되며, 개인정보는 마스킹 처리되어 안전하게 보호됩니다.</p>
+        </div>
+    </div>
+</div>
+{% endblock %}

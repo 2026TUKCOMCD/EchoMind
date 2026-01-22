@@ -310,7 +310,7 @@ def call_llm_profile(client: OpenAI, model: str, llm_input: Dict[str, object]) -
                 "neuroticism": "0~100"
             },
             "confidence": "0~1 number",
-            "reasons": ["string", "..."]
+            "reasons": ["Trait: reason string...", "..."]
         },
         "socionics": {
             "type": "string (예: LII, EII, SLE 등)",
@@ -329,6 +329,12 @@ def call_llm_profile(client: OpenAI, model: str, llm_input: Dict[str, object]) -
         "- 제공된 샘플(정제·마스킹됨)과 수치 신호(평균 길이/질문비율/이모지비율 등)만으로 "
         "MBTI, Big5, 소시오니크를 '추정'하고 이유를 한국어로 제시하십시오.\n"
         "- 한계와 오차 가능성을 caveats에 반드시 포함하십시오.\n\n"
+        "Big5 이유 (reasons) 작성:\n"
+        "- 각 특성(Openness, Conscientiousness, Extraversion, Agreeableness, Neuroticism)마다 "
+        "'특성명: 구체적인 이유' 형식의 문장을 작성하십시오.\n"
+        "- 예시: 'Openness: 새로운 표현과 실험적인 언어 사용이 빈번함', "
+        "'Conscientiousness: 계획적이고 시간 약속을 엄격히 지키는 언어 패턴'\n"
+        "- 최소 3~5개의 명확한 이유를 reasons 배열에 포함하십시오.\n\n"
         "출력 형식 요구사항:\n"
         "- 반드시 JSON '객체' 하나만 출력하십시오.\n"
         "- 설명 문장/마크다운/코드블록/여분 텍스트를 절대 포함하지 마십시오.\n"

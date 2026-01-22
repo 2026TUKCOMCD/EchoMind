@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+
+{% block title %}매칭 찾기{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto py-8">
+    <div class="text-center mb-12">
+        <h1 class="text-3xl font-extrabold text-slate-900">당신의 소울메이트를 찾아보세요</h1>
+        <p class="mt-4 text-slate-500">
+            Big5 성향, MBTI, 그리고 대화 스타일을 분석하여<br>
+            가장 높은 시너지를 낼 수 있는 상대를 추천해드립니다.
+        </p>
+    </div>
+
+    {% if candidates %}
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {% for cand in candidates %}
+        <div
+            class="glass-panel p-8 rounded-2xl hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
+            <!-- Header Section -->
+            <div class="flex justify-between items-start mb-6 pb-6 border-b border-gray-100">
+                <div>
+                    <h3 class="text-2xl font-bold text-slate-900">{{ cand.nickname or cand.username }}</h3>
+                    <div class="flex gap-2 mt-2">
+                        <span
+                            class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-indigo-100 text-indigo-800">
+                            {{ cand.mbti_prediction }}
+                        </span>
+                        {% if cand.socionics_prediction %}
+                        <span
+                            class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-rose-100 text-rose-800">
+                            {{ cand.socionics_prediction }}
+                        </span>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="text-center bg-indigo-50 px-4 py-2 rounded-xl">
+                    <span class="block text-3xl font-bold text-indigo-600">{{ cand.match_score }}점</span>
+                    <span class="text-xs text-slate-500 font-medium">매칭 점수</span>
+                </div>
+            </div>
+
+            <!-- Content Section -->
+            <div class="space-y-6">
+                <!-- Self Introduction -->
+                <div>
+                    <h4 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-2">상대 특징</h4>
+                    <p class="text-slate-600 leading-relaxed">
+                        {{ cand.summary_text if cand.summary_text else '아직 정보가 생성되지 않았습니다.' }}
+                    </p>
+                </div>
+
+                <!-- Relative Traits Badges -->
+                {% if cand.relative_traits %}
+                <div class="flex flex-wrap gap-2">
+                    {% for trait in cand.relative_traits %}
+                    <span class="px-2 py-1 rounded text-xs font-semibold
+                        {% if trait.level == 'High' %} bg-blue-100 text-blue-700
+                        {% else %} bg-gray-100 text-gray-600 {% endif %}">
+                        {{ trait.name }} {{ trait.label }}
+                    </span>
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                <!-- Detailed Analysis Scores -->
+                <div class="bg-slate-50 rounded-xl p-5">
+                    <h4 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">매칭 상세 분석</h4>
+                    <div class="grid grid-cols-3 gap-4 text-center">
+                        <div>
+                            <div class="text-xl font-bold text-blue-600">
+                                {{ (cand.match_details.similarity_score * 100) | int if cand.match_details else 0 }}%
+                            </div>
+                            <div class="text-xs font-medium text-slate-600 mt-1">성향 유사도</div>
+                            <div class="text-[10px] text-slate-400">Big5 분석</div>
+                        </div>
+                        <div class="border-x border-slate-200">
+                            <div class="text-xl font-bold text-rose-600">
+                                {{ (cand.match_details.chemistry_score * 100) | int if cand.match_details else 0 }}%
+                            </div>
+                            <div class="text-xs font-medium text-slate-600 mt-1">케미스트리</div>
+                            <div class="text-[10px] text-slate-400">MBTI/Socionics</div>
+                        </div>
+                        <div>
+                            <div class="text-xl font-bold text-amber-600">
+                                {{ (cand.match_details.activity_score * 100) | int if cand.match_details else 0 }}점
+                            </div>
+                            <div class="text-xs font-medium text-slate-600 mt-1">활동성</div>
+                            <div class="text-[10px] text-slate-400">대화량 분석</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Compatibility Details -->
+                {% if cand.match_details %}
+                <div class="bg-slate-50 rounded-xl p-5 text-sm space-y-2 text-slate-600">
+                    <p class="flex items-start gap-2">
+                        <span class="font-semibold min-w-[100px] text-indigo-600">MBTI 궁합:</span>
+                        <span>{{ cand.match_details.mbti_detail }}</span>
+                    </p>
+                    <p class="flex items-start gap-2">
+                        <span class="font-semibold min-w-[100px] text-rose-600">Socionics 궁합:</span>
+                        <span>{{ cand.match_details.socio_detail }}</span>
+                    </p>
+                </div>
+                {% endif %}
+
+                <!-- Action Button -->
+                <div class="pt-2">
+                    <form action="{{ url_for('apply_match', receiver_id=cand.user_id) }}" method="POST">
+                        <button type="submit"
+                            class="w-full py-3 px-4 text-base font-bold rounded-xl text-white bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 shadow-md hover:shadow-lg transition-all duration-200 flex items-center justify-center gap-2">
+                            <span>💝 매칭 신청하기</span>
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="text-center py-20 bg-white/50 rounded-2xl border border-slate-100">
+        <div class="text-6xl mb-6">🔍</div>
+        <p class="text-xl font-medium text-slate-600 mb-2">아직 추천할 만한 상대가 없습니다.</p>
+        <p class="text-slate-400">더 많은 사용자가 가입할 때까지 기다려주시거나,<br>본인의 프로필을 더 상세하게 분석해보세요.</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

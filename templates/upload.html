@@ -1,70 +1,249 @@
-<!DOCTYPE html>
-<html lang="ko">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>EchoMind - 대화 분석 요청</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-</head>
-<body class="bg-light">
+{% extends "base.html" %}
 
-<nav class="navbar navbar-expand-lg navbar-dark bg-primary mb-4">
-    <div class="container">
-        <a class="navbar-brand" href="#">EchoMind</a>
-        <div class="collapse navbar-collapse">
-            <ul class="navbar-nav ms-auto">
-                <li class="nav-item"><span class="nav-link text-white">안녕하세요, {{ nickname }}님</span></li>
-                <li class="nav-item"><a class="nav-link" href="/logout">로그아웃</a></li>
-            </ul>
-        </div>
-    </div>
-</nav>
+{% block title %}대화 업로드{% endblock %}
 
-<div class="container">
-    <div class="text-center mb-5">
-        <h2>AI 성격 분석 시작하기</h2>
-        <p class="text-muted">카카오톡 대화 파일을 업로드하고, 분석할 본인의 대화명을 입력하세요.</p>
-    </div>
+{% block content %}
+<div class="max-w-xl mx-auto py-12">
+    <div class="glass-panel p-8 rounded-2xl shadow-xl">
+        <h2 class="text-2xl font-bold text-center text-slate-900 mb-2">대화 내용 업로드</h2>
+        <p class="text-center text-slate-500 mb-8 text-sm">카카오톡 대화 내용 내보내기(.txt) 파일을 업로드해주세요.</p>
 
-    <div class="row justify-content-center">
-        <div class="col-md-8">
-            <div class="card shadow-sm">
-                <div class="card-body p-5">
-                    {% with messages = get_flashed_messages() %}
-                      {% if messages %}
-                        <div class="alert alert-danger text-center">{{ messages[0] }}</div>
-                      {% endif %}
-                    {% endwith %}
+        <form action="{{ url_for('upload_chat') }}" method="POST" enctype="multipart/form-data" class="space-y-6">
 
-                    <form action="/api/upload_chat" method="POST" enctype="multipart/form-data">
-                        
-                        <div class="mb-4 text-center">
-                            <img src="https://via.placeholder.com/100?text=KakaoTalk" alt="Kakao Icon" class="mb-3 rounded">
-                            <h5>카카오톡 대화 파일(.txt) 업로드</h5>
-                        </div>
-
-                        <div class="mb-4">
-                            <label for="chat_file" class="form-label fw-bold">1. 대화 파일 선택 (.txt)</label>
-                            <input class="form-control" type="file" id="chat_file" name="chat_file" accept=".txt" required>
-                        </div>
-
-                        <div class="mb-4">
-                            <label for="target_name" class="form-label fw-bold">2. 분석할 대화명 입력</label>
-                            <input type="text" class="form-control" id="target_name" name="target_name" required placeholder="카톡 대화방에서 본인이 사용하는 이름을 정확히 입력하세요.">
-                            <div class="form-text text-danger">* 대화 내보내기 파일에 표시된 이름과 정확히 일치해야 분석이 가능합니다.</div>
-                        </div>
-
-                        <hr class="my-4">
-
-                        <div class="d-grid">
-                            <button type="submit" class="btn btn-success btn-lg">AI 분석 시작하기</button>
-                        </div>
-                    </form>
+            <!-- Target Name Input -->
+            <div>
+                <label for="target_name" class="block text-sm font-medium text-slate-700">분석할 상대방 대화명</label>
+                <div class="mt-1">
+                    <input type="text" name="target_name" id="target_name" required
+                        placeholder="예: 홍길동 (상대방의 카톡 이름 정확히 입력)"
+                        class="block w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                    <p class="mt-1 text-xs text-slate-400">파일 내에서 이 이름으로 된 메시지만 추출하여 분석합니다.</p>
                 </div>
             </div>
+
+            <!-- File Input -->
+            <div>
+                <label class="block text-sm font-medium text-slate-700 mb-2">대화 파일 (.txt) 또는 결과 파일 (.json)</label>
+                <div id="drop-zone"
+                    class="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-slate-300 border-dashed rounded-md hover:border-indigo-400 transition-colors bg-slate-50 cursor-pointer">
+                    <div class="space-y-1 text-center pointer-events-none">
+                        <svg class="mx-auto h-12 w-12 text-slate-400" stroke="currentColor" fill="none"
+                            viewBox="0 0 48 48" aria-hidden="true">
+                            <path
+                                d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02"
+                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                        </svg>
+                        <div class="flex text-sm text-slate-600 justify-center">
+                            <label for="file"
+                                class="relative cursor-pointer bg-white rounded-md font-medium text-indigo-600 hover:text-indigo-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-indigo-500 pointer-events-auto">
+                                <span>파일 선택</span>
+                                <input id="file" name="file" type="file" class="sr-only" accept=".txt, .json" required>
+                            </label>
+                            <p class="pl-1">또는 드래그 앤 드롭</p>
+                        </div>
+                        <p class="text-xs text-slate-500">
+                            TXT (카톡 내보내기) 또는 JSON (결과 파일)
+                        </p>
+                    </div>
+                </div>
+                <div id="file-error" class="mt-2 text-sm text-red-600 text-center font-medium hidden"></div>
+                <div id="file-name-display" class="mt-2 text-sm text-indigo-600 text-center font-medium h-5"></div>
+            </div>
+
+            <div class="pt-4">
+                <button type="submit" id="submit-btn" onclick="this.innerHTML='처리 중... 잠시만 기다려주세요';"
+                    class="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors">
+                    업로드 및 시작
+                </button>
+            </div>
+        </form>
+    </div>
+    <!-- Progress Overlay (Hidden by default) -->
+    <div id="progress-overlay"
+        class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 hidden flex items-center justify-center">
+        <div class="bg-white rounded-2xl shadow-2xl p-8 max-w-sm w-full text-center space-y-6">
+
+            <!-- Spinner / Icon -->
+            <div class="relative">
+                <div class="animate-spin rounded-full h-16 w-16 border-4 border-indigo-100 border-t-indigo-600 mx-auto">
+                </div>
+                <!-- Optional: Center Icon -->
+                <div class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-2xl">
+                    🧠
+                </div>
+            </div>
+
+            <!-- Titles -->
+            <div>
+                <h3 class="text-xl font-bold text-slate-900">분석 진행 중...</h3>
+                <p id="progress-status" class="text-indigo-600 font-medium text-sm mt-1 animate-pulse">대화 내용을 읽고 있습니다...
+                </p>
+            </div>
+
+            <!-- Timer -->
+            <div class="text-4xl font-mono font-bold text-slate-700 tabular-nums">
+                <span id="timer-min">00</span>:<span id="timer-sec">00</span>
+            </div>
+
+            <!-- Progress Bar -->
+            <div class="relative pt-1">
+                <div class="overflow-hidden h-2 mb-4 text-xs flex rounded bg-indigo-100">
+                    <div id="progress-bar" style="width: 0%"
+                        class="shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center bg-indigo-600 transition-all duration-300 ease-out">
+                    </div>
+                </div>
+            </div>
+
+            <p class="text-xs text-slate-400">
+                대화 양에 따라 1~3분 정도 소요될 수 있습니다.<br>
+                화면을 닫지 말고 기다려주세요.
+            </p>
         </div>
     </div>
+
 </div>
 
-</body>
-</html>
+<script>
+    const fileInput = document.getElementById('file');
+    const dropZone = document.getElementById('drop-zone');
+    const fileNameDisplay = document.getElementById('file-name-display');
+    const fileError = document.getElementById('file-error');
+    const submitBtn = document.getElementById('submit-btn');
+    const form = document.querySelector('form');
+
+    // Progress Elements
+    const progressOverlay = document.getElementById('progress-overlay');
+    const progressBar = document.getElementById('progress-bar');
+    const progressStatus = document.getElementById('progress-status');
+    const timerMin = document.getElementById('timer-min');
+    const timerSec = document.getElementById('timer-sec');
+
+    // Make drop zone clickable
+    dropZone.addEventListener('click', () => {
+        fileInput.click();
+    });
+
+    fileInput.addEventListener('change', function (e) {
+        validateAndDisplay(e.target.files[0]);
+    });
+
+    // Drag and Drop functionality
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+        dropZone.addEventListener(eventName, preventDefaults, false);
+    });
+
+    function preventDefaults(e) {
+        e.preventDefault();
+        e.stopPropagation();
+    }
+
+    ['dragenter', 'dragover'].forEach(eventName => {
+        dropZone.addEventListener(eventName, highlight, false);
+    });
+
+    ['dragleave', 'drop'].forEach(eventName => {
+        dropZone.addEventListener(eventName, unhighlight, false);
+    });
+
+    function highlight(e) {
+        dropZone.classList.add('border-indigo-500', 'bg-indigo-50');
+    }
+
+    function unhighlight(e) {
+        dropZone.classList.remove('border-indigo-500', 'bg-indigo-50');
+    }
+
+    dropZone.addEventListener('drop', handleDrop, false);
+
+    function handleDrop(e) {
+        const dt = e.dataTransfer;
+        const files = dt.files;
+        fileInput.files = files;
+        validateAndDisplay(files[0]);
+    }
+
+    // Status Messages
+    const messages = [
+        "대화 패턴을 분석하고 있습니다...",
+        "주요 키워드를 추출 중입니다...",
+        "MBTI 성향을 추론하고 있습니다...",
+        "Big5 성격 요인을 계산 중입니다...",
+        "소시오닉스 유형을 매칭하고 있습니다...",
+        "최종 리포트를 생성하고 있습니다..."
+    ];
+
+    form.addEventListener('submit', function (e) {
+        // Basic validation
+        if (!fileInput.value) {
+            e.preventDefault();
+            fileError.textContent = "파일을 선택해주세요.";
+            fileError.classList.remove('hidden');
+            return;
+        }
+
+        // Show Overlay
+        progressOverlay.classList.remove('hidden');
+
+        // Start Timer
+        let seconds = 0;
+        setInterval(() => {
+            seconds++;
+            const m = Math.floor(seconds / 60).toString().padStart(2, '0');
+            const s = (seconds % 60).toString().padStart(2, '0');
+            timerMin.textContent = m;
+            timerSec.textContent = s;
+        }, 1000);
+
+        // Start Simulated Progress
+        let progress = 0;
+        const progressInterval = setInterval(() => {
+            // Fast at first, then slower
+            if (progress < 30) progress += 2;
+            else if (progress < 60) progress += 0.5;
+            else if (progress < 90) progress += 0.1;
+            else progress += 0.05;
+
+            // Never reach 100% until done
+            if (progress > 95) progress = 95;
+
+            progressBar.style.width = progress + "%";
+
+            // Update messages based on progress
+            const msgIndex = Math.floor((progress / 95) * messages.length);
+            if (messages[msgIndex]) {
+                progressStatus.textContent = messages[msgIndex];
+            }
+        }, 200);
+    });
+
+    function validateAndDisplay(file) {
+        if (!file) {
+            fileNameDisplay.textContent = "";
+            fileError.classList.add('hidden');
+            return;
+        }
+
+        const fileName = file.name;
+        const ext = fileName.split('.').pop().toLowerCase();
+
+        if (ext !== 'txt' && ext !== 'json') {
+            fileError.textContent = "지원되지 않는 파일 형식입니다. .txt 또는 .json 파일만 업로드 가능합니다.";
+            fileError.classList.remove('hidden');
+            fileNameDisplay.textContent = "";
+            fileInput.value = ""; // Reset input
+            return;
+        }
+
+        fileError.classList.add('hidden');
+        fileNameDisplay.textContent = "선택된 파일: " + fileName;
+
+        if (ext === 'json') {
+            submitBtn.textContent = "결과 불러오기";
+            document.getElementById('target_name').required = false;
+        } else {
+            submitBtn.textContent = "업로드 및 분석 시작";
+            document.getElementById('target_name').required = true;
+        }
+    }
+</script>
+{% endblock %}

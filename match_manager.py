@@ -39,7 +39,12 @@
 
 import pymysql
 import os
+import json
+import glob
+import numpy as np
 from config import config_by_name  # 프로젝트 설정 모듈 임포트
+from scipy.spatial.distance import cosine
+import matcher  # matcher.py의 고급 매칭 알고리즘 사용
 
 # 환경 변수로부터 현재 실행 모드(development/production) 로드
 env = os.getenv('FLASK_ENV', 'development')
@@ -65,49 +70,238 @@ class MatchManager:
         )
 
     @classmethod
-    def get_matching_candidates(cls, my_user_id, limit=5):
+    def get_matching_candidates(cls, my_user_id, current_user_profile_json=None, limit=5):
         """
         [조회] 나에게 맞는 매칭 후보 리스트를 가져옵니다.
-        개선사항 B 반영: 활동성 점수 계산을 위해 line_count_at_analysis를 포함합니다.
+        
+        Args:
+            my_user_id: 현재 사용자 ID (DB 정수 ID 또는 u_XXX 형식)
+            current_user_profile_json: 현재 사용자의 프로필 JSON (dict)
+            limit: 반환할 후보자 수
         """
-        conn = cls.get_db_connection()
         try:
-            with conn.cursor() as cursor:
-                # 이미 신청했거나 결과가 나온 상대는 제외하는 필터링 포함
-                sql = """
-                SELECT 
-                    u.user_id, u.username, u.nickname, 
-                    p.mbti_prediction, p.socionics_prediction, 
-                    p.summary_text, p.full_report_json,
-                    p.line_count_at_analysis -- [활동량 데이터 정합성 보장]
-                FROM personality_results p
-                JOIN users u ON p.user_id = u.user_id
-                WHERE p.is_representative = TRUE 
-                  AND p.user_id != %s
-                  AND p.user_id NOT IN (
-                      SELECT receiver_id FROM match_requests WHERE sender_id = %s
-                  )
-                ORDER BY p.created_at DESC 
-                LIMIT %s;
-                """
-                cursor.execute(sql, (my_user_id, my_user_id, limit))
-                return cursor.fetchall()
-        # [추가: 예외 처리 강화] DB 조회 중 발생할 수 있는 에러 포착
+            # candidates_db 폴더의 모든 JSON 파일 로드
+            base_dir = os.path.dirname(__file__)
+            candidates_path = os.path.join(base_dir, 'candidates_db', '*.json')
+            json_files = glob.glob(candidates_path)
+            
+            candidates = []
+            for json_file in json_files:
+                try:
+                    with open(json_file, 'r', encoding='utf-8') as f:
+                        data = json.load(f)
+                    
+                    # JSON 구조에서 필요한 데이터 추출
+                    meta = data.get('meta', {})
+                    llm_profile = data.get('llm_profile', {})
+                    user_id = meta.get('user_id')
+                    
+                    # 자신의 프로필은 제외
+                    if user_id == my_user_id:
+                        continue
+                    
+                    candidate = {
+                        'user_id': user_id,
+                        'username': meta.get('speaker_name', 'Unknown'),
+                        'nickname': meta.get('speaker_name', 'Unknown'),
+                        'mbti_prediction': llm_profile.get('mbti', {}).get('type', 'Unknown'),
+                        'socionics_prediction': llm_profile.get('socionics', {}).get('type', 'Unknown'),
+                        'summary_text': llm_profile.get('summary', {}).get('one_paragraph', ''),
+                        'full_report_json': data,
+                        'line_count_at_analysis': data.get('parse_quality', {}).get('parsed_lines', 0),
+                        'big5': llm_profile.get('big5', {}).get('scores_0_100', {})
+                    }
+                    candidates.append(candidate)
+                except Exception as e:
+                    print(f"Error loading {json_file}: {e}")
+                    continue
+            
+            # 매칭 점수 계산 및 정렬
+            if candidates:
+                candidates = cls._calculate_match_scores(
+                    my_user_id, 
+                    candidates,
+                    current_user_profile_json
+                )
+                candidates = sorted(candidates, key=lambda x: x.get('match_score', 0), reverse=True)
+                return candidates[:limit]
+            
+            return []
         except Exception as e:
             print(f"Error fetching candidates: {e}")
             return []
-        finally:
-            conn.close()
+    
+    @classmethod
+    def _calculate_match_scores(cls, my_user_id, candidates, current_user_profile_json=None):
+        """
+        matcher.py의 HybridMatcher를 사용하여 고급 매칭 점수를 계산합니다.
+        - Big5 유사도 (50%)
+        - MBTI/Socionics 케미스트리 (40%)
+        - 활동성 (10%)
+        
+        Args:
+            my_user_id: 현재 사용자 ID
+            candidates: 후보자 리스트 (dict with full_report_json)
+            current_user_profile_json: 현재 사용자의 프로필 JSON (dict). None이면 profile/profile.json 사용
+        """
+        try:
+            # 현재 사용자 프로필 로드
+            target_user = None
+            
+            # 1. 전달받은 프로필 JSON이 있으면 그것을 사용
+            if current_user_profile_json:
+                target_user = cls._convert_json_to_user_vector(
+                    current_user_profile_json,
+                    my_user_id
+                )
+            
+            # 2. 전달받은 프로필이 없으면 파일에서 로드 (legacy)
+            if not target_user:
+                base_dir = os.path.dirname(__file__)
+                profile_file = os.path.join(base_dir, 'profile', 'profile.json')
+                
+                if os.path.exists(profile_file):
+                    target_user = matcher.load_profile(profile_file)
+            
+            # 3. 모든 방법이 실패했으면 기본값 반환
+            if not target_user:
+                print(f"[Warning] 현재 사용자 프로필을 로드할 수 없습니다. 기본 점수(50) 반환")
+                for candidate in candidates:
+                    candidate['match_score'] = 50
+                return candidates
+            
+            # 모든 candidates를 UserVector로 변환
+            candidate_users = []
+            for candidate in candidates:
+                # 임시 JSON 파일로 변환
+                candidate_json = candidate.get('full_report_json', {})
+                user_vector = cls._convert_json_to_user_vector(
+                    candidate_json,
+                    candidate.get('user_id')
+                )
+                if user_vector:
+                    candidate_users.append(user_vector)
+            
+            if not candidate_users:
+                for candidate in candidates:
+                    candidate['match_score'] = 50
+                return candidates
+            
+            # [FIX] HybridMatcher 초기화: 통계 계산을 위해 모든 후보자와 타겟 포함
+            # 그 다음 모든 사용자를 Z-Score 정규화
+            hybrid_matcher = matcher.HybridMatcher(candidate_users + [target_user])
+            hybrid_matcher.normalize_user(target_user)
+            
+            # print(f"\n[DEBUG] 타겟 사용자: {target_user.name} (ID: {target_user.user_id})")
+            # print(f"[DEBUG] 타겟 Big5 원본: {target_user.big5_raw}")
+            # print(f"[DEBUG] 타겟 Z-Score: {target_user.big5_z_score}")
+            
+            # 각 후보자 정규화 및 점수 계산
+            for i, candidate_user in enumerate(candidate_users):
+                hybrid_matcher.normalize_user(candidate_user)
+                scores = hybrid_matcher.calculate_match_score(target_user, candidate_user)
+                
+                # print(f"[DEBUG] 후보 {i+1}: {candidate_user.name}")
+                # print(f"  - Big5 원본: {candidate_user.big5_raw}")
+                # print(f"  - Z-Score: {candidate_user.big5_z_score}")
+                # print(f"  - 최종 점수: total={scores['total_score']:.3f}, sim={scores['similarity_score']:.3f}, chem={scores['chemistry_score']:.3f}, act={scores['activity_score']:.3f}")
+                
+                # 0~100 범위로 정규화
+                match_score = int(scores['total_score'] * 100)
+                candidates[i]['match_score'] = max(0, min(100, match_score))
+                candidates[i]['match_details'] = scores
+
+                # [추가] 상대적 성향 분석 (Z-Score 기반)
+                # 0:Openness, 1:Conscientiousness, 2:Extraversion, 3:Agreeableness, 4:Neuroticism
+                trait_names_kr = ["개방성", "성실성", "외향성", "우호성", "신경성"]
+                distinctive_traits = []
+                
+                if candidate_user.big5_z_score is not None:
+                    for idx, z_val in enumerate(candidate_user.big5_z_score):
+                        if z_val >= 0.8:
+                            distinctive_traits.append({"name": trait_names_kr[idx], "level": "High", "label": "높음", "color": "blue"})
+                        elif z_val <= -0.8:
+                            distinctive_traits.append({"name": trait_names_kr[idx], "level": "Low", "label": "낮음", "color": "gray"})
+                
+                # 최대 3개까지만 표시
+                candidates[i]['relative_traits'] = distinctive_traits[:3]
+            
+            return candidates
+        except Exception as e:
+            print(f"Error calculating match scores: {e}")
+            import traceback
+            traceback.print_exc()
+            # 점수 계산 실패해도 candidates 반환
+            for candidate in candidates:
+                candidate['match_score'] = 50
+            return candidates
+    
+    @classmethod
+    def _convert_json_to_user_vector(cls, json_data, user_id):
+        """
+        candidates_db의 JSON 데이터를 matcher.UserVector로 변환합니다.
+        """
+        try:
+            meta = json_data.get('meta', {})
+            llm_profile = json_data.get('llm_profile', {})
+            
+            mbti_data = llm_profile.get('mbti', {})
+            big5_data = llm_profile.get('big5', {})
+            socionics_data = llm_profile.get('socionics', {})
+            
+            # Big5 배열 구성
+            scores = big5_data.get('scores_0_100', {})
+            big5_raw = np.array([
+                scores.get('openness', 50),
+                scores.get('conscientiousness', 50),
+                scores.get('extraversion', 50),
+                scores.get('agreeableness', 50),
+                scores.get('neuroticism', 50)
+            ], dtype=float)
+            
+            # UserVector 생성
+            user_vector = matcher.UserVector(
+                user_id=user_id,
+                name=meta.get('speaker_name', 'Unknown'),
+                mbti_type=mbti_data.get('type', 'UNKNOWN'),
+                mbti_conf=mbti_data.get('confidence', 0.0),
+                big5_raw=big5_raw,
+                big5_conf=big5_data.get('confidence', 0.0),
+                socionics_type=socionics_data.get('type', 'Unknown'),
+                socionics_conf=socionics_data.get('confidence', 0.0),
+                line_count=json_data.get('parse_quality', {}).get('parsed_lines', 0)
+            )
+            
+            return user_vector
+        except Exception as e:
+            print(f"Error converting JSON to UserVector: {e}")
+            return None
 
     @classmethod
     def send_match_request(cls, sender_id, receiver_id):
         """
         [신청] 특정 유저에게 매칭 신청을 보냅니다.
-        데이터 무결성: 중복 및 교차 신청 여부를 사전에 체크합니다.
+        현재: candidates_db 사용 시 JSON 기반으로 처리 (DB 미사용)
+        향후: DB 기반으로 변경 예정
         """
         # [추가: 매칭 신청의 비가역성] 자기 자신에게 신청하는 경우 방지
-        if sender_id == receiver_id:
+        if str(sender_id) == str(receiver_id):
             return {"success": False, "message": "자기 자신에게는 매칭 신청을 할 수 없습니다."}
+
+        # candidates_db의 user_id (u_201 형식)인 경우
+        if isinstance(receiver_id, str) and receiver_id.startswith('u_'):
+            # 임시: 파일 기반 저장 또는 메모리 저장
+            # 향후 DB 구현 시 변경
+            return {
+                "success": True, 
+                "message": f"성공적으로 신청을 보냈습니다! (대상: {receiver_id})"
+            }
+        
+        # DB 기반 처리 (기존 로직)
+        try:
+            receiver_id = int(receiver_id)
+        except (ValueError, TypeError):
+            return {"success": False, "message": "잘못된 사용자 ID입니다."}
 
         conn = cls.get_db_connection()
         try:

@@ -2,26 +2,25 @@
 # -*- coding: utf-8 -*-
 
 """
-[EchoMind] º¸¾È ¹× ¼­¹ö È¯°æ ¼³Á¤ °ü¸®
+[EchoMind] í™˜ê²½ ì„¤ì • ê´€ë¦¬ (Environment Configuration)
 ======================================================================
 
-[½Ã½ºÅÛ °³¿ä]
-º» ¸ðµâÀº EchoMind ¾ÖÇÃ¸®ÄÉÀÌ¼Ç Àü¿ª¿¡¼­ »ç¿ëµÇ´Â ¹Î°¨ Á¤º¸ ¹× ±¸µ¿ È¯°æ º¯¼ö¸¦ 
-Áß¾Ó ÁýÁß½ÄÀ¸·Î °ü¸®ÇÕ´Ï´Ù. .env ÆÄÀÏÀ» ÅëÇØ º¸¾ÈÀ» À¯ÁöÇÏ¸ç È¯°æ(°³¹ß/¿î¿µ)¿¡ 
-µû¸¥ À¯¿¬ÇÑ ¼³Á¤ ÀüÈ¯À» Áö¿øÇÕ´Ï´Ù.
+[ì‹œìŠ¤í…œ ê°œìš”]
+ì´ ëª¨ë“ˆì€ EchoMind ì• í”Œë¦¬ì¼€ì´ì…˜ì˜ ì‹¤í–‰ í™˜ê²½(ê°œë°œ/ìš´ì˜) ì„¤ì •ì„ ê´€ë¦¬í•©ë‹ˆë‹¤.
+.env íŒŒì¼ì—ì„œ í™˜ê²½ ë³€ìˆ˜ë¥¼ ë¡œë“œí•˜ì—¬ FLASK_ENV ì„¤ì •ì— ë”°ë¼ ë™ì ìœ¼ë¡œ ì£¼ìž…í•©ë‹ˆë‹¤.
 
-[ÁÖ¿ä °ü¸® Ç×¸ñ]
-1. Security Key: Flask ¼¼¼Ç ¹× CSRF º¸È£¸¦ À§ÇÑ SECRET_KEY °ü¸®
-2. Server Runtime: ¼­¹ö°¡ ¹ÙÀÎµùÇÒ Host ÁÖ¼Ò ¹× Port ¹øÈ£ Á¤ÀÇ
-3. Database Engine: 
-   - AWS RDS MySQL ¿¬°á Á¤º¸¸¦ ¼öÁýÇÏ°í Á¤¼öÇü(Port) º¯È¯À» ¼öÇàÇÕ´Ï´Ù.
-   - SQLAlchemyÀÇ URI Æ÷¸ËÀ» µ¿ÀûÀ¸·Î »ý¼ºÇÕ´Ï´Ù.
-4. Performance Tuning: RDS ¿¬°á ÇØÁ¦ ¹æÁö¸¦ À§ÇÑ Ä¿³Ø¼Ç Ç®¸µ(Pool Size, Recycle µî) ÃÖÀûÈ­
-5. Static Policy: ÆÄÀÏ ¾÷·Îµå ¿ë·® Á¦ÇÑ(MAX_CONTENT) ¹× Çã¿ë È®ÀåÀÚ ±ÔÁ¤
+[ì£¼ìš” ì„¤ì • í•­ëª©]
+1. ë³´ì•ˆ í‚¤(Security Key): Flask ì„¸ì…˜ ë³´ì•ˆì„ ìœ„í•œ SECRET_KEY.
+2. ì„œë²„ ëŸ°íƒ€ìž„(Server Runtime): ì„œë²„ ì‹¤í–‰ í˜¸ìŠ¤íŠ¸ ë° í¬íŠ¸ ì„¤ì •.
+3. ë°ì´í„°ë² ì´ìŠ¤ ì—”ì§„(Database Engine):
+   - AWS RDS MySQL ì—°ê²° ì •ë³´ ì„¤ì •.
+   - SQLAlchemyë¥¼ ìœ„í•œ URI ìƒì„±.
+4. ì„±ëŠ¥ íŠœë‹(Performance Tuning): RDS ì—°ê²° í’€(Connection Pool) ìµœì í™” ì„¤ì •.
+5. ì •ì  ì •ì±…(Static Policy): íŒŒì¼ ì—…ë¡œë“œ ìµœëŒ€ í¬ê¸° ì œí•œ ë“±.
 
-[»ç¿ë¹ý]
-- app.py¿¡¼­ FLASK_ENV °ª¿¡ µû¶ó Æ¯Á¤ Config Å¬·¡½º¸¦ ¼±ÅÃÇÏ¿© ·ÎµåÇÕ´Ï´Ù.
-- ¿¹: app.config.from_object(config_by_name['development'])
+[ì‚¬ìš©ë²•]
+- app.pyì—ì„œ FLASK_ENV í™˜ê²½ë³€ìˆ˜ì— ë”°ë¼ ì ì ˆí•œ Config í´ëž˜ìŠ¤ë¥¼ ë¡œë“œí•©ë‹ˆë‹¤.
+- ì˜ˆ: app.config.from_object(config_by_name['development'])
 """
 
 import os
@@ -32,26 +31,25 @@ BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 load_dotenv(os.path.join(BASE_DIR, '.env'))
 
 class Config:
-    """±âº» ¼³Á¤ (Base Configuration)"""
-    # .env ÆÄÀÏ¿¡¼­ Á¤º¸¸¦ ·ÎµåÇÏ¿© ÇÏµåÄÚµùÀ» ¹æÁöÇÕ´Ï´Ù.
+    """ê¸°ë³¸ ì„¤ì • (Base Configuration)"""
+    # .env íŒŒì¼ì—ì„œ ë¡œë“œ
     SECRET_KEY = os.environ.get('SECRET_KEY')
     
     RUN_HOST = os.environ.get('RUN_HOST', '0.0.0.0')
     RUN_PORT = int(os.environ.get('RUN_PORT', 5000))
     
-    # µ¥ÀÌÅÍº£ÀÌ½º ¼³Á¤ (AWS RDS ¿¬µ¿ ÇÙ½É)
+    # ë°ì´í„°ë² ì´ìŠ¤ ì„¤ì • (AWS RDS)
     DB_USER = os.environ.get('DB_USER')
     DB_PASSWORD = os.environ.get('DB_PASSWORD')
     DB_HOST = os.environ.get('DB_HOST')
     DB_NAME = os.environ.get('DB_NAME')
-    # ÆÄÀÌ½ã µ¥ÀÌÅÍ Å¸ÀÔ ¾ÈÁ¤¼ºÀ» À§ÇØ int()·Î º¯È¯ Ã³¸®ÇÕ´Ï´Ù.
     DB_PORT = int(os.environ.get('DB_PORT', 3306))
 
-    # Flask-SQLAlchemy¿ë URI »ý¼º
+    # Flask-SQLAlchemy DB ì—°ê²° URI
     SQLALCHEMY_DATABASE_URI = f"mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}?charset=utf8mb4"
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     
-    # Ä¿³Ø¼Ç Ç®¸µ ÃÖÀûÈ­ (RDS Å¸ÀÓ¾Æ¿ô ¹æÁö ¹× Æ®·¡ÇÈ ºÐ»ê)
+    # ì—°ê²° í’€ íŠœë‹ (RDS ìµœì í™”)
     SQLALCHEMY_ENGINE_OPTIONS = {
         'pool_size': 15,
         'max_overflow': 25,
@@ -59,28 +57,30 @@ class Config:
         'pool_pre_ping': True,
     }
 
-    # ÆÄÀÏ ¾÷·Îµå ¹× ÄíÅ° ¼³Á¤
+    # íŒŒì¼ ì—…ë¡œë“œ ì„¤ì •
     UPLOAD_FOLDER = os.path.join(BASE_DIR, 'uploads')
-    MAX_CONTENT_LENGTH = 20 * 1024 * 1024
-    ALLOWED_EXTENSIONS = {'txt'}
+    MAX_CONTENT_LENGTH = 20 * 1024 * 1024  # 20MB ì œí•œ
+    ALLOWED_EXTENSIONS = {'txt', 'json'}
     JSON_AS_ASCII = False
 
+    # ì„¸ì…˜ ë° ì¿ í‚¤ ì„¤ì •
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = 'Lax'
     PERMANENT_SESSION_LIFETIME = timedelta(hours=2)
 
     @staticmethod
     def init_app(app):
-        # .env ½Å·Ú¸¦ ¹ÙÅÁÀ¸·Î Ãß°¡ Ã¼Å© ·ÎÁ÷Àº Á¦°Å »óÅÂ À¯Áö
         pass
 
 class DevelopmentConfig(Config):
+    """ê°œë°œ í™˜ê²½ ì„¤ì •"""
     DEBUG = True
     SESSION_COOKIE_SECURE = False
 
 class ProductionConfig(Config):
+    """ìš´ì˜ í™˜ê²½ ì„¤ì •"""
     DEBUG = False
-    SESSION_COOKIE_SECURE = True # ¿î¿µ È¯°æ º¸¾È °­È­
+    SESSION_COOKIE_SECURE = True
 
 config_by_name = {
     'development': DevelopmentConfig,

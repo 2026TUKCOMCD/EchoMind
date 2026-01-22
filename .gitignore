@@ -3,7 +3,7 @@
 .vscode/
 .idea/
 uploads/
+data/
 __pycache__/
-*.pyc
-*.sql
-data
+profile/
+static/reports/
