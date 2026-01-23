@@ -73,32 +73,29 @@ class MatchManager:
     def get_matching_candidates(cls, my_user_id, current_user_profile_json=None, limit=5):
         """
         [조회] 나에게 맞는 매칭 후보 리스트를 가져옵니다.
-        
-        Args:
-            my_user_id: 현재 사용자 ID (DB 정수 ID 또는 u_XXX 형식)
-            current_user_profile_json: 현재 사용자의 프로필 JSON (dict)
-            limit: 반환할 후보자 수
+        Hybrid Mode: candidates_db (File) + personality_results (DB) 병합
         """
+        candidates = []
+        seen_user_ids = set()
+
+        # 1. File System (candidates_db)
         try:
-            # candidates_db 폴더의 모든 JSON 파일 로드
             base_dir = os.path.dirname(__file__)
             candidates_path = os.path.join(base_dir, 'candidates_db', '*.json')
             json_files = glob.glob(candidates_path)
             
-            candidates = []
             for json_file in json_files:
                 try:
                     with open(json_file, 'r', encoding='utf-8') as f:
                         data = json.load(f)
                     
-                    # JSON 구조에서 필요한 데이터 추출
                     meta = data.get('meta', {})
                     llm_profile = data.get('llm_profile', {})
                     user_id = meta.get('user_id')
                     
-                    # 자신의 프로필은 제외
-                    if user_id == my_user_id:
-                        continue
+                    # 본인 제외 & 중복 제외
+                    if str(user_id) == str(my_user_id): continue
+                    if user_id in seen_user_ids: continue
                     
                     candidate = {
                         'user_id': user_id,
@@ -112,24 +109,110 @@ class MatchManager:
                         'big5': llm_profile.get('big5', {}).get('scores_0_100', {})
                     }
                     candidates.append(candidate)
+                    seen_user_ids.add(user_id)
                 except Exception as e:
-                    print(f"Error loading {json_file}: {e}")
-                    continue
-            
-            # 매칭 점수 계산 및 정렬
-            if candidates:
-                candidates = cls._calculate_match_scores(
-                    my_user_id, 
-                    candidates,
-                    current_user_profile_json
-                )
-                candidates = sorted(candidates, key=lambda x: x.get('match_score', 0), reverse=True)
-                return candidates[:limit]
-            
-            return []
+                    print(f"Error loading file candidate {json_file}: {e}")
         except Exception as e:
-            print(f"Error fetching candidates: {e}")
+            print(f"Error in file candidate fetching: {e}")
+
+        # 2. Database (personality_results)
+        conn = cls.get_db_connection()
+        try:
+            with conn.cursor() as cursor:
+                sql = """
+                    SELECT 
+                        u.user_id, u.username, u.nickname, 
+                        p.full_report_json, p.line_count_at_analysis
+                    FROM personality_results p
+                    JOIN users u ON p.user_id = u.user_id
+                    WHERE p.is_representative = 1 
+                      AND p.user_id != %s
+                """
+                cursor.execute(sql, (my_user_id,))
+                rows = cursor.fetchall()
+            
+            for row in rows:
+                if row['user_id'] in seen_user_ids: continue
+                
+                try:
+                    full_report = row.get('full_report_json')
+                    if isinstance(full_report, str):
+                        data = json.loads(full_report)
+                    else:
+                        data = full_report 
+                    
+                    if not data: continue
+                    
+                    llm_profile = data.get('llm_profile', {})
+                    
+                    candidate = {
+                        'user_id': row['user_id'], # Integer
+                        'username': row['username'],
+                        'nickname': row['nickname'] or row['username'],
+                        'mbti_prediction': llm_profile.get('mbti', {}).get('type', 'Unknown'),
+                        'socionics_prediction': llm_profile.get('socionics', {}).get('type', 'Unknown'),
+                        'summary_text': llm_profile.get('summary', {}).get('one_paragraph', ''),
+                        'full_report_json': data,
+                        'line_count_at_analysis': row['line_count_at_analysis'],
+                        'big5': llm_profile.get('big5', {}).get('scores_0_100', {})
+                    }
+                    candidates.append(candidate)
+                    seen_user_ids.add(row['user_id'])
+                except Exception as e:
+                    print(f"Error parsing db candidate {row['user_id']}: {e}")
+
+        except Exception as e:
+             print(f"Error in DB candidate fetching: {e}")
+        finally:
+            conn.close()
+
+        # 3. Score & Sort
+        if candidates:
+            # 매칭 점수 계산
+            candidates = cls._calculate_match_scores(
+                my_user_id, 
+                candidates,
+                current_user_profile_json
+            )
+            candidates = sorted(candidates, key=lambda x: x.get('match_score', 0), reverse=True)
+            return candidates[:limit]
+        
+        return []
+
+    @classmethod
+    def get_successful_matches(cls, user_id):
+        """
+        [매칭 성사 목록] 나와 매칭이 성사(ACCEPTED)된 상대방의 정보를 조회합니다.
+        내가 보낸 요청이 수락된 경우 + 내가 받은 요청을 수락한 경우를 모두 포함합니다.
+        """
+        conn = cls.get_db_connection()
+        try:
+            with conn.cursor() as cursor:
+                # Case 1: 내가 Sender이고 상대가 수락한 경우 (상대방 정보 조회)
+                # UNION
+                # Case 2: 내가 Receiver이고 내가 수락한 경우 (상대방 정보 조회)
+                sql = """
+                    SELECT u.user_id, u.username, u.nickname, r.updated_at as matched_at
+                    FROM match_requests r
+                    JOIN users u ON u.user_id = r.receiver_id
+                    WHERE r.sender_id = %s AND r.status = 'ACCEPTED'
+
+                    UNION
+
+                    SELECT u.user_id, u.username, u.nickname, r.updated_at as matched_at
+                    FROM match_requests r
+                    JOIN users u ON u.user_id = r.sender_id
+                    WHERE r.receiver_id = %s AND r.status = 'ACCEPTED'
+
+                    ORDER BY matched_at DESC
+                """
+                cursor.execute(sql, (user_id, user_id))
+                return cursor.fetchall()
+        except Exception as e:
+            print(f"Error fetching successful matches: {e}")
             return []
+        finally:
+            conn.close()
 
     @classmethod
     def reload_candidates(cls):
@@ -333,7 +416,10 @@ class MatchManager:
                     return {"success": False, "message": "이미 진행 중인 매칭 건이 존재합니다."}
 
                 # 신청 데이터 삽입
-                insert_sql = "INSERT INTO match_requests (sender_id, receiver_id) VALUES (%s, %s)"
+                insert_sql = """
+                    INSERT INTO match_requests (sender_id, receiver_id, status, created_at, updated_at) 
+                    VALUES (%s, %s, 'PENDING', NOW(), NOW())
+                """
                 cursor.execute(insert_sql, (sender_id, receiver_id))
                 
             conn.commit()

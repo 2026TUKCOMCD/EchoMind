@@ -507,7 +507,7 @@ def start_matching():
         candidates = MatchManager.get_matching_candidates(
             my_user_id=g.user.user_id,
             current_user_profile_json=current_profile,
-            limit=5
+            limit=30
         )
         return render_template('match.html', candidates=candidates)
     except Exception as e:
@@ -546,10 +546,13 @@ def match_inbox():
             cursor.execute(sql_sent, (g.user.user_id,))
             sent_requests = cursor.fetchall()
 
-            # 3. 시스템 알림 (Alerts)
+            # 3. [추가] 성사된 매칭 목록 (나의 파트너들)
+            successful_matches = MatchManager.get_successful_matches(g.user.user_id)
+
+            # 4. 시스템 알림 (Alerts)
             alerts = MatchManager.get_unread_notifications(g.user.user_id)
             
-            # 4. 읽음 처리
+            # 5. 읽음 처리
             MatchManager.mark_notifications_as_read(g.user.user_id)
 
     finally:
@@ -558,6 +561,7 @@ def match_inbox():
     return render_template('inbox.html', 
                            requests=received_requests, 
                            sent_requests=sent_requests, 
+                           matches=successful_matches, 
                            alerts=alerts)
 
 @app.route('/apply_match/<receiver_id>', methods=['POST'])

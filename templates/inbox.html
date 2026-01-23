@@ -8,9 +8,24 @@
 
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
 
-        <!-- 왼쪽: 매칭 요청 관리 -->
         <div class="space-y-8">
-            <!-- 받은 요청 -->
+            <div class="match-section glass-panel p-6 rounded-xl">
+                <h3 class="text-lg font-bold text-slate-900 mb-4 flex items-center">🤝 성사된 매칭</h3>
+                {% if matches %}
+                <ul class="divide-y divide-slate-100">
+                    {% for match in matches %}
+                    <li class="py-4">
+                        <strong>{{ match.username }}</strong> ({{ match.nickname }})님과 매칭되었습니다!
+                        <br>
+                        <small class="text-slate-500">{{ match.matched_at.strftime('%Y-%m-%d %H:%M') }}</small>
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <p class="text-sm text-slate-500">아직 성사된 매칭이 없습니다.</p>
+                {% endif %}
+            </div>
+
             <section class="glass-panel p-6 rounded-xl">
                 <h2 class="text-lg font-bold text-slate-900 mb-4 flex items-center">
                     <span class="mr-2">📥</span> 받은 매칭 신청
@@ -22,7 +37,13 @@
                         <div>
                             <p class="text-sm font-medium text-slate-900">{{ req.sender_nickname }} ({{ req.sender_name
                                 }})</p>
-                            <p class="text-xs text-slate-500">{{ req.created_at.strftime('%Y-%m-%d %H:%M') }}</p>
+                            <p class="text-xs text-slate-500">
+                                {% if req.created_at %}
+                                {{ req.created_at.strftime('%Y-%m-%d %H:%M') }}
+                                {% else %}
+                                -
+                                {% endif %}
+                            </p>
                         </div>
                         <div class="flex space-x-2">
                             <a href="{{ url_for('respond_match', request_id=req.request_id, action='accepted') }}"
@@ -42,7 +63,6 @@
                 {% endif %}
             </section>
 
-            <!-- 보낸 요청 현황 -->
             <section class="glass-panel p-6 rounded-xl">
                 <h2 class="text-lg font-bold text-slate-900 mb-4 flex items-center">
                     <span class="mr-2">📤</span> 보낸 신청 현황
@@ -53,7 +73,13 @@
                     <li class="py-4 flex justify-between items-center">
                         <div>
                             <p class="text-sm font-medium text-slate-900">{{ req.receiver_nickname }} 님에게</p>
-                            <p class="text-xs text-slate-500">{{ req.created_at.strftime('%Y-%m-%d') }}</p>
+                            <p class="text-xs text-slate-500">
+                                {% if req.created_at %}
+                                {{ req.created_at.strftime('%Y-%m-%d') }}
+                                {% else %}
+                                -
+                                {% endif %}
+                            </p>
                         </div>
                         <div>
                             {% if req.status == 'ACCEPTED' %}
@@ -76,7 +102,6 @@
             </section>
         </div>
 
-        <!-- 오른쪽: 알림 -->
         <div class="h-full">
             <section class="glass-panel p-6 rounded-xl h-full">
                 <h2 class="text-lg font-bold text-slate-900 mb-4 flex items-center">
@@ -87,8 +112,13 @@
                     {% for alert in alerts %}
                     <li class="bg-indigo-50/50 p-4 rounded-lg border border-indigo-100">
                         <p class="text-sm text-slate-800">{{ alert.message }}</p>
-                        <p class="text-xs text-slate-400 mt-2 text-right">{{ alert.created_at.strftime('%Y-%m-%d %H:%M')
-                            }}</p>
+                        <p class="text-xs text-slate-400 mt-2 text-right">
+                            {% if alert.created_at %}
+                            {{ alert.created_at.strftime('%Y-%m-%d %H:%M') }}
+                            {% else %}
+                            -
+                            {% endif %}
+                        </p>
                     </li>
                     {% endfor %}
                 </ul>
