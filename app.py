@@ -117,6 +117,21 @@ def login_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
+def admin_required(f):
+    from functools import wraps
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        # 1. 서버가 관리자 모드로 실행되었는지 확인
+
+        
+        # 2. 관리자 세션 확인
+        if not session.get('is_admin'):
+            flash("관리자 로그인이 필요합니다.", "warning")
+            return redirect(url_for('admin_login'))
+            
+        return f(*args, **kwargs)
+    return decorated_function
+
 @app.before_request
 def load_user():
     user_id = session.get('user_id')
@@ -169,10 +184,14 @@ def home():
     return render_template('index.html', user=g.user, unread_count=unread_count)
 
 @app.route('/result')
+@app.route('/result/<int:result_id>')
 @login_required
-def view_result():
-    """대표 결과(Representative Result) 조회 페이지"""
-    result = PersonalityResult.query.filter_by(user_id=g.user.user_id, is_representative=True).first()
+def view_result(result_id=None):
+    """결과 조회 페이지 (특정 ID 또는 대표 결과)"""
+    if result_id:
+        result = PersonalityResult.query.filter_by(user_id=g.user.user_id, result_id=result_id).first()
+    else:
+        result = PersonalityResult.query.filter_by(user_id=g.user.user_id, is_representative=True).first()
     if not result:
         flash("분석된 결과가 없습니다. 채팅 로그를 먼저 업로드해주세요.", "info")
         return redirect(url_for('upload_chat'))
@@ -198,6 +217,38 @@ def view_result():
     except Exception as e:
         flash(f"리포트 생성 실패: {str(e)}", "danger")
         return redirect(url_for('upload_chat'))
+
+@app.route('/history')
+@login_required
+def history():
+    """분석 히스토리 페이지"""
+    # 1. 사용자의 모든 결과 조회 (최신순)
+    results = PersonalityResult.query.filter_by(user_id=g.user.user_id).order_by(PersonalityResult.created_at.desc()).all()
+    
+    # 2. 현재 대표 결과 찾기
+    active_result = next((r for r in results if r.is_representative), None)
+    
+    return render_template('history.html', results=results, active_result=active_result)
+
+@app.route('/set_representative/<int:result_id>', methods=['POST'])
+@login_required
+def set_representative(result_id):
+    """특정 결과를 대표 결과로 설정"""
+    try:
+        # 1. 해당 결과가 본인 것인지 확인
+        target = PersonalityResult.query.filter_by(user_id=g.user.user_id, result_id=result_id).first_or_404()
+        
+        # 2. 기존 대표 해제 및 새 대표 설정
+        PersonalityResult.query.filter_by(user_id=g.user.user_id).update({'is_representative': False})
+        target.is_representative = True
+        db.session.commit()
+        
+        flash("대표 프로필이 변경되었습니다.", "success")
+    except Exception as e:
+        db.session.rollback()
+        flash(f"변경 실패: {str(e)}", "danger")
+        
+    return redirect(url_for('history'))
 
 @app.route('/download_json')
 @login_required
@@ -429,10 +480,16 @@ def upload_chat():
 def start_matching():
     """매칭 후보 리스트 보기 - 현재 사용자의 최신 분석 결과 기반"""
     try:
-        # 현재 로그인된 사용자의 최신 분석 결과 조회
+        # [FIX] 대표 프로필 우선 조회 -> 없으면 최신순 Fallback
         latest_result = PersonalityResult.query.filter_by(
-            user_id=g.user.user_id
-        ).order_by(PersonalityResult.created_at.desc()).first()
+            user_id=g.user.user_id,
+            is_representative=True
+        ).first()
+        
+        if not latest_result:
+            latest_result = PersonalityResult.query.filter_by(
+                user_id=g.user.user_id
+            ).order_by(PersonalityResult.created_at.desc()).first()
         
         if not latest_result:
             flash('분석 결과가 없습니다. 먼저 프로필을 분석해주세요.', 'warning')
@@ -516,7 +573,12 @@ def respond_match(request_id, action):
     flash(result['message'], "success" if result['success'] else "danger")
     return redirect(url_for('match_inbox'))
 
+
+
 if __name__ == '__main__':
+    import sys
+
+
     with app.app_context():
         db.create_all() 
     app.run(host=config_class.RUN_HOST, port=config_class.RUN_PORT)

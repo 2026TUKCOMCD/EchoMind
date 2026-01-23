@@ -130,20 +130,22 @@ class MatchManager:
         except Exception as e:
             print(f"Error fetching candidates: {e}")
             return []
+
+
     
     @classmethod
-    def _calculate_match_scores(cls, my_user_id, candidates, current_user_profile_json=None):
+    def _calculate_match_scores(cls, my_user_id, candidates, current_user_profile_json=None, weights=None):
         """
         matcher.py의 HybridMatcher를 사용하여 고급 매칭 점수를 계산합니다.
-        - Big5 유사도 (50%)
-        - MBTI/Socionics 케미스트리 (40%)
-        - 활동성 (10%)
+        가중치 조정을 위해 weights 파라미터가 추가되었습니다.
         
         Args:
-            my_user_id: 현재 사용자 ID
-            candidates: 후보자 리스트 (dict with full_report_json)
-            current_user_profile_json: 현재 사용자의 프로필 JSON (dict). None이면 profile/profile.json 사용
+            weights: dict {'similarity': 0.5, 'chemistry': 0.4, 'activity': 0.1} 형태
         """
+        # 기본 가중치 설정
+        if weights is None:
+            weights = {'similarity': 0.5, 'chemistry': 0.4, 'activity': 0.1}
+
         try:
             # 현재 사용자 프로필 로드
             target_user = None
@@ -187,27 +189,27 @@ class MatchManager:
                     candidate['match_score'] = 50
                 return candidates
             
-            # [FIX] HybridMatcher 초기화: 통계 계산을 위해 모든 후보자와 타겟 포함
-            # 그 다음 모든 사용자를 Z-Score 정규화
+            # [FIX] HybridMatcher 초기화
             hybrid_matcher = matcher.HybridMatcher(candidate_users + [target_user])
             hybrid_matcher.normalize_user(target_user)
-            
-            # print(f"\n[DEBUG] 타겟 사용자: {target_user.name} (ID: {target_user.user_id})")
-            # print(f"[DEBUG] 타겟 Big5 원본: {target_user.big5_raw}")
-            # print(f"[DEBUG] 타겟 Z-Score: {target_user.big5_z_score}")
             
             # 각 후보자 정규화 및 점수 계산
             for i, candidate_user in enumerate(candidate_users):
                 hybrid_matcher.normalize_user(candidate_user)
                 scores = hybrid_matcher.calculate_match_score(target_user, candidate_user)
                 
-                # print(f"[DEBUG] 후보 {i+1}: {candidate_user.name}")
-                # print(f"  - Big5 원본: {candidate_user.big5_raw}")
-                # print(f"  - Z-Score: {candidate_user.big5_z_score}")
-                # print(f"  - 최종 점수: total={scores['total_score']:.3f}, sim={scores['similarity_score']:.3f}, chem={scores['chemistry_score']:.3f}, act={scores['activity_score']:.3f}")
+                # [Dynamic Weighting] 동적 가중치 적용
+                new_total = (
+                    scores['similarity_score'] * weights['similarity'] +
+                    scores['chemistry_score'] * weights['chemistry'] +
+                    scores['activity_score'] * weights['activity']
+                )
+                
+                # 상세 점수 업데이트
+                scores['total_score'] = new_total
                 
                 # 0~100 범위로 정규화
-                match_score = int(scores['total_score'] * 100)
+                match_score = int(new_total * 100)
                 candidates[i]['match_score'] = max(0, min(100, match_score))
                 candidates[i]['match_details'] = scores
 
