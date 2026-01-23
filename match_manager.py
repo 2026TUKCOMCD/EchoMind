@@ -77,6 +77,28 @@ class MatchManager:
         """
         candidates = []
         seen_user_ids = set()
+        
+        # 0. 이미 매칭 관계가 있는 유저 ID 목록 가져오기 (필터링용)
+        # 비교를 위해 모든 ID를 문자열로 정규화하여 관리합니다.
+        excluded_user_ids = {str(my_user_id)}
+        conn = cls.get_db_connection()
+        try:
+            with conn.cursor() as cursor:
+                # 상태가 'REJECTED'나 'CANCELLED'인 경우는 재신청이 가능하므로 제외
+                # 그 외의 모든 상태(PENDING, ACCEPTED, CANCEL_REQ_...)는 후보군에서 제외
+                sql_exclude = """
+                    SELECT sender_id, receiver_id FROM match_requests 
+                    WHERE (sender_id = %s OR receiver_id = %s)
+                      AND status NOT IN ('REJECTED', 'CANCELLED')
+                """
+                cursor.execute(sql_exclude, (my_user_id, my_user_id))
+                for row in cursor.fetchall():
+                    excluded_user_ids.add(str(row['sender_id']))
+                    excluded_user_ids.add(str(row['receiver_id']))
+        except Exception as e:
+            print(f"Error fetching excluded users: {e}")
+        finally:
+            conn.close()
 
         # 1. File System (candidates_db)
         try:
@@ -93,9 +115,9 @@ class MatchManager:
                     llm_profile = data.get('llm_profile', {})
                     user_id = meta.get('user_id')
                     
-                    # 본인 제외 & 중복 제외
-                    if str(user_id) == str(my_user_id): continue
-                    if user_id in seen_user_ids: continue
+                    # 필터링
+                    if str(user_id) in excluded_user_ids: continue
+                    if str(user_id) in seen_user_ids: continue
                     
                     candidate = {
                         'user_id': user_id,
@@ -109,7 +131,7 @@ class MatchManager:
                         'big5': llm_profile.get('big5', {}).get('scores_0_100', {})
                     }
                     candidates.append(candidate)
-                    seen_user_ids.add(user_id)
+                    seen_user_ids.add(str(user_id))
                 except Exception as e:
                     print(f"Error loading file candidate {json_file}: {e}")
         except Exception as e:
@@ -126,13 +148,14 @@ class MatchManager:
                     FROM personality_results p
                     JOIN users u ON p.user_id = u.user_id
                     WHERE p.is_representative = 1 
-                      AND p.user_id != %s
                 """
-                cursor.execute(sql, (my_user_id,))
+                cursor.execute(sql)
                 rows = cursor.fetchall()
             
             for row in rows:
-                if row['user_id'] in seen_user_ids: continue
+                uid_str = str(row['user_id'])
+                if uid_str in excluded_user_ids: continue
+                if uid_str in seen_user_ids: continue
                 
                 try:
                     full_report = row.get('full_report_json')
@@ -157,7 +180,7 @@ class MatchManager:
                         'big5': llm_profile.get('big5', {}).get('scores_0_100', {})
                     }
                     candidates.append(candidate)
-                    seen_user_ids.add(row['user_id'])
+                    seen_user_ids.add(str(row['user_id']))
                 except Exception as e:
                     print(f"Error parsing db candidate {row['user_id']}: {e}")
 
@@ -174,6 +197,7 @@ class MatchManager:
                 candidates,
                 current_user_profile_json
             )
+            # Remove NaN scores if any
             candidates = sorted(candidates, key=lambda x: x.get('match_score', 0), reverse=True)
             return candidates[:limit]
         
@@ -184,25 +208,31 @@ class MatchManager:
         """
         [매칭 성사 목록] 나와 매칭이 성사(ACCEPTED)된 상대방의 정보를 조회합니다.
         내가 보낸 요청이 수락된 경우 + 내가 받은 요청을 수락한 경우를 모두 포함합니다.
+        [수정] 취소 요청 상태 (CANCEL_REQ_SENDER, CANCEL_REQ_RECEIVER)도 조회합니다.
         """
         conn = cls.get_db_connection()
         try:
             with conn.cursor() as cursor:
-                # Case 1: 내가 Sender이고 상대가 수락한 경우 (상대방 정보 조회)
-                # UNION
-                # Case 2: 내가 Receiver이고 내가 수락한 경우 (상대방 정보 조회)
+                # Case 1: 내가 Sender
+                # Case 2: 내가 Receiver
                 sql = """
-                    SELECT u.user_id, u.username, u.nickname, r.updated_at as matched_at
+                    SELECT 
+                        u.user_id, u.username, u.nickname, r.updated_at as matched_at,
+                        r.request_id, r.status, r.sender_id, r.receiver_id
                     FROM match_requests r
                     JOIN users u ON u.user_id = r.receiver_id
-                    WHERE r.sender_id = %s AND r.status = 'ACCEPTED'
+                    WHERE r.sender_id = %s 
+                      AND r.status IN ('ACCEPTED', 'CANCEL_REQ_SENDER', 'CANCEL_REQ_RECEIVER')
 
                     UNION
 
-                    SELECT u.user_id, u.username, u.nickname, r.updated_at as matched_at
+                    SELECT 
+                        u.user_id, u.username, u.nickname, r.updated_at as matched_at,
+                        r.request_id, r.status, r.sender_id, r.receiver_id
                     FROM match_requests r
                     JOIN users u ON u.user_id = r.sender_id
-                    WHERE r.receiver_id = %s AND r.status = 'ACCEPTED'
+                    WHERE r.receiver_id = %s 
+                      AND r.status IN ('ACCEPTED', 'CANCEL_REQ_SENDER', 'CANCEL_REQ_RECEIVER')
 
                     ORDER BY matched_at DESC
                 """
@@ -211,6 +241,111 @@ class MatchManager:
         except Exception as e:
             print(f"Error fetching successful matches: {e}")
             return []
+        finally:
+            conn.close()
+
+    @classmethod
+    def request_unmatch(cls, user_id, request_id):
+        """
+        [매칭 취소 요청] 사용자가 매칭 취소를 요청합니다.
+        user_id가 sender이면 status -> CANCEL_REQ_SENDER
+        user_id가 receiver이면 status -> CANCEL_REQ_RECEIVER
+        """
+        conn = cls.get_db_connection()
+        try:
+            with conn.cursor() as cursor:
+                # 1. 요청 확인
+                cursor.execute("SELECT sender_id, receiver_id, status FROM match_requests WHERE request_id = %s", (request_id,))
+                req = cursor.fetchone()
+                if not req:
+                    return {"success": False, "message": "존재하지 않는 매칭입니다."}
+
+                if req['status'] != 'ACCEPTED':
+                    return {"success": False, "message": "성사된 매칭 상태에서만 취소 요청이 가능합니다."}
+
+                new_status = ''
+                if int(req['sender_id']) == int(user_id):
+                    new_status = 'CANCEL_REQ_SENDER'
+                elif int(req['receiver_id']) == int(user_id):
+                    new_status = 'CANCEL_REQ_RECEIVER'
+                else:
+                    return {"success": False, "message": "권한이 없습니다."}
+
+                # 2. 상태 업데이트
+                cursor.execute(
+                    "UPDATE match_requests SET status = %s, updated_at = NOW() WHERE request_id = %s",
+                    (new_status, request_id)
+                )
+                conn.commit()
+                return {"success": True, "message": "매칭 취소를 요청했습니다. 상대방의 수락을 기다립니다."}
+        except Exception as e:
+            conn.rollback()
+            return {"success": False, "message": str(e)}
+        finally:
+            conn.close()
+
+    @classmethod
+    def cancel_match_request(cls, user_id, request_id):
+        """
+        [매칭 신청 취소] 보낸 매칭 신청(PENDING)을 취소(회수)합니다.
+        status -> CANCELLED
+        """
+        conn = cls.get_db_connection()
+        try:
+            with conn.cursor() as cursor:
+                # 1. 요청 조회 (sender_id 검증 포함)
+                sql = "SELECT sender_id, status FROM match_requests WHERE request_id = %s"
+                cursor.execute(sql, (request_id,))
+                req = cursor.fetchone()
+                
+                # 2. 예외 처리
+                if not req:
+                    return {"success": False, "message": "존재하지 않는 요청입니다."}
+                
+                if int(req['sender_id']) != int(user_id):
+                    return {"success": False, "message": "취소 권한이 없습니다."}
+                    
+                if req['status'] != 'PENDING':
+                    return {"success": False, "message": "이미 처리되었거나 취소된 요청입니다."}
+                
+                # 3. 상태 업데이트 (Soft Delete: CANCELLED)
+                update_sql = "UPDATE match_requests SET status = 'CANCELLED', updated_at = NOW() WHERE request_id = %s"
+                cursor.execute(update_sql, (request_id,))
+                conn.commit()
+                
+                return {"success": True, "message": "매칭 요청이 취소되었습니다."}
+                
+        except Exception as e:
+            conn.rollback()
+            return {"success": False, "message": str(e)}
+        finally:
+            conn.close()
+
+    @classmethod
+    def respond_unmatch(cls, request_id, action):
+        """
+        [매칭 취소 응답] 상대방의 취소 요청에 수락(ACCEPT) 또는 거절(REJECT)합니다.
+        ACCEPT -> status = CANCELLED (매칭 해제)
+        REJECT -> status = ACCEPTED (매칭 유지)
+        """
+        conn = cls.get_db_connection()
+        try:
+            with conn.cursor() as cursor:
+                if action not in ['ACCEPT', 'REJECT']:
+                    return {"success": False, "message": "잘못된 응답입니다."}
+
+                new_status = 'CANCELLED' if action == 'ACCEPT' else 'ACCEPTED'
+                
+                cursor.execute(
+                    "UPDATE match_requests SET status = %s, updated_at = NOW() WHERE request_id = %s",
+                    (new_status, request_id)
+                )
+                conn.commit()
+                msg = "매칭이 취소되었습니다." if action == 'ACCEPT' else "매칭 취소 요청을 거절했습니다."
+                return {"success": True, "message": msg}
+        except Exception as e:
+            conn.rollback()
+            return {"success": False, "message": str(e)}
         finally:
             conn.close()
 
@@ -412,8 +547,21 @@ class MatchManager:
                    OR (sender_id = %s AND receiver_id = %s)
                 """
                 cursor.execute(check_sql, (sender_id, receiver_id, receiver_id, sender_id))
-                if cursor.fetchone():
-                    return {"success": False, "message": "이미 진행 중인 매칭 건이 존재합니다."}
+                existing = cursor.fetchone()
+                
+                if existing:
+                    status = existing['status']
+                    # 진행 중인 상태면 막음
+                    if status in ['PENDING', 'ACCEPTED', 'CANCEL_REQ_SENDER', 'CANCEL_REQ_RECEIVER']:
+                        return {"success": False, "message": "이미 진행 중인 매칭 건이 존재합니다."}
+                    
+                    # 종료된 상태(CANCELLED, REJECTED)면 기존 기록 삭제 후 재신청 허용
+                    delete_sql = """
+                        DELETE FROM match_requests 
+                        WHERE (sender_id = %s AND receiver_id = %s) 
+                           OR (sender_id = %s AND receiver_id = %s)
+                    """
+                    cursor.execute(delete_sql, (sender_id, receiver_id, receiver_id, sender_id))
 
                 # 신청 데이터 삽입
                 insert_sql = """

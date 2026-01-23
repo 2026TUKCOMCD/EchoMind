@@ -95,7 +95,7 @@ class MatchRequest(db.Model):
     request_id = db.Column(db.Integer, primary_key=True)
     sender_id = db.Column(db.Integer, db.ForeignKey('users.user_id', ondelete='CASCADE'), nullable=False)
     receiver_id = db.Column(db.Integer, db.ForeignKey('users.user_id', ondelete='CASCADE'), nullable=False)
-    status = db.Column(db.Enum('PENDING', 'ACCEPTED', 'REJECTED', name='match_status_enum'), default='PENDING')
+    status = db.Column(db.String(30), default='PENDING')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -480,6 +480,7 @@ def upload_chat():
 @login_required
 def start_matching():
     """매칭 후보 리스트 보기 - 현재 사용자의 최신 분석 결과 기반"""
+    print(f"[DEBUG] Entered start_matching route for user {g.user.user_id}", flush=True)
     try:
         # [FIX] 대표 프로필 우선 조회 -> 없으면 최신순 Fallback
         latest_result = PersonalityResult.query.filter_by(
@@ -524,23 +525,83 @@ def match_inbox():
     conn = MatchManager.get_db_connection()
     try:
         with conn.cursor() as cursor:
-            # 1. 받은 요청 (Received)
+            # 1. 받은 요청 (Received) - Sender의 성향 정보 및 리포트 포함
             sql_received = """
-                SELECT r.request_id, u.username as sender_name, u.nickname as sender_nickname, r.created_at, r.status
+                SELECT 
+                    r.request_id, u.user_id as sender_id, u.username as sender_name, u.nickname as sender_nickname, 
+                    r.created_at, r.status,
+                    p.mbti_prediction as sender_mbti,
+                    p.summary_text as sender_summary_raw,
+                    p.full_report_json as sender_report
                 FROM match_requests r
                 JOIN users u ON r.sender_id = u.user_id
+                LEFT JOIN personality_results p 
+                    ON u.user_id = p.user_id AND p.is_representative = 1
                 WHERE r.receiver_id = %s AND r.status = 'PENDING'
                 ORDER BY r.created_at DESC
             """
             cursor.execute(sql_received, (g.user.user_id,))
             received_requests = cursor.fetchall()
 
-            # 2. 보낸 요청 (Sent)
+            # 현재 사용자의 대표 프로필 가져오기 (매칭 점수 계산용)
+            cursor.execute("""
+                SELECT full_report_json 
+                FROM personality_results 
+                WHERE user_id = %s AND is_representative = 1
+            """, (g.user.user_id,))
+            my_profile_row = cursor.fetchone()
+            current_profile_raw = my_profile_row['full_report_json'] if my_profile_row else None
+            
+            # [수정] 내 프로필 JSON 파싱
+            current_profile = None
+            if current_profile_raw:
+                try:
+                    current_profile = json.loads(current_profile_raw) if isinstance(current_profile_raw, str) else current_profile_raw
+                except:
+                    current_profile = current_profile_raw
+
+            # [수정] 성향 요약 처리 및 매칭 점수 계산
+            if received_requests:
+                for req in received_requests:
+                    # JSON 데이터 요약 처리
+                    raw_summary = req.get('sender_summary_raw')
+                    if raw_summary:
+                        try:
+                            summary_data = json.loads(raw_summary) if isinstance(raw_summary, str) else raw_summary
+                            if isinstance(summary_data, dict):
+                                req['sender_summary'] = summary_data.get('one_paragraph', '')
+                            else:
+                                req['sender_summary'] = str(summary_data)
+                        except (ValueError, json.JSONDecodeError):
+                            req['sender_summary'] = raw_summary
+                    else:
+                        req['sender_summary'] = ''
+                    
+                    # _calculate_match_scores에서 사용하는 키로 매핑 및 리포트 파싱
+                    req['user_id'] = req['sender_id']
+                    raw_report = req.get('sender_report')
+                    if raw_report:
+                        try:
+                            req['full_report_json'] = json.loads(raw_report) if isinstance(raw_report, str) else raw_report
+                        except:
+                            req['full_report_json'] = raw_report
+                    else:
+                        req['full_report_json'] = {}
+
+                # 매칭 점수 일괄 계산
+                if current_profile:
+                    received_requests = MatchManager._calculate_match_scores(
+                        my_user_id=g.user.user_id,
+                        candidates=received_requests,
+                        current_user_profile_json=current_profile
+                    )
+
+            # 2. 보낸 신청 현황 (Sent) - 오직 수락 대기 중인(PENDING) 건만 노출
             sql_sent = """
                 SELECT r.request_id, u.username as receiver_name, u.nickname as receiver_nickname, r.created_at, r.status
                 FROM match_requests r
                 JOIN users u ON r.receiver_id = u.user_id
-                WHERE r.sender_id = %s
+                WHERE r.sender_id = %s AND r.status = 'PENDING'
                 ORDER BY r.created_at DESC
             """
             cursor.execute(sql_sent, (g.user.user_id,))
@@ -576,6 +637,27 @@ def apply_match(receiver_id):
 def respond_match(request_id, action):
     result = MatchManager.respond_to_request(request_id, action.upper())
     flash(result['message'], "success" if result['success'] else "danger")
+    return redirect(url_for('match_inbox'))
+
+@app.route('/unmatch/request/<int:request_id>', methods=['POST'])
+@login_required
+def request_unmatch(request_id):
+    result = MatchManager.request_unmatch(g.user.user_id, request_id)
+    flash(result['message'], 'success' if result['success'] else 'danger')
+    return redirect(url_for('match_inbox'))
+
+@app.route('/cancel_match_request/<int:request_id>', methods=['POST'])
+@login_required
+def cancel_match_request_route(request_id):
+    result = MatchManager.cancel_match_request(g.user.user_id, request_id)
+    flash(result['message'], 'success' if result['success'] else 'danger')
+    return redirect(url_for('match_inbox'))
+
+@app.route('/unmatch/respond/<int:request_id>/<action>')
+@login_required
+def respond_unmatch(request_id, action):
+    result = MatchManager.respond_unmatch(request_id, action.upper())
+    flash(result['message'], 'success' if result['success'] else 'danger')
     return redirect(url_for('match_inbox'))
 
 # --- 관리자 (Admin) ---
