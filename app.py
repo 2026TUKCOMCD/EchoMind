@@ -15,6 +15,7 @@ import json
 from datetime import datetime
 from flask import Flask, render_template, request, redirect, url_for, flash, session, g
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy.orm import aliased
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 
@@ -493,7 +494,7 @@ def start_matching():
         
         if not latest_result:
             flash('분석 결과가 없습니다. 먼저 프로필을 분석해주세요.', 'warning')
-            return redirect(url_for('upload_page'))
+            return redirect(url_for('upload_chat'))
         
         # [Robustness Fix] 기존 데이터에 parse_quality가 없는 경우 DB 값으로 복구
         current_profile = latest_result.full_report_json
@@ -573,7 +574,243 @@ def respond_match(request_id, action):
     flash(result['message'], "success" if result['success'] else "danger")
     return redirect(url_for('match_inbox'))
 
+# --- 관리자 (Admin) ---
+@app.route('/admin/login', methods=['GET', 'POST'])
+def admin_login():
 
+    
+    if request.method == 'POST':
+        pw = request.form.get('password')
+        # 환경변수 ADMIN_PASSWORD 사용 (기본값: 1234)
+        admin_pw = os.environ.get('ADMIN_PASSWORD', '1234')
+        if pw == admin_pw:
+            session['is_admin'] = True
+            flash("관리자 모드로 로그인되었습니다.", "success")
+            return redirect(url_for('admin_dashboard'))
+        flash("비밀번호가 올바르지 않습니다.", "danger")
+    return render_template('admin/login.html')
+
+
+
+@app.route('/admin/dashboard')
+@admin_required
+def admin_dashboard():
+    # 1. 사용자 목록은 API로 클라이언트에서 로드 (Alpine.js)
+    # 초기 렌더링용으로는 빈 리스트 혹은 기본 데이터만 전달하거나, 
+    # 아예 템플릿에서 비동기로 로딩하도록 변경.
+    
+    # 2. 통계 데이터 계산
+    from sqlalchemy import func
+    
+    # 2-1. 기본 카운트
+    stats = {
+        'total_users': User.query.count(), # 검색 결과와 무관하게 전체 수 표시
+        'total_requests': MatchRequest.query.count(),
+        'total_results': PersonalityResult.query.count(),
+        'candidate_files': 0
+    }
+    
+    # 2-2. MBTI 분포
+    mbti_dist = db.session.query(
+        PersonalityResult.mbti_prediction, func.count(PersonalityResult.result_id)
+    ).filter(PersonalityResult.is_representative == True).group_by(PersonalityResult.mbti_prediction).all()
+    
+    # Chart.js용 데이터 포맷팅
+    stats['mbti_labels'] = [m[0] for m in mbti_dist if m[0]]
+    stats['mbti_counts'] = [m[1] for m in mbti_dist if m[0]]
+
+    # 2-3. 후보군 파일 목록
+    candidates_dir = os.path.join(os.path.dirname(__file__), 'candidates_db')
+    candidate_files = []
+    if os.path.exists(candidates_dir):
+        candidate_files = sorted([f for f in os.listdir(candidates_dir) if f.endswith('.json')])
+        stats['candidate_files'] = len(candidate_files)
+        
+    # [NEW] 3. 매칭 로그 조회 (최신 100건)
+    Sender = aliased(User)
+    Receiver = aliased(User)
+    
+    match_logs = db.session.query(
+        MatchRequest, Sender, Receiver
+    ).join(
+        Sender, MatchRequest.sender_id == Sender.user_id
+    ).join(
+        Receiver, MatchRequest.receiver_id == Receiver.user_id
+    ).order_by(MatchRequest.created_at.desc()).limit(100).all()
+    
+    return render_template('admin/dashboard.html', 
+                           stats=stats, 
+                           candidate_files=candidate_files,
+                           match_logs=match_logs)
+
+@app.route('/admin/api/users', methods=['GET'])
+@admin_required
+def admin_api_users():
+    """사용자 목록 검색 API (JSON)"""
+    query = request.args.get('q', '').strip()
+    
+    if query:
+        # Numeric ID search support
+        from sqlalchemy import cast, String
+        users = User.query.filter(
+            (User.username.ilike(f'%{query}%')) | 
+            (User.nickname.ilike(f'%{query}%')) |
+            (User.email.ilike(f'%{query}%')) |
+            (cast(User.user_id, String).ilike(f'%{query}%'))
+        ).order_by(User.created_at.desc()).all()
+    else:
+        users = User.query.order_by(User.created_at.desc()).all()
+        
+    users_data = []
+    for u in users:
+        users_data.append({
+            'user_id': u.user_id,
+            'username': u.username,
+            'nickname': u.nickname or u.username,
+            'email': u.email,
+            'created_at': u.created_at.strftime('%Y-%m-%d')
+        })
+        
+    return {'success': True, 'users': users_data}
+
+@app.route('/admin/candidates/upload', methods=['POST'])
+@admin_required
+def admin_upload_candidate():
+    if 'file' not in request.files:
+        flash('파일이 없습니다.', 'danger')
+        return redirect(url_for('admin_dashboard'))
+    
+    file = request.files['file']
+    if file.filename == '':
+        flash('선택된 파일이 없습니다.', 'danger')
+        return redirect(url_for('admin_dashboard'))
+        
+    if file and file.filename.endswith('.json'):
+        try:
+            filename = secure_filename(file.filename)
+            candidates_dir = os.path.join(os.path.dirname(__file__), 'candidates_db')
+            if not os.path.exists(candidates_dir):
+                os.makedirs(candidates_dir)
+                
+            file.save(os.path.join(candidates_dir, filename))
+            flash(f'파일 {filename} 업로드 성공!', 'success')
+        except Exception as e:
+            flash(f'업로드 실패: {str(e)}', 'danger')
+    else:
+        flash('JSON 파일만 업로드 가능합니다.', 'danger')
+        
+    return redirect(url_for('admin_dashboard', tab='system'))
+
+@app.route('/admin/candidates/delete/<filename>', methods=['POST'])
+@admin_required
+def admin_delete_candidate(filename):
+    """후보군 파일 삭제"""
+    filename = secure_filename(filename)
+    file_path = os.path.join(os.path.dirname(__file__), 'candidates_db', filename)
+    
+    if os.path.exists(file_path):
+        try:
+            os.remove(file_path)
+            flash(f"파일 '{filename}' 삭제 완료.", "success")
+        except Exception as e:
+            flash(f"파일 삭제 실패: {str(e)}", "danger")
+    else:
+        flash("파일을 찾을 수 없습니다.", "warning")
+        
+    return redirect(url_for('admin_dashboard', tab='system'))
+
+@app.route('/admin/users/delete/<int:user_id>', methods=['POST'])
+@admin_required
+def admin_delete_user(user_id):
+    user = User.query.get_or_404(user_id)
+    try:
+        username = user.nickname or user.username
+        # 연관된 데이터는 CASCADE 설정에 의해 자동 삭제됨 (모델 정의 확인 필요)
+        # User 모델 정의 시 cascade 옵션이 없으면 에러 날 수 있음. 
+        # ChatLog, PersonalityResult 등 ForeignKey에 ondelete='CASCADE'가 있는지 확인.
+        # app.py 모델 정의를 보면 ondelete='CASCADE'가 설정되어 있음.
+        
+        db.session.delete(user)
+        db.session.commit()
+        flash(f"사용자 '{username}' (ID: {user_id}) 삭제 완료.", "success")
+    except Exception as e:
+        db.session.rollback()
+        flash(f"삭제 실패: {str(e)}", "danger")
+    return redirect(url_for('admin_dashboard', tab='users'))
+
+@app.route('/admin/candidates/refresh', methods=['POST'])
+@admin_required
+def admin_refresh_candidates():
+    try:
+        # MatchManager에 reload_candidates 메서드가 필요함
+        count = MatchManager.reload_candidates()
+        flash(f"후보군 {count}명 데이터 새로고침 완료.", "success")
+    except Exception as e:
+        flash(f"새로고침 실패: {str(e)}", "danger")
+    return redirect(url_for('admin_dashboard', tab='system'))
+
+@app.route('/admin/api/simulate', methods=['POST'])
+@admin_required
+def admin_simulate_match():
+    try:
+        data = request.get_json()
+        sender_id = int(data.get('sender_id'))
+        receiver_id = int(data.get('receiver_id'))
+        weights = {
+            'similarity': float(data.get('w_sim', 0.5)),
+            'chemistry': float(data.get('w_chem', 0.4)),
+            'activity': float(data.get('w_act', 0.1))
+        }
+
+        # 1. Fetch Profiles
+        def get_profile(uid):
+            res = PersonalityResult.query.filter_by(user_id=uid, is_representative=True).first()
+            if not res: # fallback to latest
+                 res = PersonalityResult.query.filter_by(user_id=uid).order_by(PersonalityResult.created_at.desc()).first()
+            return res.full_report_json if res and res.full_report_json else None
+
+        sender_profile = get_profile(sender_id)
+        receiver_profile = get_profile(receiver_id)
+
+        if not sender_profile or not receiver_profile:
+            return {"success": False, "message": "해당 사용자의 분석 프로필을 찾을 수 없습니다."}, 404
+
+        # 2. Prepare Candidate Structure
+        candidates = [{
+            'user_id': receiver_id,
+            'full_report_json': receiver_profile,
+            'match_score': 0
+        }]
+        
+        # 3. Calculate
+        # 실제 매칭 로직 호출 (가중치 전달)
+        results = MatchManager._calculate_match_scores(
+            my_user_id=sender_id,
+            candidates=candidates,
+            current_user_profile_json=sender_profile,
+            weights=weights
+        )
+        
+        if not results:
+             return {"success": False, "message": "매칭 계산 실패"}, 500
+
+        result = results[0]
+        return {
+            "success": True,
+            "match_score": result.get('match_score'),
+            "details": result.get('match_details'),
+            "relative_traits": result.get('relative_traits')
+        }
+
+    except Exception as e:
+        print(f"Simulation Error: {e}")
+        return {"success": False, "message": str(e)}, 500
+
+@app.route('/admin/logout')
+def admin_logout():
+    session.pop('is_admin', None)
+    flash("관리자 로그아웃 되었습니다.", "info")
+    return redirect(url_for('home'))
 
 if __name__ == '__main__':
     import sys

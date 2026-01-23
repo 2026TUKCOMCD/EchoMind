@@ -131,7 +131,21 @@ class MatchManager:
             print(f"Error fetching candidates: {e}")
             return []
 
-
+    @classmethod
+    def reload_candidates(cls):
+        """
+        [관리자] 후보군 데이터를 새로고침합니다.
+        현재 구현에서는 매 요청마다 파일을 읽으므로, 파일 개수를 반환하여 상태를 확인하는 용도로 사용됩니다.
+        """
+        try:
+            base_dir = os.path.dirname(__file__)
+            path = os.path.join(base_dir, 'candidates_db', '*.json')
+            files = glob.glob(path)
+            # 향후 캐싱 적용 시 여기서 캐시 무효화 로직 수행
+            return len(files)
+        except Exception as e:
+            print(f"Error reloading candidates: {e}")
+            raise e
     
     @classmethod
     def _calculate_match_scores(cls, my_user_id, candidates, current_user_profile_json=None, weights=None):
