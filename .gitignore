@@ -7,3 +7,4 @@ data/
 __pycache__/
 profile/
 static/reports/
+debug.log

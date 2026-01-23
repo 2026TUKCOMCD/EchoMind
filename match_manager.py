@@ -41,7 +41,10 @@ import pymysql
 import os
 import json
 import glob
+import logging
 import numpy as np
+
+logger = logging.getLogger(__name__)
 from config import config_by_name  # 프로젝트 설정 모듈 임포트
 from scipy.spatial.distance import cosine
 import matcher  # matcher.py의 고급 매칭 알고리즘 사용
@@ -96,7 +99,7 @@ class MatchManager:
                     excluded_user_ids.add(str(row['sender_id']))
                     excluded_user_ids.add(str(row['receiver_id']))
         except Exception as e:
-            print(f"Error fetching excluded users: {e}")
+            logger.exception("Error fetching excluded users")
         finally:
             conn.close()
 
@@ -133,9 +136,9 @@ class MatchManager:
                     candidates.append(candidate)
                     seen_user_ids.add(str(user_id))
                 except Exception as e:
-                    print(f"Error loading file candidate {json_file}: {e}")
+                    logger.exception(f"Error loading file candidate {json_file}")
         except Exception as e:
-            print(f"Error in file candidate fetching: {e}")
+            logger.exception("Error in file candidate fetching")
 
         # 2. Database (personality_results)
         conn = cls.get_db_connection()
@@ -182,10 +185,10 @@ class MatchManager:
                     candidates.append(candidate)
                     seen_user_ids.add(str(row['user_id']))
                 except Exception as e:
-                    print(f"Error parsing db candidate {row['user_id']}: {e}")
+                    logger.exception(f"Error parsing db candidate {row['user_id']}")
 
         except Exception as e:
-             print(f"Error in DB candidate fetching: {e}")
+             logger.exception("Error in DB candidate fetching")
         finally:
             conn.close()
 
@@ -239,7 +242,7 @@ class MatchManager:
                 cursor.execute(sql, (user_id, user_id))
                 return cursor.fetchall()
         except Exception as e:
-            print(f"Error fetching successful matches: {e}")
+            logger.exception("Error fetching successful matches")
             return []
         finally:
             conn.close()
@@ -362,7 +365,7 @@ class MatchManager:
             # 향후 캐싱 적용 시 여기서 캐시 무효화 로직 수행
             return len(files)
         except Exception as e:
-            print(f"Error reloading candidates: {e}")
+            logger.exception("Error reloading candidates")
             raise e
     
     @classmethod
@@ -462,9 +465,7 @@ class MatchManager:
             
             return candidates
         except Exception as e:
-            print(f"Error calculating match scores: {e}")
-            import traceback
-            traceback.print_exc()
+            logger.exception("Error calculating match scores")
             # 점수 계산 실패해도 candidates 반환
             for candidate in candidates:
                 candidate['match_score'] = 50
@@ -508,7 +509,7 @@ class MatchManager:
             
             return user_vector
         except Exception as e:
-            print(f"Error converting JSON to UserVector: {e}")
+            logger.exception("Error converting JSON to UserVector")
             return None
 
     @classmethod
@@ -629,7 +630,7 @@ class MatchManager:
                 return cursor.fetchall()
         # [추가: 예외 처리 강화] 알림 조회 중 발생할 수 있는 에러 포착
         except Exception as e:
-            print(f"Error fetching notifications: {e}")
+            logger.exception("Error fetching notifications")
             return []
         finally:
             conn.close()
@@ -648,7 +649,7 @@ class MatchManager:
             conn.commit()
             return True
         except Exception as e:
-            print(f"Error updating notifications: {e}")
+            logger.exception("Error updating notifications")
             return False
         finally:
             conn.close()

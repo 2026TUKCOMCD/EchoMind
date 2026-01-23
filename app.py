@@ -18,6 +18,8 @@ from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.orm import aliased
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
+import logging
+from logging.handlers import RotatingFileHandler
 
 # [설정 및 커스텀 모듈 임포트]
 from config import config_by_name 
@@ -32,6 +34,44 @@ env = os.getenv('FLASK_ENV', 'development')
 config_class = config_by_name.get(env, config_by_name['default'])
 app.config.from_object(config_class)
 config_class.init_app(app)
+
+# --- Logging Mode Setting ---
+# 1: DEBUG, 2: INFO, 3: WARNING, 4: ERROR, 5: CRITICAL
+LOG_LEVEL_MAP = {
+    1: logging.DEBUG,
+    2: logging.INFO,
+    3: logging.WARNING,
+    4: logging.ERROR,
+    5: logging.CRITICAL
+}
+CURRENT_LOG_MODE = 4  # [설정] 여기서 숫자(1~5)만 바꾸면 모드가 변경됩니다!
+target_log_level = LOG_LEVEL_MAP.get(CURRENT_LOG_MODE, logging.INFO)
+
+# Logging Configuration
+if not app.debug:
+    # Production: File logging
+    if not os.path.exists('logs'):
+        os.mkdir('logs')
+    file_handler = RotatingFileHandler('logs/echomind.log', maxBytes=10240, backupCount=10)
+    file_handler.setFormatter(logging.Formatter(
+        '%(asctime)s %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]'
+    ))
+    file_handler.setLevel(target_log_level)
+    app.logger.addHandler(file_handler)
+    app.logger.setLevel(target_log_level)
+    app.logger.info('EchoMind startup')
+else:
+    # Development: Console + File logging for debugging
+    logging.basicConfig(
+        level=target_log_level,
+        format='%(asctime)s %(levelname)s: %(message)s [in %(filename)s:%(lineno)d]',
+        handlers=[
+            logging.FileHandler("debug.log", mode='a', encoding='utf-8'),
+            logging.StreamHandler()
+        ],
+        force=True
+    )
+    app.logger.setLevel(target_log_level)
 
 # 업로드 폴더 자동 생성
 if not os.path.exists(app.config['UPLOAD_FOLDER']):
