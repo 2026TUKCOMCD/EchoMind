@@ -192,6 +192,7 @@
                                 <th class="pb-3 px-2">보낸 사람</th>
                                 <th class="pb-3 px-2">받은 사람</th>
                                 <th class="pb-3 px-2">상태</th>
+                                <th class="pb-3 px-2 text-right">관리</th>
                             </tr>
                         </thead>
                         <tbody class="text-sm">
@@ -210,10 +211,21 @@
                                         {{ log.status }}
                                     </span>
                                 </td>
+                                <td class="py-3 px-2 text-right">
+                                    <form action="{{ url_for('admin_delete_match', request_id=log.request_id) }}"
+                                        method="POST"
+                                        onsubmit="return confirm('정말 이 매칭 로그(ID: {{ log.request_id }})를 삭제하시겠습니까?');"
+                                        class="inline">
+                                        <button type="submit"
+                                            class="text-xs text-red-500 hover:text-red-700 hover:bg-red-50 rounded px-2 py-1 transition-colors">
+                                            삭제
+                                        </button>
+                                    </form>
+                                </td>
                             </tr>
                             {% else %}
                             <tr>
-                                <td colspan="4" class="text-center py-6 text-slate-400">데이터가 없습니다.</td>
+                                <td colspan="5" class="text-center py-6 text-slate-400">데이터가 없습니다.</td>
                             </tr>
                             {% endfor %}
                         </tbody>
@@ -248,30 +260,55 @@
                                 <h3 class="font-bold text-sm text-slate-900">가중치 (Weights) 설정</h3>
 
                                 <div>
-                                    <div class="flex justify-between text-xs mb-1">
-                                        <span>Similarity (Big5)</span>
+                                    <div class="flex justify-between text-xs mb-1 items-center">
+                                        <div class="flex items-center gap-2">
+                                            <span>Similarity (Big5)</span>
+                                            <button @click="locked.sim = !locked.sim" class="text-xs focus:outline-none"
+                                                :class="locked.sim ? 'text-indigo-600' : 'text-slate-300'">
+                                                <span x-show="locked.sim">🔒</span>
+                                                <span x-show="!locked.sim">🔓</span>
+                                            </button>
+                                        </div>
                                         <span x-text="weights.sim"></span>
                                     </div>
-                                    <input type="range" min="0" max="1" step="0.1" x-model="weights.sim"
-                                        class="w-full h-2 bg-indigo-200 rounded-lg appearance-none cursor-pointer">
+                                    <input type="range" min="0" max="1" step="0.1" x-model.number="weights.sim"
+                                        @input="adjustWeights('sim')" :disabled="locked.sim"
+                                        class="w-full h-2 bg-indigo-200 rounded-lg appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
                                 </div>
 
                                 <div>
-                                    <div class="flex justify-between text-xs mb-1">
-                                        <span>Chemistry (MBTI)</span>
+                                    <div class="flex justify-between text-xs mb-1 items-center">
+                                        <div class="flex items-center gap-2">
+                                            <span>Chemistry (MBTI)</span>
+                                            <button @click="locked.chem = !locked.chem"
+                                                class="text-xs focus:outline-none"
+                                                :class="locked.chem ? 'text-indigo-600' : 'text-slate-300'">
+                                                <span x-show="locked.chem">🔒</span>
+                                                <span x-show="!locked.chem">🔓</span>
+                                            </button>
+                                        </div>
                                         <span x-text="weights.chem"></span>
                                     </div>
-                                    <input type="range" min="0" max="1" step="0.1" x-model="weights.chem"
-                                        class="w-full h-2 bg-rose-200 rounded-lg appearance-none cursor-pointer">
+                                    <input type="range" min="0" max="1" step="0.1" x-model.number="weights.chem"
+                                        @input="adjustWeights('chem')" :disabled="locked.chem"
+                                        class="w-full h-2 bg-rose-200 rounded-lg appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
                                 </div>
 
                                 <div>
-                                    <div class="flex justify-between text-xs mb-1">
-                                        <span>Activity</span>
+                                    <div class="flex justify-between text-xs mb-1 items-center">
+                                        <div class="flex items-center gap-2">
+                                            <span>Activity</span>
+                                            <button @click="locked.act = !locked.act" class="text-xs focus:outline-none"
+                                                :class="locked.act ? 'text-indigo-600' : 'text-slate-300'">
+                                                <span x-show="locked.act">🔒</span>
+                                                <span x-show="!locked.act">🔓</span>
+                                            </button>
+                                        </div>
                                         <span x-text="weights.act"></span>
                                     </div>
-                                    <input type="range" min="0" max="1" step="0.1" x-model="weights.act"
-                                        class="w-full h-2 bg-amber-200 rounded-lg appearance-none cursor-pointer">
+                                    <input type="range" min="0" max="1" step="0.1" x-model.number="weights.act"
+                                        @input="adjustWeights('act')" :disabled="locked.act"
+                                        class="w-full h-2 bg-amber-200 rounded-lg appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
                                 </div>
                             </div>
 
@@ -395,6 +432,7 @@
             senderId: '',
             receiverId: '',
             weights: { sim: 0.5, chem: 0.4, act: 0.1 },
+            locked: { sim: false, chem: false, act: false },
             result: null,
             error: null,
             loading: false,
@@ -425,6 +463,71 @@
                     this.error = e.message;
                 } finally {
                     this.loading = false;
+                }
+            },
+            adjustWeights(trigger) {
+                // 0. Locked Check
+                if (this.locked[trigger]) return;
+
+                // 1. Trigger 값 범위 보정 (0~1)
+                this.weights[trigger] = Math.max(0, Math.min(1, parseFloat(this.weights[trigger])));
+
+                // 2. 다른 변수들의 상태 확인
+                const others = Object.keys(this.weights).filter(k => k !== trigger);
+                const lockedOthers = others.filter(k => this.locked[k]);
+                const unlockedOthers = others.filter(k => !this.locked[k]);
+
+                // Case A: 2개가 잠겨있음 -> 내가 움직일 수 없음 (스냅백)
+                if (lockedOthers.length === 2) {
+                    const sumLocked = this.weights[lockedOthers[0]] + this.weights[lockedOthers[1]];
+                    // 강제로 남은 값으로 고정
+                    this.weights[trigger] = parseFloat((1.0 - sumLocked).toFixed(2));
+                    return;
+                }
+
+                // Case B: 1개가 잠겨있음 -> 남은 1개(unlocked)가 모든 변화를 수용
+                if (lockedOthers.length === 1) {
+                    const lockedKey = lockedOthers[0];
+                    const unlockedKey = unlockedOthers[0];
+
+                    // 남은 예산 계산
+                    let remainingForUnlocked = 1.0 - this.weights[trigger] - this.weights[lockedKey];
+
+                    // 만약 trigger를 너무 높게 잡아서 unlocked가 음수가 되어야 한다면?
+                    // -> trigger를 줄여야 함 (Trigger Clamping)
+                    if (remainingForUnlocked < 0) {
+                        this.weights[trigger] = parseFloat((1.0 - this.weights[lockedKey]).toFixed(2));
+                        remainingForUnlocked = 0;
+                    }
+
+                    this.weights[unlockedKey] = parseFloat(remainingForUnlocked.toFixed(2));
+                    return;
+                }
+
+                // Case C: 아무것도 안 잠겨있음 -> 기존 로직 (비례 배분)
+                // 3. 남은 값 계산 (1.0 - 변경된 값)
+                const remaining = 1.0 - this.weights[trigger];
+                const currentSumOthers = this.weights[others[0]] + this.weights[others[1]];
+
+                if (currentSumOthers === 0) {
+                    // 나머지가 0이라면(모두 0이었던 경우), 남은 값을 균등 배분
+                    this.weights[others[0]] = remaining / 2;
+                    this.weights[others[1]] = remaining / 2;
+                } else {
+                    // 기존 비율 유지하며 배분
+                    this.weights[others[0]] = (this.weights[others[0]] / currentSumOthers) * remaining;
+                    this.weights[others[1]] = (this.weights[others[1]] / currentSumOthers) * remaining;
+                }
+
+                // 4. 소수점 정리 (UI 표시용)
+                this.weights[others[0]] = parseFloat(this.weights[others[0]].toFixed(2));
+                this.weights[others[1]] = parseFloat(this.weights[others[1]].toFixed(2));
+
+                // 5. 오차 보정
+                const sum = this.weights.sim + this.weights.chem + this.weights.act;
+                if (Math.abs(sum - 1.0) > 0.01) {
+                    this.weights[others[1]] += (1.0 - sum);
+                    this.weights[others[1]] = parseFloat(this.weights[others[1]].toFixed(2));
                 }
             }
         }

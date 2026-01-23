@@ -92,6 +92,11 @@
                                     </span>
 
                                     <div class="flex gap-2">
+                                        <a href="{{ url_for('match_detail', request_id=req.request_id) }}"
+                                            class="px-4 py-2 text-xs font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-xl transition-all">
+                                            상세 보기
+                                        </a>
+                                        <div class="h-8 w-px bg-slate-100 mx-1"></div>
                                         <a href="{{ url_for('respond_match', request_id=req.request_id, action='rejected') }}"
                                             class="px-4 py-2 text-xs font-bold text-slate-500 hover:text-red-600 bg-slate-50 hover:bg-red-50 rounded-xl transition-all">
                                             거절
@@ -133,7 +138,12 @@
                                     {{ match.nickname[0] or match.username[0] }}
                                 </div>
                                 <div>
-                                    <h4 class="font-bold text-slate-900 leading-tight">{{ match.nickname }}</h4>
+                                    <h4 class="font-bold text-slate-900 leading-tight flex items-center gap-2">
+                                        {{ match.nickname }}
+                                        <a href="{{ url_for('match_detail', request_id=match.request_id) }}"
+                                            class="text-[10px] px-1.5 py-0.5 bg-slate-100 text-slate-500 rounded hover:bg-indigo-50 hover:text-indigo-600 transition-colors">프로필
+                                            보기</a>
+                                    </h4>
                                     <span class="text-[10px] text-slate-400 font-medium">{{
                                         match.matched_at.strftime('%Y-%m-%d') if match.matched_at else '-' }}</span>
                                 </div>
@@ -195,7 +205,11 @@
                                 {{ req.receiver_nickname[0] if req.receiver_nickname else '?' }}
                             </span>
                             <div>
-                                <p class="text-sm font-bold text-slate-700">{{ req.receiver_nickname }} 님에게</p>
+                                <p class="text-sm font-bold text-slate-700 flex items-center gap-2">
+                                    {{ req.receiver_nickname }} 님에게
+                                    <a href="{{ url_for('match_detail', request_id=req.request_id) }}"
+                                        class="text-[9px] font-normal text-slate-400 border border-slate-200 px-1 rounded hover:text-indigo-600 hover:border-indigo-200">보기</a>
+                                </p>
                                 <p class="text-[10px] text-slate-400 font-medium">{{ req.created_at.strftime('%Y-%m-%d')
                                     if req.created_at else '-' }}</p>
                             </div>

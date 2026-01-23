@@ -653,3 +653,27 @@ class MatchManager:
             return False
         finally:
             conn.close()
+
+    @classmethod
+    def delete_match_by_admin(cls, request_id):
+        """
+        [관리자] 매칭 요청을 DB에서 영구 삭제합니다.
+        """
+        conn = cls.get_db_connection()
+        try:
+            with conn.cursor() as cursor:
+                # 1. 존재 여부 확인
+                cursor.execute("SELECT request_id FROM match_requests WHERE request_id = %s", (request_id,))
+                if not cursor.fetchone():
+                    return {"success": False, "message": "존재하지 않는 매칭 ID입니다."}
+
+                # 2. Hard Delete
+                cursor.execute("DELETE FROM match_requests WHERE request_id = %s", (request_id,))
+                
+            conn.commit()
+            return {"success": True, "message": f"매칭(ID: {request_id})이 삭제되었습니다."}
+        except Exception as e:
+            conn.rollback()
+            return {"success": False, "message": str(e)}
+        finally:
+            conn.close()

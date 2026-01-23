@@ -665,6 +665,107 @@ def match_inbox():
                            matches=successful_matches, 
                            alerts=alerts)
 
+@app.route('/match/detail/<int:request_id>')
+@login_required
+def match_detail(request_id):
+    """매칭 상세 정보 및 상대방 프로필 보기 (통합 뷰)"""
+    conn = MatchManager.get_db_connection()
+    try:
+        with conn.cursor() as cursor:
+            # 1. 매칭 요청 정보 조회
+            sql = """
+                SELECT r.*, 
+                       s.username as sender_name, s.nickname as sender_nickname, 
+                       rc.username as receiver_name, rc.nickname as receiver_nickname,
+                       s_res.full_report_json as sender_profile,
+                       r_res.full_report_json as receiver_profile
+                FROM match_requests r
+                JOIN users s ON r.sender_id = s.user_id
+                JOIN users rc ON r.receiver_id = rc.user_id
+                LEFT JOIN personality_results s_res ON s.user_id = s_res.user_id AND s_res.is_representative = 1
+                LEFT JOIN personality_results r_res ON rc.user_id = r_res.user_id AND r_res.is_representative = 1
+                WHERE r.request_id = %s
+            """
+            cursor.execute(sql, (request_id,))
+            req = cursor.fetchone()
+            
+            if not req:
+                flash("존재하지 않는 매칭 요청입니다.", "danger")
+                return redirect(url_for('match_inbox'))
+            
+            # 2. 권한 체크
+            current_uid = g.user.user_id
+            if current_uid != req['sender_id'] and current_uid != req['receiver_id']:
+                flash("조회 권한이 없습니다.", "danger")
+                return redirect(url_for('match_inbox'))
+            
+            # 3. 역할 구분
+            is_sender = (current_uid == req['sender_id'])
+            counterpart_nickname = req['receiver_nickname'] if is_sender else req['sender_nickname']
+            
+            # 4. 프로필 데이터 준비 (JSON 파싱)
+            def parse_profile(raw_json):
+                if not raw_json: return None
+                try: 
+                    return json.loads(raw_json) if isinstance(raw_json, str) else raw_json
+                except: 
+                    return raw_json
+
+            my_profile = parse_profile(req['sender_profile'] if is_sender else req['receiver_profile'])
+            target_profile = parse_profile(req['receiver_profile'] if is_sender else req['sender_profile'])
+            
+            # [Fix] 만약 DB에 Representative 결과가 없으면 Fallback
+            # (여기서는 편의상 없는 경우 처리 생략하거나 기본값 처리 필요)
+            
+            # 5. 매칭 점수 재계산 (상세 데이터 확보용)
+            # MatchManager._calculate_match_scores는 리스트를 받으므로 target을 리스트로 포장
+            target_candidate = {
+                'user_id': req['receiver_id'] if is_sender else req['sender_id'],
+                'full_report_json': target_profile,
+                # 기본 필드 채우기 (로직상 필요)
+                'nickname': counterpart_nickname
+            }
+            
+            calculated_list = MatchManager._calculate_match_scores(
+                my_user_id=current_uid,
+                candidates=[target_candidate],
+                current_user_profile_json=my_profile
+            )
+            
+            match_data = calculated_list[0]
+            match_score = match_data.get('match_score', 0)
+            match_details = match_data.get('match_details', {})
+            
+            # 6. 상대방 리포트 HTML 생성
+            report_html = ""
+            if target_profile:
+                # visualize_profile expects data dict
+                report_html = visualize_profile.generate_report_html(target_profile, return_body_only=True)
+            else:
+                report_html = "<div class='p-10 text-center text-slate-400'>상대방의 상세 프로필 데이터가 없습니다.</div>"
+
+            # 7. 템플릿 전달 데이터 구성
+            request_info = {
+                'request_id': req['request_id'],
+                'status': req['status'],
+                'created_at': req['created_at'],
+                'counterpart_nickname': counterpart_nickname,
+                'match_score': match_score
+            }
+
+            return render_template('match_detail.html',
+                                   request_info=request_info,
+                                   match_details=match_details,
+                                   report_html=report_html,
+                                   is_sender=is_sender)
+            
+    except Exception as e:
+        app.logger.error(f"Error in match_detail: {e}")
+        flash("상세 정보를 불러오는 중 오류가 발생했습니다.", "danger")
+        return redirect(url_for('match_inbox'))
+    finally:
+        conn.close()
+
 @app.route('/apply_match/<receiver_id>', methods=['POST'])
 @login_required
 def apply_match(receiver_id):
@@ -931,6 +1032,14 @@ def admin_simulate_match():
     except Exception as e:
         print(f"Simulation Error: {e}")
         return {"success": False, "message": str(e)}, 500
+
+@app.route('/admin/match/delete/<int:request_id>', methods=['POST'])
+@admin_required
+def admin_delete_match(request_id):
+    """[관리자] 매칭 요청 삭제 (Hard Delete)"""
+    result = MatchManager.delete_match_by_admin(request_id)
+    flash(result['message'], 'success' if result['success'] else 'danger')
+    return redirect(url_for('admin_dashboard', tab='logs'))
 
 @app.route('/admin/logout')
 def admin_logout():
