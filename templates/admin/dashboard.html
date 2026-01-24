@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+﻿{% extends "base.html" %}
 
 {% block title %}관리자 대시보드{% endblock %}
 
@@ -11,11 +11,15 @@
                 <span>🎛️</span> 관리자 대시보드
             </h1>
             <p class="mt-1 text-slate-500">시스템 모니터링 및 매칭 알고리즘 튜닝</p>
+            <!-- Debug Info -->
+            <div class="mt-2 p-2 bg-slate-100 text-xs text-slate-500 rounded">
+                Data Check: {{ stats.total_users }} users / {{ stats.total_results }} results
+            </div>
         </div>
         <div class="flex items-center gap-4">
             <span
                 class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-green-100 text-green-800 border border-green-200">
-                ● System Active
+                � System Active
             </span>
             <a href="{{ url_for('admin_logout') }}"
                 class="text-sm font-medium text-slate-500 hover:text-red-600 transition-colors">
@@ -25,8 +29,35 @@
     </div>
 
     <!-- Tabs Navigation -->
-    <div x-data="{ activeTab: new URLSearchParams(window.location.search).get('tab') || 'dashboard' }"
-        class="space-y-6">
+    <div x-data="{ 
+        activeTab: new URLSearchParams(window.location.search).get('tab') || 'dashboard',
+        viewingFile: false,
+        viewingFileName: '',
+        viewingFileContent: '',
+        async viewFile(filename) {
+            this.viewingFileName = filename;
+            this.viewingFile = true;
+            this.viewingFileContent = 'Loading...';
+            try {
+                const res = await fetch(`/admin/candidates/view/${filename}`);
+                const data = await res.json();
+                if (data.success) {
+                    this.viewingFileContent = JSON.stringify(data.content, null, 2);
+                } else {
+                    this.viewingFileContent = 'Error: ' + data.message;
+                }
+            } catch (e) {
+                this.viewingFileContent = 'Error loading file.';
+            }
+        },
+        closeFileViewer() {
+            this.viewingFile = false;
+            this.viewingFileName = '';
+            this.viewingFileContent = '';
+        }
+    }" class="space-y-6">
+
+        <!-- Tab Headers -->
         <div class="border-b border-slate-200">
             <nav class="-mb-px flex space-x-8" aria-label="Tabs">
                 <button @click="activeTab = 'dashboard'"
@@ -47,7 +78,7 @@
                 <button @click="activeTab = 'matching'"
                     :class="{ 'border-indigo-500 text-indigo-600': activeTab === 'matching', 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300': activeTab !== 'matching' }"
                     class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2">
-                    ⚡ 매칭 시뮬레이션 (Simulation)
+                    🧪 매칭 시뮬레이션 (Simulation)
                 </button>
                 <button @click="activeTab = 'system'"
                     :class="{ 'border-indigo-500 text-indigo-600': activeTab === 'system', 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300': activeTab !== 'system' }"
@@ -59,6 +90,7 @@
 
         <!-- Tab Contents -->
         <div class="min-h-[500px]">
+
             <!-- 1. Dashboard Tab -->
             <div x-show="activeTab === 'dashboard'" class="space-y-6">
                 <!-- Counters -->
@@ -72,7 +104,7 @@
                         <p class="text-3xl font-bold text-indigo-600 mt-2">{{ stats.total_requests }}</p>
                     </div>
                     <div class="glass-panel p-6 rounded-2xl border border-indigo-100">
-                        <h3 class="text-sm font-medium text-slate-500">분석된 프로필</h3>
+                        <h3 class="text-sm font-medium text-slate-500">분석 완료</h3>
                         <p class="text-3xl font-bold text-rose-600 mt-2">{{ stats.total_results }}</p>
                     </div>
                     <div class="glass-panel p-6 rounded-2xl border border-indigo-100">
@@ -82,12 +114,87 @@
                 </div>
 
                 <!-- Charts -->
-                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div class="space-y-6">
+                    <!-- MBTI Chart -->
+                    <div class="glass-panel p-6 rounded-2xl border border-slate-100" x-data="{ mbtiView: 'full' }">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="text-lg font-bold text-slate-800">MBTI 유형 분포</h3>
+                            <div class="flex gap-2">
+                                <button @click="mbtiView = 'full'; updateMbtiView()"
+                                    :class="mbtiView === 'full' ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-600'"
+                                    class="px-4 py-2 rounded-lg text-sm font-bold transition-colors">전체 보기</button>
+                                <button @click="mbtiView = 'dimensions'; updateMbtiView()"
+                                    :class="mbtiView === 'dimensions' ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-600'"
+                                    class="px-4 py-2 rounded-lg text-sm font-bold transition-colors">차원별</button>
+                            </div>
+                        </div>
+                        <div x-show="mbtiView === 'full'" class="relative h-[250px] w-full"
+                            style="height: 250px; width: 100%;">
+                            <canvas id="mbtiChartFull"></canvas>
+                        </div>
+                        <div x-show="mbtiView === 'dimensions'" style="display: none;" class="grid grid-cols-2 gap-4">
+                            <div class="relative h-[180px]" style="height: 180px; width: 100%;">
+                                <h4 class="text-xs font-bold text-center mb-2">E / I</h4>
+                                <canvas id="mbtiChartEI"></canvas>
+                            </div>
+                            <div class="relative h-[180px]">
+                                <h4 class="text-xs font-bold text-center mb-2">S / N</h4>
+                                <canvas id="mbtiChartSN"></canvas>
+                            </div>
+                            <div class="relative h-[180px]">
+                                <h4 class="text-xs font-bold text-center mb-2">T / F</h4>
+                                <canvas id="mbtiChartTF"></canvas>
+                            </div>
+                            <div class="relative h-[180px]">
+                                <h4 class="text-xs font-bold text-center mb-2">J / P</h4>
+                                <canvas id="mbtiChartPJ"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Socionics Chart -->
+                    <div class="glass-panel p-6 rounded-2xl border border-slate-100" x-data="{ socionicsView: 'full' }">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="text-lg font-bold text-slate-800">소시오닉스 분포</h3>
+                            <div class="flex gap-2">
+                                <button @click="socionicsView = 'full'; updateSocionicsView()"
+                                    :class="socionicsView === 'full' ? 'bg-rose-600 text-white' : 'bg-slate-200 text-slate-600'"
+                                    class="px-4 py-2 rounded-lg text-sm font-bold transition-colors">전체 보기</button>
+                                <button @click="socionicsView = 'dimensions'; updateSocionicsView()"
+                                    :class="socionicsView === 'dimensions' ? 'bg-rose-600 text-white' : 'bg-slate-200 text-slate-600'"
+                                    class="px-4 py-2 rounded-lg text-sm font-bold transition-colors">차원별</button>
+                            </div>
+                        </div>
+                        <div x-show="socionicsView === 'full'" class="relative h-[250px] w-full"
+                            style="height: 250px; width: 100%;">
+                            <canvas id="socionicsChartFull"></canvas>
+                        </div>
+                        <div x-show="socionicsView === 'dimensions'" style="display: none;"
+                            class="grid grid-cols-2 gap-4">
+                            <div class="relative h-[180px]" style="height: 180px; width: 100%;">
+                                <h4 class="text-xs font-bold text-center mb-2">E / I</h4>
+                                <canvas id="socionicsChartEI"></canvas>
+                            </div>
+                            <div class="relative h-[180px]" style="height: 180px; width: 100%;">
+                                <h4 class="text-xs font-bold text-center mb-2">S / N</h4>
+                                <canvas id="socionicsChartSN"></canvas>
+                            </div>
+                            <div class="relative h-[180px]" style="height: 180px; width: 100%;">
+                                <h4 class="text-xs font-bold text-center mb-2">T / F</h4>
+                                <canvas id="socionicsChartTF"></canvas>
+                            </div>
+                            <div class="relative h-[180px]" style="height: 180px; width: 100%;">
+                                <h4 class="text-xs font-bold text-center mb-2">J / P</h4>
+                                <canvas id="socionicsChartPJ"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Big5 Chart -->
                     <div class="glass-panel p-6 rounded-2xl border border-slate-100">
-                        <h3 class="text-lg font-bold text-slate-800 mb-4">MBTI 유형 분포</h3>
-                        <!-- Chart Container -->
-                        <div class="relative h-[300px] w-full">
-                            <canvas id="mbtiChart"></canvas>
+                        <h3 class="text-lg font-bold text-slate-800 mb-4">Big5 평균 점수</h3>
+                        <div class="relative h-[250px] w-full" style="height: 250px; width: 100%;">
+                            <canvas id="big5Chart"></canvas>
                         </div>
                     </div>
                 </div>
@@ -103,10 +210,9 @@
                                 placeholder="ID/닉네임/이메일 검색"
                                 class="border border-slate-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:border-indigo-500 w-80 pr-10 shadow-sm transition-all focus:ring-2 focus:ring-indigo-100">
 
-                            <!-- Clear Button -->
                             <button @click="query = ''; fetchUsers()" x-show="query.length > 0" style="display: none;"
                                 class="absolute right-16 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 bg-slate-100 rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold transition-colors">
-                                ✕
+                                X
                             </button>
 
                             <button @click="fetchUsers()"
@@ -130,6 +236,9 @@
                                         class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                                         가입일</th>
                                     <th scope="col"
+                                        class="px-6 py-3 text-center text-xs font-medium text-slate-500 uppercase tracking-wider">
+                                        상태</th>
+                                    <th scope="col"
                                         class="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">
                                         관리</th>
                                 </tr>
@@ -150,8 +259,19 @@
                                         </td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-500"
                                             x-text="user.created_at"></td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                            <!-- Delete Form (Dynamic URL construction) -->
+                                        <td class="px-6 py-4 whitespace-nowrap text-center">
+                                            <span x-show="user.is_banned"
+                                                class="px-2 py-1 text-xs font-bold rounded-full bg-red-100 text-red-800">BANNED</span>
+                                            <span x-show="!user.is_banned"
+                                                class="px-2 py-1 text-xs font-bold rounded-full bg-green-100 text-green-800">ACTIVE</span>
+                                        </td>
+                                        <td
+                                            class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
+                                            <button @click="toggleBan(user.user_id)"
+                                                class="px-3 py-1 rounded-full text-xs font-bold transition-colors border"
+                                                :class="user.is_banned ? 'bg-white text-green-600 border-green-600 hover:bg-green-50' : 'bg-white text-red-600 border-red-600 hover:bg-red-50'"
+                                                x-text="user.is_banned ? '해제' : '정지'">
+                                            </button>
                                             <form :action="'/admin/users/delete/' + user.user_id" method="POST"
                                                 onsubmit="return confirm('정말 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.');"
                                                 class="inline">
@@ -164,13 +284,10 @@
                                     </tr>
                                 </template>
                                 <tr x-show="users.length === 0 && !loading">
-                                    <td colspan="4" class="px-6 py-8 text-center text-slate-500">
-                                        검색 결과가 없습니다.
-                                    </td>
+                                    <td colspan="4" class="px-6 py-8 text-center text-slate-500">검색 결과가 없습니다.</td>
                                 </tr>
                                 <tr x-show="loading">
-                                    <td colspan="4" class="px-6 py-8 text-center text-indigo-600 font-bold">
-                                        데이터 로딩 중...
+                                    <td colspan="4" class="px-6 py-8 text-center text-indigo-600 font-bold">데이터 로딩 중...
                                     </td>
                                 </tr>
                             </tbody>
@@ -179,9 +296,7 @@
                 </div>
             </div>
 
-
-
-            <!-- 2.5 Logs Tab -->
+            <!-- 3. Logs Tab -->
             <div x-show="activeTab === 'logs'" style="display: none;">
                 <div class="glass-panel p-6 rounded-2xl border border-slate-100">
                     <h2 class="text-xl font-bold text-slate-800 mb-6">최신 매칭 요청 로그 (100건)</h2>
@@ -199,15 +314,12 @@
                             {% for log, sender, receiver in match_logs %}
                             <tr class="border-b border-slate-50 hover:bg-slate-50">
                                 <td class="py-3 px-2 text-slate-500 font-mono text-xs">{{
-                                    log.created_at.strftime('%Y-%m-%d
-                                    %H:%M') }}</td>
+                                    log.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
                                 <td class="py-3 px-2 font-medium">{{ sender.username }} ({{ sender.user_id }})</td>
                                 <td class="py-3 px-2 font-medium">{{ receiver.username }} ({{ receiver.user_id }})</td>
                                 <td class="py-3 px-2">
-                                    <span class="px-2 py-0.5 rounded text-xs font-bold
-                                        {% if log.status == 'ACCEPTED' %}bg-green-100 text-green-700
-                                        {% elif log.status == 'REJECTED' %}bg-red-100 text-red-700
-                                        {% else %}bg-yellow-100 text-yellow-700{% endif %}">
+                                    <span
+                                        class="px-2 py-0.5 rounded text-xs font-bold {% if log.status == 'ACCEPTED' %}bg-green-100 text-green-700{% elif log.status == 'REJECTED' %}bg-red-100 text-red-700{% else %}bg-yellow-100 text-yellow-700{% endif %}">
                                         {{ log.status }}
                                     </span>
                                 </td>
@@ -233,11 +345,10 @@
                 </div>
             </div>
 
-            <!-- 3. Matching Tab -->
+            <!-- 4. Matching Tab -->
             <div x-show="activeTab === 'matching'" style="display: none;">
                 <div class="glass-panel p-6 rounded-2xl border border-slate-100" x-data="simulation()">
-                    <h2 class="text-xl font-bold text-slate-800 mb-6">매칭 알고리즘 시뮬레이터</h2>
-
+                    <h2 class="text-xl font-bold text-slate-800 mb-6">매칭 알고리즘 시뮬레이션</h2>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
                         <!-- Controls -->
                         <div class="space-y-6">
@@ -314,7 +425,7 @@
 
                             <button @click="runSimulation" :disabled="loading"
                                 class="w-full py-3 bg-slate-900 text-white font-bold rounded-xl hover:bg-slate-800 transition-colors disabled:opacity-50">
-                                <span x-show="!loading">🚀 시뮬레이션 실행</span>
+                                <span x-show="!loading">▶ 시뮬레이션 실행</span>
                                 <span x-show="loading">계산 중...</span>
                             </button>
                         </div>
@@ -328,7 +439,6 @@
                                         Match Score</div>
                                     <div class="text-6xl font-black text-indigo-600 mb-6" x-text="result.match_score">
                                     </div>
-
                                     <div class="grid grid-cols-3 gap-2 text-center text-sm w-full">
                                         <div class="bg-slate-50 p-2 rounded">
                                             <div class="font-bold text-indigo-600"
@@ -350,7 +460,7 @@
                             </template>
                             <template x-if="!result && !error">
                                 <div class="text-slate-400 text-center">
-                                    <span class="text-4xl block mb-2">🧪</span>
+                                    <span class="text-4xl block mb-2">ℹ️</span>
                                     조건을 설정하고<br>시뮬레이션을 실행하세요
                                 </div>
                             </template>
@@ -362,7 +472,7 @@
                 </div>
             </div>
 
-            <!-- 4. System Tab -->
+            <!-- 5. System Tab -->
             <div x-show="activeTab === 'system'" style="display: none;">
                 <div class="glass-panel p-6 rounded-2xl border border-slate-100">
                     <div class="flex justify-between items-center mb-6">
@@ -373,19 +483,14 @@
                         <form action="{{ url_for('admin_refresh_candidates') }}" method="POST">
                             <button type="submit"
                                 class="px-4 py-2 bg-indigo-600 text-white text-sm font-bold rounded-lg hover:bg-indigo-700 transition-colors shadow-md">
-                                🔄 목록 새로고침
+                                후보 목록 새로고침
                             </button>
                         </form>
 
                         <form action="{{ url_for('admin_upload_candidate') }}" method="POST"
                             enctype="multipart/form-data" class="flex items-center gap-2">
-                            <input type="file" name="file" accept=".json" required class="block w-full text-sm text-slate-500
-                                file:mr-4 file:py-2 file:px-4
-                                file:rounded-lg file:border-0
-                                file:text-sm file:font-semibold
-                                file:bg-indigo-50 file:text-indigo-700
-                                hover:file:bg-indigo-100
-                            " />
+                            <input type="file" name="file" accept=".json" required
+                                class="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100" />
                             <button type="submit"
                                 class="px-4 py-2 bg-green-600 text-white text-sm font-bold rounded-lg hover:bg-green-700 shadow-md">
                                 업로드
@@ -402,14 +507,21 @@
                                     <span class="text-green-400 flex-shrink-0">📄</span>
                                     <span class="truncate" title="{{ file }}">{{ file }}</span>
                                 </div>
-                                <form action="{{ url_for('admin_delete_candidate', filename=file) }}" method="POST"
-                                    onsubmit="return confirm('정말 삭제하시겠습니까?');" class="flex-shrink-0">
-                                    <button type="submit"
-                                        class="text-slate-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity p-1"
-                                        title="삭제">
-                                        🗑️
+                                <div class="flex items-center gap-1">
+                                    <button @click="viewFile('{{ file }}')"
+                                        class="text-slate-500 hover:text-indigo-500 transition-colors p-1"
+                                        title="내용 보기">
+                                        🔍
                                     </button>
-                                </form>
+                                    <form action="{{ url_for('admin_delete_candidate', filename=file) }}" method="POST"
+                                        onsubmit="return confirm('정말 삭제하시겠습니까?');" class="flex-shrink-0">
+                                        <button type="submit"
+                                            class="text-slate-500 hover:text-red-500 transition-colors p-1 text-base font-bold"
+                                            title="삭제">
+                                            🗑️
+                                        </button>
+                                    </form>
+                                </div>
                             </li>
                             {% else %}
                             <li class="text-slate-500">표시할 파일이 없습니다.</li>
@@ -418,13 +530,28 @@
                     </div>
                 </div>
             </div>
+
+            <!-- File Viewer Modal -->
+            <div x-show="viewingFile" style="display: none;"
+                class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+                @click.self="closeFileViewer">
+                <div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col">
+                    <div class="p-4 border-b flex justify-between items-center">
+                        <h3 class="font-bold text-lg" x-text="viewingFileName"></h3>
+                        <button @click="closeFileViewer" class="text-slate-500 hover:text-slate-700">X</button>
+                    </div>
+                    <div class="p-4 overflow-y-auto bg-slate-50 font-mono text-xs">
+                        <pre x-text="viewingFileContent"></pre>
+                    </div>
+                </div>
+            </div>
+
         </div>
     </div>
 </div>
 
-<!-- Alpine.js for lightweight interactions -->
+<!-- Alpine.js & Chart.js -->
 <script src="//unpkg.com/alpinejs" defer></script>
-<!-- Chart.js -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
     function simulation() {
@@ -466,64 +593,47 @@
                 }
             },
             adjustWeights(trigger) {
-                // 0. Locked Check
                 if (this.locked[trigger]) return;
 
-                // 1. Trigger 값 범위 보정 (0~1)
                 this.weights[trigger] = Math.max(0, Math.min(1, parseFloat(this.weights[trigger])));
 
-                // 2. 다른 변수들의 상태 확인
                 const others = Object.keys(this.weights).filter(k => k !== trigger);
                 const lockedOthers = others.filter(k => this.locked[k]);
                 const unlockedOthers = others.filter(k => !this.locked[k]);
 
-                // Case A: 2개가 잠겨있음 -> 내가 움직일 수 없음 (스냅백)
                 if (lockedOthers.length === 2) {
                     const sumLocked = this.weights[lockedOthers[0]] + this.weights[lockedOthers[1]];
-                    // 강제로 남은 값으로 고정
                     this.weights[trigger] = parseFloat((1.0 - sumLocked).toFixed(2));
                     return;
                 }
 
-                // Case B: 1개가 잠겨있음 -> 남은 1개(unlocked)가 모든 변화를 수용
                 if (lockedOthers.length === 1) {
                     const lockedKey = lockedOthers[0];
                     const unlockedKey = unlockedOthers[0];
-
-                    // 남은 예산 계산
                     let remainingForUnlocked = 1.0 - this.weights[trigger] - this.weights[lockedKey];
 
-                    // 만약 trigger를 너무 높게 잡아서 unlocked가 음수가 되어야 한다면?
-                    // -> trigger를 줄여야 함 (Trigger Clamping)
                     if (remainingForUnlocked < 0) {
                         this.weights[trigger] = parseFloat((1.0 - this.weights[lockedKey]).toFixed(2));
                         remainingForUnlocked = 0;
                     }
-
                     this.weights[unlockedKey] = parseFloat(remainingForUnlocked.toFixed(2));
                     return;
                 }
 
-                // Case C: 아무것도 안 잠겨있음 -> 기존 로직 (비례 배분)
-                // 3. 남은 값 계산 (1.0 - 변경된 값)
                 const remaining = 1.0 - this.weights[trigger];
                 const currentSumOthers = this.weights[others[0]] + this.weights[others[1]];
 
                 if (currentSumOthers === 0) {
-                    // 나머지가 0이라면(모두 0이었던 경우), 남은 값을 균등 배분
                     this.weights[others[0]] = remaining / 2;
                     this.weights[others[1]] = remaining / 2;
                 } else {
-                    // 기존 비율 유지하며 배분
                     this.weights[others[0]] = (this.weights[others[0]] / currentSumOthers) * remaining;
                     this.weights[others[1]] = (this.weights[others[1]] / currentSumOthers) * remaining;
                 }
 
-                // 4. 소수점 정리 (UI 표시용)
                 this.weights[others[0]] = parseFloat(this.weights[others[0]].toFixed(2));
                 this.weights[others[1]] = parseFloat(this.weights[others[1]].toFixed(2));
 
-                // 5. 오차 보정
                 const sum = this.weights.sim + this.weights.chem + this.weights.act;
                 if (Math.abs(sum - 1.0) > 0.01) {
                     this.weights[others[1]] += (1.0 - sum);
@@ -551,36 +661,108 @@
                 } finally {
                     this.loading = false;
                 }
+            },
+            async toggleBan(userId) {
+                if (!confirm('사용자의 계정 상태를 변경하시겠습니까?')) return;
+                try {
+                    const res = await fetch(`/admin/users/${userId}/toggle_ban`, { method: 'POST' });
+                    const data = await res.json();
+                    if (data.success) {
+                        const user = this.users.find(u => u.user_id === userId);
+                        if (user) user.is_banned = data.is_banned;
+                        alert(data.message);
+                    } else {
+                        alert(data.message);
+                    }
+                } catch (e) {
+                    alert('요청 처리 중 오류가 발생했습니다.');
+                }
             }
         }
     }
 </script>
 <script>
-    document.addEventListener('DOMContentLoaded', function () {
-        {% if stats.mbti_labels %}
-        const ctx = document.getElementById('mbtiChart').getContext('2d');
-        new Chart(ctx, {
+    // Chart instances
+    let mbtiChartPtr = null;
+    let socionicsChartPtr = null;
+    let big5ChartPtr = null;
+
+    // Data from backend
+    const statsData = {{ chart_data | tojson }};
+
+    window.updateMbtiView = function () { };
+    window.updateSocionicsView = function () { };
+
+    function createBarChart(id, labels, data, color, labelText) {
+        const ctx = document.getElementById(id);
+        if (!ctx) return null;
+        return new Chart(ctx.getContext('2d'), {
             type: 'bar',
             data: {
-                labels: {{ stats.mbti_labels | tojson }},
-        datasets: [{
-            label: '사용자 수',
-            data: {{ stats.mbti_counts | tojson }},
-        backgroundColor: 'rgba(79, 70, 229, 0.6)',
-        borderColor: 'rgba(79, 70, 229, 1)',
-        borderWidth: 1,
-        borderRadius: 5
+                labels: labels,
+                datasets: [{
+                    label: labelText,
+                    data: data,
+                    backgroundColor: `rgba(${color}, 0.6)`,
+                    borderColor: `rgba(${color}, 1)`,
+                    borderWidth: 1,
+                    borderRadius: 5
                 }]
             },
-        options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        scales: {
-            y: { beginAtZero: true, ticks: { stepSize: 1 } }
-        }
-    }
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: { beginAtZero: true, ticks: { stepSize: 1 } }
+                }
+            }
         });
-    {% endif %}
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        const indigo = '79, 70, 229';
+        const rose = '244, 63, 94';
+        const amber = '251, 191, 36';
+
+        try {
+            mbtiChartPtr = createBarChart('mbtiChartFull', statsData.mbti.full.labels, statsData.mbti.full.data, indigo, '사용자 수');
+            createBarChart('mbtiChartEI', statsData.mbti.ei.labels, statsData.mbti.ei.data, indigo, '인원');
+            createBarChart('mbtiChartSN', statsData.mbti.sn.labels, statsData.mbti.sn.data, indigo, '인원');
+            createBarChart('mbtiChartTF', statsData.mbti.tf.labels, statsData.mbti.tf.data, indigo, '인원');
+            createBarChart('mbtiChartPJ', statsData.mbti.pj.labels, statsData.mbti.pj.data, indigo, '인원');
+
+            socionicsChartPtr = createBarChart('socionicsChartFull', statsData.socionics.full.labels, statsData.socionics.full.data, rose, '사용자 수');
+            createBarChart('socionicsChartEI', statsData.socionics.ei.labels, statsData.socionics.ei.data, rose, '인원');
+            createBarChart('socionicsChartSN', statsData.socionics.sn.labels, statsData.socionics.sn.data, rose, '인원');
+            createBarChart('socionicsChartTF', statsData.socionics.tf.labels, statsData.socionics.tf.data, rose, '인원');
+            createBarChart('socionicsChartPJ', statsData.socionics.pj.labels, statsData.socionics.pj.data, rose, '인원');
+
+            if (document.getElementById('big5Chart')) {
+                big5ChartPtr = new Chart(document.getElementById('big5Chart').getContext('2d'), {
+                    type: 'bar',
+                    data: {
+                        labels: statsData.big5.labels,
+                        datasets: [{
+                            label: '평균 점수',
+                            data: statsData.big5.data,
+                            backgroundColor: `rgba(${amber}, 0.6)`,
+                            borderColor: `rgba(${amber}, 1)`,
+                            borderWidth: 1,
+                            borderRadius: 5
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: { beginAtZero: true, max: 100, ticks: { stepSize: 20 } }
+                        }
+                    }
+                });
+            }
+        } catch (e) {
+            console.error("Chart Init Error:", e);
+        }
     });
 </script>
 {% endblock %}

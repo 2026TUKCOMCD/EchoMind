@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Account Suspended - EchoMind</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="bg-gray-100 h-screen flex flex-col items-center justify-center">
+    <div class="bg-white p-8 rounded-xl shadow-lg max-w-md w-full text-center">
+        <div class="mb-6 text-6xl">🚫</div>
+        <h1 class="text-2xl font-bold text-gray-800 mb-4">계정이 정지되었습니다</h1>
+        <p class="text-gray-600 mb-6">
+            운영 정책 위반 등의 사유로 인해 사용자의 계정이 정지되었습니다.<br>
+            자세한 내용은 관리자에게 문의해주시기 바랍니다.
+        </p>
+        <div class="flex flex-col gap-3">
+            <a href="mailto:admin@echomind.com"
+                class="bg-indigo-600 text-white py-2 px-4 rounded-lg hover:bg-indigo-700 transition-colors">
+                관리자에게 문의하기
+            </a>
+            <a href="/logout" class="text-gray-500 hover:text-gray-700 text-sm">
+                로그아웃
+            </a>
+        </div>
+    </div>
+</body>
+
+</html>

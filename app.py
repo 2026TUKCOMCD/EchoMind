@@ -12,6 +12,8 @@ import os
 import uuid
 import re
 import json
+import sqlalchemy
+from sqlalchemy import text
 from datetime import datetime
 from flask import Flask, render_template, request, redirect, url_for, flash, session, g
 from flask_sqlalchemy import SQLAlchemy
@@ -71,6 +73,12 @@ else:
         ],
         force=True
     )
+    # [FIX] 루트 로거의 레벨을 높여도, werkzeug나 sqlalchemy 같은 라이브러리 로거가 
+    # 독립적인 INFO 레벨을 가지고 있으면 로그가 출력될 수 있습니다. 
+    # 따라서 명시적으로 해당 로거들의 레벨도 동기화해 줍니다.
+    logging.getLogger('werkzeug').setLevel(target_log_level)
+    logging.getLogger('sqlalchemy.engine').setLevel(target_log_level)
+    
     app.logger.setLevel(target_log_level)
 
 # 업로드 폴더 자동 생성
@@ -87,9 +95,12 @@ class User(db.Model):
     password_hash = db.Column(db.String(255), nullable=False)
     username = db.Column(db.String(100), nullable=False) # 실명
     nickname = db.Column(db.String(100)) # 닉네임
+    username = db.Column(db.String(100), nullable=False) # 실명
+    nickname = db.Column(db.String(100)) # 닉네임
     gender = db.Column(db.Enum('MALE', 'FEMALE', 'OTHER', name='gender_enum'))
     birth_date = db.Column(db.Date)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    is_banned = db.Column(db.Boolean, default=False) # 계정 정지 여부
 
 class ChatLog(db.Model):
     __tablename__ = 'chat_logs'
@@ -173,6 +184,31 @@ def admin_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
+# -------------------------------------------------------------------
+# DB Schema Update Utility
+# -------------------------------------------------------------------
+def check_and_update_db_schema():
+    """
+    Checks if 'is_banned' column exists in 'users' table.
+    If not, adds it dynamically.
+    """
+    with app.app_context():
+        try:
+            inspector = sqlalchemy.inspect(db.engine)
+            columns = [col['name'] for col in inspector.get_columns('users')]
+            if 'is_banned' not in columns:
+                print("Adding 'is_banned' column to users table...")
+                with db.engine.connect() as conn:
+                    conn.execute(sqlalchemy.text("ALTER TABLE users ADD COLUMN is_banned BOOLEAN DEFAULT FALSE"))
+                    conn.commit()
+                print("'is_banned' column added successfully.")
+        except Exception as e:
+            print(f"Schema update failed: {e}")
+
+# -------------------------------------------------------------------
+# Routes
+# -------------------------------------------------------------------
+
 @app.before_request
 def load_user():
     user_id = session.get('user_id')
@@ -206,7 +242,14 @@ def login():
     if request.method == 'POST':
         user = User.query.filter_by(email=request.form['email']).first()
         if user and check_password_hash(user.password_hash, request.form['password']):
+            # 밴 체크
+            if user.is_banned:
+                flash('계정이 정지되었습니다. 관리자에게 문의하세요.', 'danger')
+                return redirect(url_for('suspended'))
+            
             session['user_id'] = user.user_id
+            session['username'] = user.username
+            session['is_admin'] = (user.email == 'admin@echomind.com') # 간단한 어드민 체크
             return redirect(url_for('home'))
         flash("이메일 또는 비밀번호가 올바르지 않습니다.", "danger")
     return render_template('login.html')
@@ -216,6 +259,10 @@ def logout():
     session.clear()
     flash("로그아웃 되었습니다.", "info")
     return redirect(url_for('login'))
+
+@app.route('/suspended')
+def suspended():
+    return render_template('suspended.html')
 
 # --- 라우팅 컨트롤러 (Routing Controllers) ---
 @app.route('/')
@@ -846,6 +893,70 @@ def admin_dashboard():
     stats['mbti_labels'] = [m[0] for m in mbti_dist if m[0]]
     stats['mbti_counts'] = [m[1] for m in mbti_dist if m[0]]
 
+    # 2-2-1. MBTI 차원별 통계
+    mbti_e_i = {'E': 0, 'I': 0}
+    mbti_s_n = {'S': 0, 'N': 0}
+    mbti_t_f = {'T': 0, 'F': 0}
+    mbti_p_j = {'P': 0, 'J': 0}
+    
+    representative_results = PersonalityResult.query.filter_by(is_representative=True).all()
+    for result in representative_results:
+        if result.mbti_prediction and len(result.mbti_prediction) == 4:
+            mbti_e_i[result.mbti_prediction[0]] = mbti_e_i.get(result.mbti_prediction[0], 0) + 1
+            mbti_s_n[result.mbti_prediction[1]] = mbti_s_n.get(result.mbti_prediction[1], 0) + 1
+            mbti_t_f[result.mbti_prediction[2]] = mbti_t_f.get(result.mbti_prediction[2], 0) + 1
+            mbti_p_j[result.mbti_prediction[3]] = mbti_p_j.get(result.mbti_prediction[3], 0) + 1
+    
+    stats['mbti_ei'] = mbti_e_i
+    stats['mbti_sn'] = mbti_s_n
+    stats['mbti_tf'] = mbti_t_f
+    stats['mbti_pj'] = mbti_p_j
+    
+    # 2-2-2. 소시오닉스 분포
+    socionics_dist = db.session.query(
+        PersonalityResult.socionics_prediction, func.count(PersonalityResult.result_id)
+    ).filter(PersonalityResult.is_representative == True).group_by(PersonalityResult.socionics_prediction).all()
+    
+    stats['socionics_labels'] = [s[0] for s in socionics_dist if s[0]]
+    stats['socionics_counts'] = [s[1] for s in socionics_dist if s[0]]
+    
+    # 소시오닉스 차원별 (MBTI와 동일한 구조)
+    soc_e_i = {'E': 0, 'I': 0}
+    soc_s_n = {'S': 0, 'N': 0}
+    soc_t_f = {'T': 0, 'F': 0}
+    soc_p_j = {'P': 0, 'J': 0}
+    
+    for result in representative_results:
+        if result.socionics_prediction and len(result.socionics_prediction) >= 3:
+            # 소시오닉스는 ILE, SEI 등 3글자 형태
+            # 첫 글자가 I 또는 E
+            first = result.socionics_prediction[0]
+            if first in ['I', 'E']:
+                soc_e_i[first] = soc_e_i.get(first, 0) + 1
+            # 나머지는 MBTI 매핑 필요 (간단히 MBTI와 동일하게 처리)
+            if result.mbti_prediction and len(result.mbti_prediction) == 4:
+                soc_s_n[result.mbti_prediction[1]] = soc_s_n.get(result.mbti_prediction[1], 0) + 1
+                soc_t_f[result.mbti_prediction[2]] = soc_t_f.get(result.mbti_prediction[2], 0) + 1
+                soc_p_j[result.mbti_prediction[3]] = soc_p_j.get(result.mbti_prediction[3], 0) + 1
+    
+    stats['socionics_ei'] = soc_e_i
+    stats['socionics_sn'] = soc_s_n
+    stats['socionics_tf'] = soc_t_f
+    stats['socionics_pj'] = soc_p_j
+    
+    # 2-2-3. Big5 평균 점수
+    if representative_results:
+        avg_openness = sum(r.openness for r in representative_results if r.openness) / len(representative_results)
+        avg_conscientiousness = sum(r.conscientiousness for r in representative_results if r.conscientiousness) / len(representative_results)
+        avg_extraversion = sum(r.extraversion for r in representative_results if r.extraversion) / len(representative_results)
+        avg_agreeableness = sum(r.agreeableness for r in representative_results if r.agreeableness) / len(representative_results)
+        avg_neuroticism = sum(r.neuroticism for r in representative_results if r.neuroticism) / len(representative_results)
+    else:
+        avg_openness = avg_conscientiousness = avg_extraversion = avg_agreeableness = avg_neuroticism = 0
+    
+    stats['big5_labels'] = ['Openness', 'Conscientiousness', 'Extraversion', 'Agreeableness', 'Neuroticism']
+    stats['big5_scores'] = [avg_openness, avg_conscientiousness, avg_extraversion, avg_agreeableness, avg_neuroticism]
+
     # 2-3. 후보군 파일 목록
     candidates_dir = os.path.join(os.path.dirname(__file__), 'candidates_db')
     candidate_files = []
@@ -865,8 +976,31 @@ def admin_dashboard():
         Receiver, MatchRequest.receiver_id == Receiver.user_id
     ).order_by(MatchRequest.created_at.desc()).limit(100).all()
     
+    # Chart.js용 데이터 구조화 (Frontend Jinja2 문법 오류 방지용)
+    chart_data = {
+        'mbti': {
+            'full': {'labels': [m[0] for m in mbti_dist if m[0]], 'data': [m[1] for m in mbti_dist if m[0]]},
+            'ei': {'labels': list(mbti_e_i.keys()), 'data': list(mbti_e_i.values())},
+            'sn': {'labels': list(mbti_s_n.keys()), 'data': list(mbti_s_n.values())},
+            'tf': {'labels': list(mbti_t_f.keys()), 'data': list(mbti_t_f.values())},
+            'pj': {'labels': list(mbti_p_j.keys()), 'data': list(mbti_p_j.values())}
+        },
+        'socionics': {
+            'full': {'labels': [s[0] for s in socionics_dist if s[0]], 'data': [s[1] for s in socionics_dist if s[0]]},
+            'ei': {'labels': list(soc_e_i.keys()), 'data': list(soc_e_i.values())},
+            'sn': {'labels': list(soc_s_n.keys()), 'data': list(soc_s_n.values())},
+            'tf': {'labels': list(soc_t_f.keys()), 'data': list(soc_t_f.values())},
+            'pj': {'labels': list(soc_p_j.keys()), 'data': list(soc_p_j.values())}
+        },
+        'big5': {
+            'labels': ['개방성', '성실성', '외향성', '우호성', '신경성'],
+            'data': [avg_openness, avg_conscientiousness, avg_extraversion, avg_agreeableness, avg_neuroticism]
+        }
+    }
+    
     return render_template('admin/dashboard.html', 
                            stats=stats, 
+                           chart_data=chart_data,
                            candidate_files=candidate_files,
                            match_logs=match_logs)
 
@@ -895,10 +1029,27 @@ def admin_api_users():
             'username': u.username,
             'nickname': u.nickname or u.username,
             'email': u.email,
-            'created_at': u.created_at.strftime('%Y-%m-%d')
+            'created_at': u.created_at.strftime('%Y-%m-%d'),
+            'is_banned': u.is_banned
         })
         
     return {'success': True, 'users': users_data}
+
+@app.route('/admin/users/<int:user_id>/toggle_ban', methods=['POST'])
+@admin_required
+def admin_toggle_ban(user_id):
+    """[관리자] 사용자 계정 정지/해제 토글"""
+    user = User.query.get_or_404(user_id)
+    
+    # 관리자 자신은 정지 불가 (안전장치)
+    if user.user_id == session.get('user_id'):
+        return {'success': False, 'message': '자기 자신을 정지할 수 없습니다.'}, 400
+
+    user.is_banned = not user.is_banned
+    db.session.commit()
+    
+    status_msg = "정지되었습니다." if user.is_banned else "정지가 해제되었습니다."
+    return {'success': True, 'message': f"사용자 {user.nickname}님이 {status_msg}", 'is_banned': user.is_banned}
 
 @app.route('/admin/candidates/upload', methods=['POST'])
 @admin_required
@@ -927,6 +1078,25 @@ def admin_upload_candidate():
         flash('JSON 파일만 업로드 가능합니다.', 'danger')
         
     return redirect(url_for('admin_dashboard', tab='system'))
+
+@app.route('/admin/candidates/view/<filename>', methods=['GET'])
+@admin_required
+def admin_view_candidate(filename):
+    """[관리자] 후보군 파일 내용 조회 (JSON)"""
+    # 보안: 파일명에 경로 조작 문자 포함 여부 확인
+    filename = secure_filename(filename)
+    candidates_dir = os.path.join(os.path.dirname(__file__), 'candidates_db')
+    file_path = os.path.join(candidates_dir, filename)
+    
+    if not os.path.exists(file_path):
+        return {'success': False, 'message': '파일을 찾을 수 없습니다.'}, 404
+        
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            content = json.load(f)
+        return {'success': True, 'filename': filename, 'content': content}
+    except Exception as e:
+        return {'success': False, 'message': str(e)}, 500
 
 @app.route('/admin/candidates/delete/<filename>', methods=['POST'])
 @admin_required
@@ -1043,6 +1213,9 @@ def admin_delete_match(request_id):
 
 @app.route('/admin/logout')
 def admin_logout():
+    # 기존 메시지 클리어 (중복 표시 방지)
+    session.pop('_flashes', None)
+    
     session.pop('is_admin', None)
     flash("관리자 로그아웃 되었습니다.", "info")
     return redirect(url_for('home'))
@@ -1053,4 +1226,5 @@ if __name__ == '__main__':
 
     with app.app_context():
         db.create_all() 
+        check_and_update_db_schema()
     app.run(host=config_class.RUN_HOST, port=config_class.RUN_PORT)
