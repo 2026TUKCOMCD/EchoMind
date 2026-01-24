@@ -15,8 +15,7 @@ import json
 import sqlalchemy
 from sqlalchemy import text
 from datetime import datetime
-from flask import Flask, render_template, request, redirect, url_for, flash, session, g
-from flask_sqlalchemy import SQLAlchemy
+from flask import Flask, render_template, request, redirect, url_for, flash, session, g, jsonify
 from sqlalchemy.orm import aliased
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
@@ -46,7 +45,7 @@ LOG_LEVEL_MAP = {
     4: logging.ERROR,
     5: logging.CRITICAL
 }
-CURRENT_LOG_MODE = 4  # [설정] 여기서 숫자(1~5)만 바꾸면 모드가 변경됩니다!
+CURRENT_LOG_MODE = 2  # [설정] 1: DEBUG, 2: INFO ... (터미널에는 INFO 표시)
 target_log_level = LOG_LEVEL_MAP.get(CURRENT_LOG_MODE, logging.INFO)
 
 # Logging Configuration
@@ -63,100 +62,42 @@ if not app.debug:
     app.logger.setLevel(target_log_level)
     app.logger.info('EchoMind startup')
 else:
-    # Development: Console + File logging for debugging
+    # Development: Console(INFO) + File(ERROR) for debugging
+    
+    # 1. File Handler (ERROR only)
+    file_handler = logging.FileHandler("debug.log", mode='a', encoding='utf-8')
+    file_handler.setLevel(logging.ERROR) # 파일에는 에러만 기록
+    file_handler.setFormatter(logging.Formatter(
+        '%(asctime)s %(levelname)s: %(message)s [in %(filename)s:%(lineno)d]'
+    ))
+    
+    # 2. Stream Handler (INFO)
+    stream_handler = logging.StreamHandler()
+    stream_handler.setLevel(logging.INFO) # 터미널에는 INFO(접속 주소 등) 출력
+    stream_handler.setFormatter(logging.Formatter(
+        '%(asctime)s %(levelname)s: %(message)s [in %(filename)s:%(lineno)d]'
+    ))
+
+    # 3. Apply Config
     logging.basicConfig(
-        level=target_log_level,
-        format='%(asctime)s %(levelname)s: %(message)s [in %(filename)s:%(lineno)d]',
-        handlers=[
-            logging.FileHandler("debug.log", mode='a', encoding='utf-8'),
-            logging.StreamHandler()
-        ],
+        level=logging.INFO, # Root Logger는 INFO까지 허용
+        handlers=[file_handler, stream_handler],
         force=True
     )
-    # [FIX] 루트 로거의 레벨을 높여도, werkzeug나 sqlalchemy 같은 라이브러리 로거가 
-    # 독립적인 INFO 레벨을 가지고 있으면 로그가 출력될 수 있습니다. 
-    # 따라서 명시적으로 해당 로거들의 레벨도 동기화해 줍니다.
-    logging.getLogger('werkzeug').setLevel(target_log_level)
-    logging.getLogger('sqlalchemy.engine').setLevel(target_log_level)
     
-    app.logger.setLevel(target_log_level)
+    # [FIX] 라이브러리 로거 레벨 조정
+    logging.getLogger('werkzeug').setLevel(logging.INFO)
+    logging.getLogger('sqlalchemy.engine').setLevel(logging.WARNING) # SQL 로그는 너무 많으므로 WARNING 권장
+    
+    app.logger.setLevel(logging.INFO)
 
 # 업로드 폴더 자동 생성
 if not os.path.exists(app.config['UPLOAD_FOLDER']):
     os.makedirs(app.config['UPLOAD_FOLDER']) 
 
-db = SQLAlchemy(app)
-
-# --- 데이터베이스 모델 (Database Models) ---
-class User(db.Model):
-    __tablename__ = 'users'
-    user_id = db.Column(db.Integer, primary_key=True)
-    email = db.Column(db.String(255), unique=True, nullable=False)
-    password_hash = db.Column(db.String(255), nullable=False)
-    username = db.Column(db.String(100), nullable=False) # 실명
-    nickname = db.Column(db.String(100)) # 닉네임
-    username = db.Column(db.String(100), nullable=False) # 실명
-    nickname = db.Column(db.String(100)) # 닉네임
-    gender = db.Column(db.Enum('MALE', 'FEMALE', 'OTHER', name='gender_enum'))
-    birth_date = db.Column(db.Date)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    is_banned = db.Column(db.Boolean, default=False) # 계정 정지 여부
-
-class ChatLog(db.Model):
-    __tablename__ = 'chat_logs'
-    log_id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.user_id', ondelete='CASCADE'), nullable=False)
-    file_name = db.Column(db.String(255), nullable=False)
-    file_path = db.Column(db.String(255), nullable=False)
-    target_name = db.Column(db.String(100), nullable=False) # 분석 대상자 이름
-    process_status = db.Column(db.Enum('PENDING', 'PROCESSING', 'COMPLETED', 'FAILED', name='process_status_enum'), default='PENDING')
-    upload_date = db.Column(db.DateTime, default=datetime.utcnow)
-
-class PersonalityResult(db.Model):
-    __tablename__ = 'personality_results'
-    result_id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.user_id', ondelete='CASCADE'), nullable=False)
-    log_id = db.Column(db.Integer, db.ForeignKey('chat_logs.log_id', ondelete='CASCADE'), nullable=False)
-    is_representative = db.Column(db.Boolean, default=True) # 대표 결과 여부
-    
-    line_count_at_analysis = db.Column(db.Integer, default=0) # 분석 당시 대화 라인 수
-    
-    # Big5 점수 (0~100)
-    openness = db.Column(db.Float, nullable=False)
-    conscientiousness = db.Column(db.Float, nullable=False)
-    extraversion = db.Column(db.Float, nullable=False)
-    agreeableness = db.Column(db.Float, nullable=False)
-    neuroticism = db.Column(db.Float, nullable=False)
-    big5_confidence = db.Column(db.Float, default=0.0)
-    
-    # MBTI & Socionics
-    mbti_prediction = db.Column(db.String(10))
-    mbti_confidence = db.Column(db.Float, default=0.0)
-    socionics_prediction = db.Column(db.String(10))
-    socionics_confidence = db.Column(db.Float, default=0.0)
-    
-    summary_text = db.Column(db.Text)
-    reasoning_text = db.Column(db.Text)
-    full_report_json = db.Column(db.JSON) # 전체 JSON 원본 저장
-    
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-
-class MatchRequest(db.Model):
-    __tablename__ = 'match_requests'
-    request_id = db.Column(db.Integer, primary_key=True)
-    sender_id = db.Column(db.Integer, db.ForeignKey('users.user_id', ondelete='CASCADE'), nullable=False)
-    receiver_id = db.Column(db.Integer, db.ForeignKey('users.user_id', ondelete='CASCADE'), nullable=False)
-    status = db.Column(db.String(30), default='PENDING')
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-
-class Notification(db.Model):
-    __tablename__ = 'notifications'
-    notification_id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.user_id', ondelete='CASCADE'), nullable=False)
-    message = db.Column(db.Text, nullable=False)
-    is_read = db.Column(db.Boolean, default=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+# SQLAlchemy 인스턴스를 extensions에서 임포트 (순환 참조 방지)
+from extensions import db, User, ChatLog, PersonalityResult, MatchRequest, Notification
+db.init_app(app)
 
 # --- 보안 및 세션 관리 (Security & Session) ---
 def login_required(f):
@@ -181,6 +122,33 @@ def admin_required(f):
             flash("관리자 로그인이 필요합니다.", "warning")
             return redirect(url_for('admin_login'))
             
+        return f(*args, **kwargs)
+    return decorated_function
+
+def dummy_simulation_required(f):
+    """
+    더미 시뮬레이션 기능이 활성화된 환경에서만 동작하도록 하는 데코레이터.
+    config.py의 ENABLE_DUMMY_SIMULATION 플래그로 제어됩니다.
+    
+    사용법:
+      @app.route('/admin/api/dummy/...')
+      @admin_required
+      @dummy_simulation_required
+      def some_dummy_api():
+          ...
+    
+    EC2 배포 시:
+      - FLASK_ENV=production으로 설정하면 자동 비활성화
+      - .env에 ENABLE_DUMMY_SIMULATION=true로 오버라이드 가능
+    """
+    from functools import wraps
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not app.config.get('ENABLE_DUMMY_SIMULATION', False):
+            return jsonify({
+                'success': False, 
+                'message': '이 환경에서는 더미 시뮬레이션이 비활성화되어 있습니다. (ENABLE_DUMMY_SIMULATION=false)'
+            }), 403
         return f(*args, **kwargs)
     return decorated_function
 
@@ -608,103 +576,111 @@ def start_matching():
 @app.route('/inbox')
 @login_required
 def match_inbox():
-    """요청 및 알림함"""
-    conn = MatchManager.get_db_connection()
-    try:
-        with conn.cursor() as cursor:
-            # 1. 받은 요청 (Received) - Sender의 성향 정보 및 리포트 포함
-            sql_received = """
-                SELECT 
-                    r.request_id, u.user_id as sender_id, u.username as sender_name, u.nickname as sender_nickname, 
-                    r.created_at, r.status,
-                    p.mbti_prediction as sender_mbti,
-                    p.summary_text as sender_summary_raw,
-                    p.full_report_json as sender_report
-                FROM match_requests r
-                JOIN users u ON r.sender_id = u.user_id
-                LEFT JOIN personality_results p 
-                    ON u.user_id = p.user_id AND p.is_representative = 1
-                WHERE r.receiver_id = %s AND r.status = 'PENDING'
-                ORDER BY r.created_at DESC
-            """
-            cursor.execute(sql_received, (g.user.user_id,))
-            received_requests = cursor.fetchall()
-
-            # 현재 사용자의 대표 프로필 가져오기 (매칭 점수 계산용)
-            cursor.execute("""
-                SELECT full_report_json 
-                FROM personality_results 
-                WHERE user_id = %s AND is_representative = 1
-            """, (g.user.user_id,))
-            my_profile_row = cursor.fetchone()
-            current_profile_raw = my_profile_row['full_report_json'] if my_profile_row else None
-            
-            # [수정] 내 프로필 JSON 파싱
-            current_profile = None
-            if current_profile_raw:
+    """요청 및 알림함 - SQLAlchemy ORM 버전"""
+    
+    # 1. 받은 요청 (Received) - Sender의 성향 정보 및 리포트 포함
+    received_query = db.session.query(
+        MatchRequest, User, PersonalityResult
+    ).join(
+        User, MatchRequest.sender_id == User.user_id
+    ).outerjoin(
+        PersonalityResult, 
+        (User.user_id == PersonalityResult.user_id) & (PersonalityResult.is_representative == True)
+    ).filter(
+        MatchRequest.receiver_id == g.user.user_id,
+        MatchRequest.status == 'PENDING'
+    ).order_by(MatchRequest.created_at.desc()).all()
+    
+    # 결과를 dict 형태로 변환 (템플릿 호환성 유지)
+    received_requests = []
+    for req, sender, profile in received_query:
+        req_dict = {
+            'request_id': req.request_id,
+            'sender_id': sender.user_id,
+            'sender_name': sender.username,
+            'sender_nickname': sender.nickname,
+            'created_at': req.created_at,
+            'status': req.status,
+            'sender_mbti': profile.mbti_prediction if profile else None,
+            'sender_summary': '',
+            'full_report_json': {},
+            'user_id': sender.user_id  # _calculate_match_scores 호환용
+        }
+        
+        # 프로필 데이터 처리
+        if profile:
+            # summary_text 처리
+            raw_summary = profile.summary_text
+            if raw_summary:
                 try:
-                    current_profile = json.loads(current_profile_raw) if isinstance(current_profile_raw, str) else current_profile_raw
-                except:
-                    current_profile = current_profile_raw
-
-            # [수정] 성향 요약 처리 및 매칭 점수 계산
-            if received_requests:
-                for req in received_requests:
-                    # JSON 데이터 요약 처리
-                    raw_summary = req.get('sender_summary_raw')
-                    if raw_summary:
-                        try:
-                            summary_data = json.loads(raw_summary) if isinstance(raw_summary, str) else raw_summary
-                            if isinstance(summary_data, dict):
-                                req['sender_summary'] = summary_data.get('one_paragraph', '')
-                            else:
-                                req['sender_summary'] = str(summary_data)
-                        except (ValueError, json.JSONDecodeError):
-                            req['sender_summary'] = raw_summary
+                    summary_data = json.loads(raw_summary) if isinstance(raw_summary, str) else raw_summary
+                    if isinstance(summary_data, dict):
+                        req_dict['sender_summary'] = summary_data.get('one_paragraph', '')
                     else:
-                        req['sender_summary'] = ''
-                    
-                    # _calculate_match_scores에서 사용하는 키로 매핑 및 리포트 파싱
-                    req['user_id'] = req['sender_id']
-                    raw_report = req.get('sender_report')
-                    if raw_report:
-                        try:
-                            req['full_report_json'] = json.loads(raw_report) if isinstance(raw_report, str) else raw_report
-                        except:
-                            req['full_report_json'] = raw_report
-                    else:
-                        req['full_report_json'] = {}
-
-                # 매칭 점수 일괄 계산
-                if current_profile:
-                    received_requests = MatchManager._calculate_match_scores(
-                        my_user_id=g.user.user_id,
-                        candidates=received_requests,
-                        current_user_profile_json=current_profile
-                    )
-
-            # 2. 보낸 신청 현황 (Sent) - 오직 수락 대기 중인(PENDING) 건만 노출
-            sql_sent = """
-                SELECT r.request_id, u.username as receiver_name, u.nickname as receiver_nickname, r.created_at, r.status
-                FROM match_requests r
-                JOIN users u ON r.receiver_id = u.user_id
-                WHERE r.sender_id = %s AND r.status = 'PENDING'
-                ORDER BY r.created_at DESC
-            """
-            cursor.execute(sql_sent, (g.user.user_id,))
-            sent_requests = cursor.fetchall()
-
-            # 3. [추가] 성사된 매칭 목록 (나의 파트너들)
-            successful_matches = MatchManager.get_successful_matches(g.user.user_id)
-
-            # 4. 시스템 알림 (Alerts)
-            alerts = MatchManager.get_unread_notifications(g.user.user_id)
+                        req_dict['sender_summary'] = str(summary_data)
+                except (ValueError, json.JSONDecodeError):
+                    req_dict['sender_summary'] = raw_summary
             
-            # 5. 읽음 처리
-            MatchManager.mark_notifications_as_read(g.user.user_id)
-
-    finally:
-        conn.close()
+            # full_report_json 처리
+            raw_report = profile.full_report_json
+            if raw_report:
+                try:
+                    req_dict['full_report_json'] = json.loads(raw_report) if isinstance(raw_report, str) else raw_report
+                except:
+                    req_dict['full_report_json'] = raw_report if raw_report else {}
+        
+        received_requests.append(req_dict)
+    
+    # 2. 현재 사용자의 대표 프로필 (매칭 점수 계산용)
+    my_profile = PersonalityResult.query.filter_by(
+        user_id=g.user.user_id, 
+        is_representative=True
+    ).first()
+    
+    current_profile = None
+    if my_profile and my_profile.full_report_json:
+        raw = my_profile.full_report_json
+        try:
+            current_profile = json.loads(raw) if isinstance(raw, str) else raw
+        except:
+            current_profile = raw
+    
+    # 매칭 점수 일괄 계산
+    if received_requests and current_profile:
+        received_requests = MatchManager._calculate_match_scores(
+            my_user_id=g.user.user_id,
+            candidates=received_requests,
+            current_user_profile_json=current_profile
+        )
+    
+    # 3. 보낸 신청 현황 (Sent) - PENDING 상태만
+    sent_query = db.session.query(
+        MatchRequest, User
+    ).join(
+        User, MatchRequest.receiver_id == User.user_id
+    ).filter(
+        MatchRequest.sender_id == g.user.user_id,
+        MatchRequest.status == 'PENDING'
+    ).order_by(MatchRequest.created_at.desc()).all()
+    
+    sent_requests = []
+    for req, receiver in sent_query:
+        sent_requests.append({
+            'request_id': req.request_id,
+            'receiver_name': receiver.username,
+            'receiver_nickname': receiver.nickname,
+            'created_at': req.created_at,
+            'status': req.status
+        })
+    
+    # 4. 성사된 매칭 목록
+    successful_matches = MatchManager.get_successful_matches(g.user.user_id)
+    
+    # 5. 시스템 알림
+    alerts = MatchManager.get_unread_notifications(g.user.user_id)
+    
+    # 6. 읽음 처리
+    MatchManager.mark_notifications_as_read(g.user.user_id)
 
     return render_template('inbox.html', 
                            requests=received_requests, 
@@ -715,103 +691,103 @@ def match_inbox():
 @app.route('/match/detail/<int:request_id>')
 @login_required
 def match_detail(request_id):
-    """매칭 상세 정보 및 상대방 프로필 보기 (통합 뷰)"""
-    conn = MatchManager.get_db_connection()
+    """매칭 상세 정보 및 상대방 프로필 보기 (통합 뷰) - SQLAlchemy ORM 버전"""
     try:
-        with conn.cursor() as cursor:
-            # 1. 매칭 요청 정보 조회
-            sql = """
-                SELECT r.*, 
-                       s.username as sender_name, s.nickname as sender_nickname, 
-                       rc.username as receiver_name, rc.nickname as receiver_nickname,
-                       s_res.full_report_json as sender_profile,
-                       r_res.full_report_json as receiver_profile
-                FROM match_requests r
-                JOIN users s ON r.sender_id = s.user_id
-                JOIN users rc ON r.receiver_id = rc.user_id
-                LEFT JOIN personality_results s_res ON s.user_id = s_res.user_id AND s_res.is_representative = 1
-                LEFT JOIN personality_results r_res ON rc.user_id = r_res.user_id AND r_res.is_representative = 1
-                WHERE r.request_id = %s
-            """
-            cursor.execute(sql, (request_id,))
-            req = cursor.fetchone()
-            
-            if not req:
-                flash("존재하지 않는 매칭 요청입니다.", "danger")
-                return redirect(url_for('match_inbox'))
-            
-            # 2. 권한 체크
-            current_uid = g.user.user_id
-            if current_uid != req['sender_id'] and current_uid != req['receiver_id']:
-                flash("조회 권한이 없습니다.", "danger")
-                return redirect(url_for('match_inbox'))
-            
-            # 3. 역할 구분
-            is_sender = (current_uid == req['sender_id'])
-            counterpart_nickname = req['receiver_nickname'] if is_sender else req['sender_nickname']
-            
-            # 4. 프로필 데이터 준비 (JSON 파싱)
-            def parse_profile(raw_json):
-                if not raw_json: return None
-                try: 
-                    return json.loads(raw_json) if isinstance(raw_json, str) else raw_json
-                except: 
-                    return raw_json
-
-            my_profile = parse_profile(req['sender_profile'] if is_sender else req['receiver_profile'])
-            target_profile = parse_profile(req['receiver_profile'] if is_sender else req['sender_profile'])
-            
-            # [Fix] 만약 DB에 Representative 결과가 없으면 Fallback
-            # (여기서는 편의상 없는 경우 처리 생략하거나 기본값 처리 필요)
-            
-            # 5. 매칭 점수 재계산 (상세 데이터 확보용)
-            # MatchManager._calculate_match_scores는 리스트를 받으므로 target을 리스트로 포장
-            target_candidate = {
-                'user_id': req['receiver_id'] if is_sender else req['sender_id'],
-                'full_report_json': target_profile,
-                # 기본 필드 채우기 (로직상 필요)
-                'nickname': counterpart_nickname
-            }
-            
-            calculated_list = MatchManager._calculate_match_scores(
-                my_user_id=current_uid,
-                candidates=[target_candidate],
-                current_user_profile_json=my_profile
-            )
-            
-            match_data = calculated_list[0]
-            match_score = match_data.get('match_score', 0)
-            match_details = match_data.get('match_details', {})
-            
-            # 6. 상대방 리포트 HTML 생성
-            report_html = ""
-            if target_profile:
-                # visualize_profile expects data dict
-                report_html = visualize_profile.generate_report_html(target_profile, return_body_only=True)
-            else:
-                report_html = "<div class='p-10 text-center text-slate-400'>상대방의 상세 프로필 데이터가 없습니다.</div>"
-
-            # 7. 템플릿 전달 데이터 구성
-            request_info = {
-                'request_id': req['request_id'],
-                'status': req['status'],
-                'created_at': req['created_at'],
-                'counterpart_nickname': counterpart_nickname,
-                'match_score': match_score
-            }
-
-            return render_template('match_detail.html',
-                                   request_info=request_info,
-                                   match_details=match_details,
-                                   report_html=report_html,
-                                   is_sender=is_sender)
-            
+        # aliased imports for self-join
+        Sender = aliased(User)
+        Receiver = aliased(User)
+        SenderProfile = aliased(PersonalityResult)
+        ReceiverProfile = aliased(PersonalityResult)
+        
+        # 1. 매칭 요청 정보 조회 (양쪽 유저 + 프로필 JOIN)
+        result = db.session.query(
+            MatchRequest, Sender, Receiver, SenderProfile, ReceiverProfile
+        ).join(
+            Sender, MatchRequest.sender_id == Sender.user_id
+        ).join(
+            Receiver, MatchRequest.receiver_id == Receiver.user_id
+        ).outerjoin(
+            SenderProfile, 
+            (Sender.user_id == SenderProfile.user_id) & (SenderProfile.is_representative == True)
+        ).outerjoin(
+            ReceiverProfile, 
+            (Receiver.user_id == ReceiverProfile.user_id) & (ReceiverProfile.is_representative == True)
+        ).filter(
+            MatchRequest.request_id == request_id
+        ).first()
+        
+        if not result:
+            flash("존재하지 않는 매칭 요청입니다.", "danger")
+            return redirect(url_for('match_inbox'))
+        
+        req, sender, receiver, sender_profile, receiver_profile = result
+        
+        # 2. 권한 체크
+        current_uid = g.user.user_id
+        if current_uid != sender.user_id and current_uid != receiver.user_id:
+            flash("조회 권한이 없습니다.", "danger")
+            return redirect(url_for('match_inbox'))
+        
+        # 3. 역할 구분
+        is_sender = (current_uid == sender.user_id)
+        counterpart_nickname = receiver.nickname if is_sender else sender.nickname
+        
+        # 4. 프로필 데이터 준비 (JSON 파싱)
+        def parse_profile(profile_obj):
+            if not profile_obj or not profile_obj.full_report_json:
+                return None
+            raw = profile_obj.full_report_json
+            try:
+                return json.loads(raw) if isinstance(raw, str) else raw
+            except:
+                return raw
+        
+        my_profile = parse_profile(sender_profile if is_sender else receiver_profile)
+        target_profile = parse_profile(receiver_profile if is_sender else sender_profile)
+        
+        # 5. 매칭 점수 재계산 (상세 데이터 확보용)
+        target_candidate = {
+            'user_id': receiver.user_id if is_sender else sender.user_id,
+            'full_report_json': target_profile,
+            'nickname': counterpart_nickname
+        }
+        
+        calculated_list = MatchManager._calculate_match_scores(
+            my_user_id=current_uid,
+            candidates=[target_candidate],
+            current_user_profile_json=my_profile
+        )
+        
+        match_data = calculated_list[0]
+        match_score = match_data.get('match_score', 0)
+        match_details = match_data.get('match_details', {})
+        
+        # 6. 상대방 리포트 HTML 생성
+        report_html = ""
+        if target_profile:
+            report_html = visualize_profile.generate_report_html(target_profile, return_body_only=True)
+        else:
+            report_html = "<div class='p-10 text-center text-slate-400'>상대방의 상세 프로필 데이터가 없습니다.</div>"
+        
+        # 7. 템플릿 전달 데이터 구성
+        request_info = {
+            'request_id': req.request_id,
+            'status': req.status,
+            'created_at': req.created_at,
+            'counterpart_nickname': counterpart_nickname,
+            'match_score': match_score
+        }
+        
+        return render_template('match_detail.html',
+                               request_info=request_info,
+                               match_details=match_details,
+                               report_html=report_html,
+                               is_sender=is_sender)
+        
     except Exception as e:
         app.logger.error(f"Error in match_detail: {e}")
         flash("상세 정보를 불러오는 중 오류가 발생했습니다.", "danger")
         return redirect(url_for('match_inbox'))
-    finally:
-        conn.close()
 
 @app.route('/apply_match/<receiver_id>', methods=['POST'])
 @login_required
@@ -957,11 +933,23 @@ def admin_dashboard():
     stats['big5_labels'] = ['Openness', 'Conscientiousness', 'Extraversion', 'Agreeableness', 'Neuroticism']
     stats['big5_scores'] = [avg_openness, avg_conscientiousness, avg_extraversion, avg_agreeableness, avg_neuroticism]
 
-    # 2-3. 후보군 파일 목록
+    # 2-3. 후보군 파일 목록 (with metadata)
     candidates_dir = os.path.join(os.path.dirname(__file__), 'candidates_db')
     candidate_files = []
     if os.path.exists(candidates_dir):
-        candidate_files = sorted([f for f in os.listdir(candidates_dir) if f.endswith('.json')])
+        raw_files = sorted([f for f in os.listdir(candidates_dir) if f.endswith('.json')])
+        for filename in raw_files:
+            filepath = os.path.join(candidates_dir, filename)
+            file_info = {'filename': filename, 'speaker_name': '', 'mbti': ''}
+            try:
+                with open(filepath, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                    if isinstance(data, dict):
+                        file_info['speaker_name'] = data.get('meta', {}).get('speaker_name', '')
+                        file_info['mbti'] = data.get('llm_profile', {}).get('mbti', {}).get('type', '')
+            except:
+                pass
+            candidate_files.append(file_info)
         stats['candidate_files'] = len(candidate_files)
         
     # [NEW] 3. 매칭 로그 조회 (최신 100건)
@@ -1151,8 +1139,11 @@ def admin_refresh_candidates():
 def admin_simulate_match():
     try:
         data = request.get_json()
-        sender_id = int(data.get('sender_id'))
-        receiver_id = int(data.get('receiver_id'))
+        try:
+            sender_id = int(data.get('sender_id'))
+            receiver_id = int(data.get('receiver_id'))
+        except (ValueError, TypeError):
+             return jsonify({"success": False, "message": "잘못된 사용자 ID 형식입니다. 존재하는 사용자 ID(숫자)를 입력해주세요."}), 400
         weights = {
             'similarity': float(data.get('w_sim', 0.5)),
             'chemistry': float(data.get('w_chem', 0.4)),
@@ -1170,7 +1161,7 @@ def admin_simulate_match():
         receiver_profile = get_profile(receiver_id)
 
         if not sender_profile or not receiver_profile:
-            return {"success": False, "message": "해당 사용자의 분석 프로필을 찾을 수 없습니다."}, 404
+            return jsonify({"success": False, "message": "해당 사용자의 분석 프로필을 찾을 수 없습니다."}), 404
 
         # 2. Prepare Candidate Structure
         candidates = [{
@@ -1189,19 +1180,19 @@ def admin_simulate_match():
         )
         
         if not results:
-             return {"success": False, "message": "매칭 계산 실패"}, 500
+             return jsonify({"success": False, "message": "매칭 계산 실패"}), 500
 
         result = results[0]
-        return {
+        return jsonify({
             "success": True,
             "match_score": result.get('match_score'),
             "details": result.get('match_details'),
             "relative_traits": result.get('relative_traits')
-        }
+        })
 
     except Exception as e:
-        print(f"Simulation Error: {e}")
-        return {"success": False, "message": str(e)}, 500
+        app.logger.error(f"Simulation Error: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
 
 @app.route('/admin/match/delete/<int:request_id>', methods=['POST'])
 @admin_required
@@ -1219,6 +1210,481 @@ def admin_logout():
     session.pop('is_admin', None)
     flash("관리자 로그아웃 되었습니다.", "info")
     return redirect(url_for('home'))
+
+# --- 더미 사용자 시뮬레이션 (Dummy User Simulation) ---
+
+# 유효한 MBTI 유형 목록
+VALID_MBTI_TYPES = [
+    'INTJ', 'INTP', 'ENTJ', 'ENTP',
+    'INFJ', 'INFP', 'ENFJ', 'ENFP',
+    'ISTJ', 'ISFJ', 'ESTJ', 'ESFJ',
+    'ISTP', 'ISFP', 'ESTP', 'ESFP'
+]
+
+# 유효한 소시오닉스 유형 목록
+VALID_SOCIONICS_TYPES = [
+    'ILE', 'SEI', 'ESE', 'LII',
+    'EIE', 'LSI', 'SLE', 'IEI',
+    'SEE', 'ILI', 'LIE', 'ESI',
+    'LSE', 'EII', 'IEE', 'SLI'
+]
+
+# 더미 사용자 파일 경로
+DUMMY_STORAGE_DIR = os.path.join(os.path.dirname(__file__), 'candidates_db', 'dummy_storage')
+if not os.path.exists(DUMMY_STORAGE_DIR):
+    os.makedirs(DUMMY_STORAGE_DIR)
+DUMMY_USERS_FILE = os.path.join(DUMMY_STORAGE_DIR, 'dummy_users.json')
+
+def load_dummy_users():
+    """더미 사용자 목록 파일 로드"""
+    if not os.path.exists(DUMMY_USERS_FILE):
+        return []
+    try:
+        with open(DUMMY_USERS_FILE, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except (json.JSONDecodeError, IOError) as e:
+        app.logger.warning(f"더미 파일 로드 실패, 빈 리스트로 초기화: {e}")
+        return []
+
+def save_dummy_users(data):
+    """더미 사용자 목록 파일 저장"""
+    # candidates_db 폴더 없으면 생성
+    os.makedirs(os.path.dirname(DUMMY_USERS_FILE), exist_ok=True)
+    with open(DUMMY_USERS_FILE, 'w', encoding='utf-8') as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+@app.route('/admin/api/dummy/list', methods=['GET'])
+@admin_required
+@dummy_simulation_required
+def admin_list_dummies():
+    """[관리자] 저장된 더미 사용자 목록 조회"""
+    dummy_list = load_dummy_users()
+    
+    result = []
+    for dummy in dummy_list:
+        meta = dummy.get('meta', {})
+        profile = dummy.get('llm_profile', {})
+        quality = dummy.get('parse_quality', {})
+        
+        result.append({
+            'dummy_id': meta.get('user_id', ''),
+            'name': meta.get('speaker_name', ''),
+            'mbti': profile.get('mbti', {}).get('type', ''),
+            'socionics': profile.get('socionics', {}).get('type', ''),
+            'big5': profile.get('big5', {}).get('scores_0_100', {}),
+            'activity': quality.get('parsed_lines', 0),
+            'created_at': meta.get('generated_at_utc', '')
+        })
+    
+    return {'success': True, 'dummies': result}
+
+@app.route('/admin/api/dummy/create', methods=['POST'])
+@admin_required
+@dummy_simulation_required
+def admin_create_dummy():
+    """[관리자] 더미 사용자 생성"""
+    try:
+        data = request.get_json()
+        
+        # 입력값 추출
+        name = data.get('name', '').strip()
+        mbti = data.get('mbti', '').upper().strip()
+        socionics = data.get('socionics', '').upper().strip()
+        big5 = data.get('big5', {})
+        activity_lines = int(data.get('activity_lines', 500))
+        
+        # 입력값 검증
+        if not name:
+            return {'success': False, 'message': '이름을 입력해주세요.'}, 400
+        
+        if mbti not in VALID_MBTI_TYPES:
+            return {'success': False, 'message': f'유효하지 않은 MBTI 유형입니다. 유효값: {VALID_MBTI_TYPES}'}, 400
+        
+        if socionics not in VALID_SOCIONICS_TYPES:
+            return {'success': False, 'message': f'유효하지 않은 소시오닉스 유형입니다. 유효값: {VALID_SOCIONICS_TYPES}'}, 400
+        
+        # Big5 점수 검증 (0-100 범위)
+        big5_keys = ['openness', 'conscientiousness', 'extraversion', 'agreeableness', 'neuroticism']
+        for key in big5_keys:
+            score = big5.get(key, 50)
+            if not isinstance(score, (int, float)) or score < 0 or score > 100:
+                return {'success': False, 'message': f'Big5 {key} 점수는 0-100 사이여야 합니다.'}, 400
+        
+        # 활동성 검증
+        if activity_lines < 0 or activity_lines > 10000:
+            return {'success': False, 'message': '활동성(라인 수)은 0-10000 사이여야 합니다.'}, 400
+        
+        # 고유 ID 생성
+        dummy_id = f"dummy_{uuid.uuid4().hex[:8]}"
+        
+        # JSON 구조 생성 (candidates_db 형식 준수)
+        dummy_data = {
+            "meta": {
+                "source": "dummy_simulation",
+                "is_dummy": True,
+                "generated_at_utc": datetime.utcnow().isoformat() + "Z",
+                "speaker_name": name,
+                "user_id": dummy_id
+            },
+            "parse_quality": {
+                "total_lines": activity_lines,
+                "parsed_lines": activity_lines,
+                "parse_failed_lines": 0,
+                "filtered_system_lines": 0,
+                "empty_text_lines": 0,
+                "pii_masked_hits": 0
+            },
+            "llm_profile": {
+                "summary": {
+                    "one_paragraph": f"[더미 데이터] {name} - 시뮬레이션 테스트용으로 생성된 가상 사용자입니다.",
+                    "communication_style_bullets": ["시뮬레이션 테스트용 더미 데이터"]
+                },
+                "mbti": {
+                    "type": mbti,
+                    "confidence": 1.0,
+                    "reasons": ["더미 데이터 - 관리자가 수동 설정"]
+                },
+                "big5": {
+                    "scores_0_100": {
+                        "openness": int(big5.get('openness', 50)),
+                        "conscientiousness": int(big5.get('conscientiousness', 50)),
+                        "extraversion": int(big5.get('extraversion', 50)),
+                        "agreeableness": int(big5.get('agreeableness', 50)),
+                        "neuroticism": int(big5.get('neuroticism', 50))
+                    },
+                    "confidence": 1.0,
+                    "reasons": ["더미 데이터 - 관리자가 수동 설정"]
+                },
+                "socionics": {
+                    "type": socionics,
+                    "confidence": 1.0,
+                    "reasons": ["더미 데이터 - 관리자가 수동 설정"]
+                },
+                "caveats": ["이 데이터는 시뮬레이션 테스트용 더미 데이터입니다."]
+            }
+        }
+        
+        # 파일에 저장
+        dummy_list = load_dummy_users()
+        dummy_list.append(dummy_data)
+        save_dummy_users(dummy_list)
+        
+        return {'success': True, 'dummy_id': dummy_id, 'message': f'더미 사용자 "{name}" 생성 완료'}
+    
+    except Exception as e:
+        app.logger.error(f"더미 생성 오류: {e}")
+        return {'success': False, 'message': str(e)}, 500
+
+@app.route('/admin/api/dummy/random', methods=['POST'])
+@admin_required
+@dummy_simulation_required
+def admin_create_random_dummy():
+    """[관리자] 랜덤 더미 사용자 생성"""
+    import random
+    import string
+    
+    # 랜덤 값 생성
+    random_name = "Dummy_" + ''.join(random.choices(string.ascii_uppercase, k=4))
+    random_mbti = random.choice(VALID_MBTI_TYPES)
+    random_socionics = random.choice(VALID_SOCIONICS_TYPES)
+    random_big5 = {
+        'openness': random.randint(20, 80),
+        'conscientiousness': random.randint(20, 80),
+        'extraversion': random.randint(20, 80),
+        'agreeableness': random.randint(20, 80),
+        'neuroticism': random.randint(20, 80)
+    }
+    random_activity = random.randint(100, 2000)
+    
+    # create 로직 재사용을 위해 request context 조작 대신 직접 구현
+    dummy_id = f"dummy_{uuid.uuid4().hex[:8]}"
+    
+    dummy_data = {
+        "meta": {
+            "source": "dummy_simulation",
+            "is_dummy": True,
+            "generated_at_utc": datetime.utcnow().isoformat() + "Z",
+            "speaker_name": random_name,
+            "user_id": dummy_id
+        },
+        "parse_quality": {
+            "total_lines": random_activity,
+            "parsed_lines": random_activity,
+            "parse_failed_lines": 0,
+            "filtered_system_lines": 0,
+            "empty_text_lines": 0,
+            "pii_masked_hits": 0
+        },
+        "llm_profile": {
+            "summary": {
+                "one_paragraph": f"[더미 데이터] {random_name} - 랜덤 생성된 가상 사용자입니다.",
+                "communication_style_bullets": ["랜덤 생성된 시뮬레이션 테스트용 더미 데이터"]
+            },
+            "mbti": {
+                "type": random_mbti,
+                "confidence": 1.0,
+                "reasons": ["더미 데이터 - 랜덤 생성"]
+            },
+            "big5": {
+                "scores_0_100": random_big5,
+                "confidence": 1.0,
+                "reasons": ["더미 데이터 - 랜덤 생성"]
+            },
+            "socionics": {
+                "type": random_socionics,
+                "confidence": 1.0,
+                "reasons": ["더미 데이터 - 랜덤 생성"]
+            },
+            "caveats": ["이 데이터는 시뮬레이션 테스트용 더미 데이터입니다."]
+        }
+    }
+    
+    dummy_list = load_dummy_users()
+    dummy_list.append(dummy_data)
+    save_dummy_users(dummy_list)
+    
+    return {
+        'success': True, 
+        'dummy_id': dummy_id, 
+        'data': {
+            'name': random_name,
+            'mbti': random_mbti,
+            'socionics': random_socionics,
+            'big5': random_big5,
+            'activity_lines': random_activity
+        },
+        'message': f'랜덤 더미 사용자 "{random_name}" 생성 완료'
+    }
+
+@app.route('/admin/api/dummy/<dummy_id>', methods=['DELETE'])
+@admin_required
+@dummy_simulation_required
+def admin_delete_dummy(dummy_id):
+    """[관리자] 더미 사용자 삭제"""
+    dummy_list = load_dummy_users()
+    
+    # 해당 ID 찾아서 삭제
+    new_list = [d for d in dummy_list if d.get('meta', {}).get('user_id') != dummy_id]
+    
+    if len(new_list) == len(dummy_list):
+        return {'success': False, 'message': '해당 더미 사용자를 찾을 수 없습니다.'}, 404
+    
+    save_dummy_users(new_list)
+    return {'success': True, 'message': f'더미 사용자 "{dummy_id}" 삭제 완료'}
+
+@app.route('/admin/api/dummy/simulate', methods=['POST'])
+@admin_required
+@dummy_simulation_required
+def admin_simulate_dummy_match():
+    """[관리자] 두 더미 사용자 간 매칭 시뮬레이션
+    
+    # ========================================================================
+    # TODO [미래 변경 대비]
+    # ------------------------------------------------------------------------
+    # 1. MBTI/소시오닉스가 문자열("INTJ", "LII")에서 수치(0-1 스케일)로 변경되면:
+    #    - dummy_a.get('llm_profile', {}).get('mbti', {}).get('type') 접근 방식 수정 필요
+    #    - 타입 변환 유틸리티 함수(type_converter.py) 도입 권장
+    #
+    # 2. 매칭 알고리즘(matcher.py)이 변경되면:
+    #    - MatchManager._calculate_match_scores 호출부 수정 필요
+    #    - 추상화 레이어(matching_adapter.py) 도입 권장
+    #
+    # 3. 가중치 파라미터 구조가 변경되면:
+    #    - weights dict 키 이름 및 개수 변경 대응 필요
+    # ========================================================================
+    """
+    try:
+        data = request.get_json()
+        dummy_id_a = data.get('dummy_id_a', '')
+        dummy_id_b = data.get('dummy_id_b', '')
+        weights = {
+            'similarity': float(data.get('w_sim', 0.5)),
+            'chemistry': float(data.get('w_chem', 0.4)),
+            'activity': float(data.get('w_act', 0.1))
+        }
+        
+        if not dummy_id_a or not dummy_id_b:
+            return {'success': False, 'message': '두 더미 사용자 ID를 모두 입력해주세요.'}, 400
+        
+        if dummy_id_a == dummy_id_b:
+            return {'success': False, 'message': '서로 다른 더미 사용자를 선택해주세요.'}, 400
+        
+        dummy_list = load_dummy_users()
+        
+        # 두 더미 데이터 찾기
+        dummy_a = None
+        dummy_b = None
+        for d in dummy_list:
+            uid = d.get('meta', {}).get('user_id', '')
+            if uid == dummy_id_a:
+                dummy_a = d
+            elif uid == dummy_id_b:
+                dummy_b = d
+        
+        if not dummy_a:
+            return {'success': False, 'message': f'더미 사용자 "{dummy_id_a}"를 찾을 수 없습니다.'}, 404
+        if not dummy_b:
+            return {'success': False, 'message': f'더미 사용자 "{dummy_id_b}"를 찾을 수 없습니다.'}, 404
+        
+        # MatchManager._calculate_match_scores 활용
+        candidates = [{
+            'user_id': dummy_id_b,
+            'full_report_json': dummy_b,
+            'match_score': 0
+        }]
+        
+        results = MatchManager._calculate_match_scores(
+            my_user_id=dummy_id_a,
+            candidates=candidates,
+            current_user_profile_json=dummy_a,
+            weights=weights
+        )
+        
+        if not results:
+            return {'success': False, 'message': '매칭 계산 실패'}, 500
+        
+        result = results[0]
+        return {
+            'success': True,
+            'match_score': result.get('match_score'),
+            'details': result.get('match_details'),
+            'relative_traits': result.get('relative_traits'),
+            'dummy_a': {
+                'name': dummy_a.get('meta', {}).get('speaker_name', ''),
+                'mbti': dummy_a.get('llm_profile', {}).get('mbti', {}).get('type', '')
+            },
+            'dummy_b': {
+                'name': dummy_b.get('meta', {}).get('speaker_name', ''),
+                'mbti': dummy_b.get('llm_profile', {}).get('mbti', {}).get('type', '')
+            }
+        }
+
+    except Exception as e:
+        app.logger.error(f"Dummy simulation error: {str(e)}")
+        return {'success': False, 'message': str(e)}, 500
+
+@app.route('/admin/api/dummy/hybrid-simulate', methods=['POST'])
+@admin_required
+@dummy_simulation_required
+def admin_hybrid_simulation():
+    """[관리자] 더미 사용자 vs 실제 사용자 간 매칭 시뮬레이션"""
+    try:
+        data = request.get_json()
+        dummy_id = data.get('dummy_id')
+        user_id = data.get('user_id')
+        weights = {
+            'similarity': float(data.get('w_sim', 0.5)),
+            'chemistry': float(data.get('w_chem', 0.4)),
+            'activity': float(data.get('w_act', 0.1))
+        }
+        
+        # 1. 더미 사용자 로드
+        dummy_list = load_dummy_users()
+        dummy_data = next((d for d in dummy_list if d.get('meta', {}).get('user_id') == dummy_id), None)
+        
+        if not dummy_data:
+            return {'success': False, 'message': '더미 사용자를 찾을 수 없습니다.'}, 404
+            
+        # 2. 실제 사용자 프로필 로드 (DB에서)
+        # 2. 실제 사용자 프로필 로드 (DB에서)
+        # SQLAlchemy ORM 사용
+        try:
+            target_result = PersonalityResult.query.filter_by(
+                user_id=user_id, 
+                is_representative=True
+            ).first()
+
+            if not target_result:
+                # 대표 결과가 없으면 최신 결과 조회 (Fallback)
+                target_result = PersonalityResult.query.filter_by(user_id=user_id).order_by(PersonalityResult.created_at.desc()).first()
+
+            if not target_result:
+                return {'success': False, 'message': f'사용자(ID: {user_id})의 분석 리포트가 없습니다.'}, 404
+                
+            user_profile_json = target_result.full_report_json
+            if isinstance(user_profile_json, str):
+                user_profile_json = json.loads(user_profile_json)
+
+        except Exception as e:
+            return {'success': False, 'message': f'DB 조회 오류: {str(e)}'}, 500
+
+        # 3. 매칭 점수 계산
+        # 실제 사용자를 Target(current_user)으로, 더미를 Candidate로 설정
+        
+        # 더미 데이터를 candidate 포맷으로 변환
+        dummy_candidate = {
+            'user_id': dummy_data.get('meta', {}).get('user_id'),
+            'username': dummy_data.get('meta', {}).get('speaker_name'),
+            'full_report_json': dummy_data, # 전체 JSON 전달
+            'match_score': 0
+        }
+        
+        candidates = [dummy_candidate]
+
+        # 계산 실행
+        results = MatchManager._calculate_match_scores(
+            user_id,
+            candidates,
+            current_user_profile_json=user_profile_json,
+            weights=weights
+        )
+        
+        if len(results) > 0:
+            result = results[0]
+            return {
+                'success': True,
+                'match_score': result.get('match_score', 0),
+                'details': result.get('match_details', {})
+            }
+        else:
+            return {'success': False, 'message': '매칭 계산에 실패했습니다.'}
+            
+    except Exception as e:
+        app.logger.error(f"Hybrid simulation error: {str(e)}")
+        return {'success': False, 'message': str(e)}, 500
+    
+    except Exception as e:
+        app.logger.error(f"더미 시뮬레이션 오류: {e}")
+        return {'success': False, 'message': str(e)}, 500
+
+@app.route('/admin/api/dummy/<dummy_id>/register', methods=['POST'])
+@admin_required
+def admin_register_dummy_as_candidate(dummy_id):
+    """[관리자] 더미 데이터를 실제 후보군 파일로 등록"""
+    dummy_list = load_dummy_users()
+    
+    # 해당 더미 찾기
+    dummy = None
+    for d in dummy_list:
+        if d.get('meta', {}).get('user_id') == dummy_id:
+            dummy = d
+            break
+    
+    if not dummy:
+        return {'success': False, 'message': '해당 더미 사용자를 찾을 수 없습니다.'}, 404
+    
+    try:
+        # 새 파일명 생성
+        filename = f"dummy_registered_{dummy_id}.json"
+        candidates_dir = os.path.join(os.path.dirname(__file__), 'candidates_db')
+        filepath = os.path.join(candidates_dir, filename)
+        
+        # 이미 존재하는지 확인
+        if os.path.exists(filepath):
+            return {'success': False, 'message': '이미 등록된 더미 사용자입니다.'}, 400
+        
+        # 파일로 저장
+        with open(filepath, 'w', encoding='utf-8') as f:
+            json.dump(dummy, f, ensure_ascii=False, indent=2)
+        
+        name = dummy.get('meta', {}).get('speaker_name', dummy_id)
+        return {'success': True, 'filename': filename, 'message': f'더미 "{name}"가 후보군으로 등록되었습니다.'}
+    
+    except Exception as e:
+        app.logger.error(f"더미 등록 오류: {e}")
+        return {'success': False, 'message': str(e)}, 500
+
+
 
 if __name__ == '__main__':
     import sys

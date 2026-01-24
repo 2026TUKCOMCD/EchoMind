@@ -19,7 +19,7 @@
         <div class="flex items-center gap-4">
             <span
                 class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-green-100 text-green-800 border border-green-200">
-                � System Active
+                💻System Active
             </span>
             <a href="{{ url_for('admin_logout') }}"
                 class="text-sm font-medium text-slate-500 hover:text-red-600 transition-colors">
@@ -34,6 +34,9 @@
         viewingFile: false,
         viewingFileName: '',
         viewingFileContent: '',
+        viewingPersonality: false,
+        personalityFileName: '',
+        personalityData: null,
         async viewFile(filename) {
             this.viewingFileName = filename;
             this.viewingFile = true;
@@ -54,6 +57,33 @@
             this.viewingFile = false;
             this.viewingFileName = '';
             this.viewingFileContent = '';
+        },
+        async viewPersonality(filename) {
+            this.personalityFileName = filename;
+            this.viewingPersonality = true;
+            this.personalityData = null;
+            try {
+                const res = await fetch(`/admin/candidates/view/${filename}`);
+                const data = await res.json();
+                if (data.success && data.content) {
+                    const llm = data.content.llm_profile || {};
+                    this.personalityData = {
+                        name: data.content.meta?.speaker_name || filename,
+                        mbti: llm.mbti?.type || 'Unknown',
+                        socionics: llm.socionics?.type || 'Unknown',
+                        big5: llm.big5?.scores_0_100 || {}
+                    };
+                } else {
+                    this.personalityData = { error: data.message || 'Failed to load' };
+                }
+            } catch (e) {
+                this.personalityData = { error: 'Error loading file.' };
+            }
+        },
+        closePersonalityViewer() {
+            this.viewingPersonality = false;
+            this.personalityFileName = '';
+            this.personalityData = null;
         }
     }" class="space-y-6">
 
@@ -346,9 +376,12 @@
             </div>
 
             <!-- 4. Matching Tab -->
-            <div x-show="activeTab === 'matching'" style="display: none;">
-                <div class="glass-panel p-6 rounded-2xl border border-slate-100" x-data="simulation()">
-                    <h2 class="text-xl font-bold text-slate-800 mb-6">매칭 알고리즘 시뮬레이션</h2>
+            <div x-show="activeTab === 'matching'" style="display: none;" x-data="dummyManager()"
+                x-init="fetchDummies()">
+
+                <!-- 기존 실제 사용자 시뮬레이션 -->
+                <div class="glass-panel p-6 rounded-2xl border border-slate-100 mb-6" x-data="simulation()">
+                    <h2 class="text-xl font-bold text-slate-800 mb-6">🔬 실제 사용자 매칭 시뮬레이션</h2>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
                         <!-- Controls -->
                         <div class="space-y-6">
@@ -439,7 +472,7 @@
                                         Match Score</div>
                                     <div class="text-6xl font-black text-indigo-600 mb-6" x-text="result.match_score">
                                     </div>
-                                    <div class="grid grid-cols-3 gap-2 text-center text-sm w-full">
+                                    <div class="grid grid-cols-3 gap-2 text-center text-3xl w-full">
                                         <div class="bg-slate-50 p-2 rounded">
                                             <div class="font-bold text-indigo-600"
                                                 x-text="(result.details.similarity_score * 100).toFixed(0)"></div>
@@ -470,7 +503,462 @@
                         </div>
                     </div>
                 </div>
-            </div>
+
+                <!-- 더미 사용자 생성 -->
+                <div class="glass-panel p-6 rounded-2xl border border-indigo-100 mb-6">
+                    <h2 class="text-xl font-bold text-slate-800 mb-6 flex items-center gap-2">
+                        📝 더미 사용자 생성
+                        <span class="text-xs font-normal text-slate-500">(시뮬레이션 테스트용)</span>
+                    </h2>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <!-- 입력 폼 -->
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium text-slate-700 mb-1">이름</label>
+                                <input type="text" x-model="formData.name"
+                                    class="w-full rounded-lg border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                                    placeholder="더미 사용자 이름">
+                            </div>
+
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-slate-700 mb-1">MBTI</label>
+                                    <select x-model="formData.mbti"
+                                        class="w-full rounded-lg border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                                        <template x-for="type in mbtiTypes" :key="type">
+                                            <option :value="type" x-text="type"></option>
+                                        </template>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-slate-700 mb-1">소시오닉스</label>
+                                    <select x-model="formData.socionics"
+                                        class="w-full rounded-lg border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                                        <template x-for="type in socionicsTypes" :key="type">
+                                            <option :value="type" x-text="type"></option>
+                                        </template>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-medium text-slate-700 mb-2">Big5 성격 (0-100)</label>
+                                <div class="space-y-3 bg-slate-50 p-4 rounded-xl">
+                                    <div>
+                                        <div class="flex justify-between text-xs mb-1">
+                                            <span>개방성 (Openness)</span>
+                                            <span x-text="formData.big5.openness"></span>
+                                        </div>
+                                        <input type="range" min="0" max="100" x-model.number="formData.big5.openness"
+                                            class="w-full h-2 bg-blue-200 rounded-lg appearance-none cursor-pointer">
+                                    </div>
+                                    <div>
+                                        <div class="flex justify-between text-xs mb-1">
+                                            <span>성실성 (Conscientiousness)</span>
+                                            <span x-text="formData.big5.conscientiousness"></span>
+                                        </div>
+                                        <input type="range" min="0" max="100"
+                                            x-model.number="formData.big5.conscientiousness"
+                                            class="w-full h-2 bg-green-200 rounded-lg appearance-none cursor-pointer">
+                                    </div>
+                                    <div>
+                                        <div class="flex justify-between text-xs mb-1">
+                                            <span>외향성 (Extraversion)</span>
+                                            <span x-text="formData.big5.extraversion"></span>
+                                        </div>
+                                        <input type="range" min="0" max="100"
+                                            x-model.number="formData.big5.extraversion"
+                                            class="w-full h-2 bg-yellow-200 rounded-lg appearance-none cursor-pointer">
+                                    </div>
+                                    <div>
+                                        <div class="flex justify-between text-xs mb-1">
+                                            <span>우호성 (Agreeableness)</span>
+                                            <span x-text="formData.big5.agreeableness"></span>
+                                        </div>
+                                        <input type="range" min="0" max="100"
+                                            x-model.number="formData.big5.agreeableness"
+                                            class="w-full h-2 bg-pink-200 rounded-lg appearance-none cursor-pointer">
+                                    </div>
+                                    <div>
+                                        <div class="flex justify-between text-xs mb-1">
+                                            <span>신경성 (Neuroticism)</span>
+                                            <span x-text="formData.big5.neuroticism"></span>
+                                        </div>
+                                        <input type="range" min="0" max="100" x-model.number="formData.big5.neuroticism"
+                                            class="w-full h-2 bg-purple-200 rounded-lg appearance-none cursor-pointer">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div>
+                                <div class="flex justify-between text-sm mb-1">
+                                    <span class="font-medium text-slate-700">활동성 (라인 수)</span>
+                                    <span class="text-slate-500" x-text="formData.activity + ' lines'"></span>
+                                </div>
+                                <input type="range" min="50" max="3000" step="50" x-model.number="formData.activity"
+                                    class="w-full h-2 bg-amber-200 rounded-lg appearance-none cursor-pointer">
+                            </div>
+
+                            <div class="flex gap-2 pt-2">
+                                <button @click="createRandomDummy" :disabled="loading"
+                                    class="flex-1 py-3 bg-gradient-to-r from-purple-500 to-indigo-500 text-white font-bold rounded-xl hover:from-purple-600 hover:to-indigo-600 transition-all disabled:opacity-50">
+                                    🎲 랜덤 생성
+                                </button>
+                                <button @click="createDummy" :disabled="loading || !formData.name"
+                                    class="flex-1 py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-colors disabled:opacity-50">
+                                    ➕ 더미 생성
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- 저장된 더미 목록 -->
+                        <div>
+                            <div class="flex justify-between items-center mb-3">
+                                <h3 class="font-bold text-sm text-slate-900">📋 저장된 더미 사용자(체크박스에 체크하여 시뮬레이션 대상을 선택하세요)
+                                </h3>
+                                <span class="text-xs text-slate-500" x-text="dummies.length + '명'"></span>
+                            </div>
+                            <div class="bg-slate-900 rounded-xl p-3 max-h-[400px] overflow-y-auto">
+                                <template x-if="dummies.length === 0">
+                                    <div class="text-center text-slate-500 py-8">
+                                        <span class="text-3xl block mb-2">📭</span>
+                                        저장된 더미 사용자가 없습니다
+                                    </div>
+                                </template>
+                                <div class="space-y-2">
+                                    <template x-for="dummy in dummies" :key="dummy.dummy_id">
+                                        <div class="bg-slate-800 rounded-lg hover:bg-slate-700 transition-colors">
+                                            <!-- 메인 영역: 클릭 시 상세 정보 토글 -->
+                                            <div class="flex items-center justify-between p-3 cursor-pointer"
+                                                @click="expandedDummy = (expandedDummy === dummy.dummy_id ? null : dummy.dummy_id)">
+                                                <div class="flex items-center gap-3">
+                                                    <input type="checkbox"
+                                                        :checked="selectedIds.includes(dummy.dummy_id)"
+                                                        @change="toggleSelect(dummy.dummy_id)" @click.stop
+                                                        class="w-4 h-4 rounded border-slate-600 text-indigo-500 focus:ring-indigo-500">
+                                                    <div>
+                                                        <div
+                                                            class="text-white font-medium text-sm flex items-center gap-2">
+                                                            <span x-text="dummy.name"></span>
+                                                            <span class="text-slate-500 text-xs"
+                                                                x-text="expandedDummy === dummy.dummy_id ? '▼' : '▶'"></span>
+                                                        </div>
+                                                        <div class="text-slate-400 text-xs">
+                                                            <span x-text="dummy.mbti" class="text-indigo-400"></span> |
+                                                            <span x-text="dummy.socionics" class="text-rose-400"></span>
+                                                            |
+                                                            <span x-text="dummy.activity + ' lines'"
+                                                                class="text-amber-400"></span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div class="flex items-center gap-1" @click.stop>
+                                                    <button @click="registerAsCandidate(dummy.dummy_id)"
+                                                        class="text-green-400 hover:text-green-300 p-1 text-xs"
+                                                        title="후보군 등록">
+                                                        ⬆️
+                                                    </button>
+                                                    <button @click="deleteDummy(dummy.dummy_id)"
+                                                        class="text-red-400 hover:text-red-300 p-1" title="삭제">
+                                                        ⊖
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            <!-- 상세 정보 (Big5) -->
+                                            <div x-show="expandedDummy === dummy.dummy_id" x-collapse
+                                                class="px-3 pb-3 pt-1 border-t border-slate-700">
+                                                <div class="text-xs text-slate-400 mb-2 font-bold">Big5 성격 수치</div>
+                                                <div class="space-y-1.5">
+                                                    <div class="flex items-center gap-2">
+                                                        <span class="text-xs text-slate-500 w-16">개방성</span>
+                                                        <div class="flex-1 bg-slate-700 rounded-full h-2">
+                                                            <div class="bg-blue-500 h-2 rounded-full"
+                                                                :style="'width: ' + (dummy.big5?.openness || 50) + '%'">
+                                                            </div>
+                                                        </div>
+                                                        <span class="text-xs text-blue-400 w-8 text-right"
+                                                            x-text="dummy.big5?.openness || 50"></span>
+                                                    </div>
+                                                    <div class="flex items-center gap-2">
+                                                        <span class="text-xs text-slate-500 w-16">성실성</span>
+                                                        <div class="flex-1 bg-slate-700 rounded-full h-2">
+                                                            <div class="bg-green-500 h-2 rounded-full"
+                                                                :style="'width: ' + (dummy.big5?.conscientiousness || 50) + '%'">
+                                                            </div>
+                                                        </div>
+                                                        <span class="text-xs text-green-400 w-8 text-right"
+                                                            x-text="dummy.big5?.conscientiousness || 50"></span>
+                                                    </div>
+                                                    <div class="flex items-center gap-2">
+                                                        <span class="text-xs text-slate-500 w-16">외향성</span>
+                                                        <div class="flex-1 bg-slate-700 rounded-full h-2">
+                                                            <div class="bg-yellow-500 h-2 rounded-full"
+                                                                :style="'width: ' + (dummy.big5?.extraversion || 50) + '%'">
+                                                            </div>
+                                                        </div>
+                                                        <span class="text-xs text-yellow-400 w-8 text-right"
+                                                            x-text="dummy.big5?.extraversion || 50"></span>
+                                                    </div>
+                                                    <div class="flex items-center gap-2">
+                                                        <span class="text-xs text-slate-500 w-16">우호성</span>
+                                                        <div class="flex-1 bg-slate-700 rounded-full h-2">
+                                                            <div class="bg-pink-500 h-2 rounded-full"
+                                                                :style="'width: ' + (dummy.big5?.agreeableness || 50) + '%'">
+                                                            </div>
+                                                        </div>
+                                                        <span class="text-xs text-pink-400 w-8 text-right"
+                                                            x-text="dummy.big5?.agreeableness || 50"></span>
+                                                    </div>
+                                                    <div class="flex items-center gap-2">
+                                                        <span class="text-xs text-slate-500 w-16">신경성</span>
+                                                        <div class="flex-1 bg-slate-700 rounded-full h-2">
+                                                            <div class="bg-purple-500 h-2 rounded-full"
+                                                                :style="'width: ' + (dummy.big5?.neuroticism || 50) + '%'">
+                                                            </div>
+                                                        </div>
+                                                        <span class="text-xs text-purple-400 w-8 text-right"
+                                                            x-text="dummy.big5?.neuroticism || 50"></span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+
+
+                        </div>
+                    </div>
+
+                    <!-- 하단: 더미 시뮬레이션 섹션 (확장됨) -->
+                    <div class="mt-8 pt-8 border-t border-slate-200">
+                        <div class="flex items-center gap-2 mb-4">
+                            <h3 class="font-bold text-lg text-slate-800">🧪 더미 매칭 시뮬레이션</h3>
+                            <span class="text-sm text-slate-500 font-normal">생성된 더미 데이터를 활용하여 매칭 로직을 테스트합니다.</span>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                            <!-- 왼쪽: 더미 vs 더미 -->
+                            <div class="bg-slate-50 p-6 rounded-2xl border border-indigo-100">
+                                <h4 class="font-bold text-base text-indigo-700 mb-4 flex items-center gap-2">
+                                    <span>👥 더미 vs 더미</span>
+                                    <span
+                                        class="text-xs bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded-full font-normal"
+                                        x-show="selectedIds.length === 2">Ready</span>
+                                </h4>
+
+                                <div class="mb-6">
+                                    <div class="flex items-center justify-between text-sm mb-2">
+                                        <span class="text-slate-600">선택된 사용자</span>
+                                        <span class="text-xs text-slate-400" x-show="selectedIds.length !== 2">목록에서 2명을
+                                            선택하세요</span>
+                                    </div>
+                                    <div
+                                        class="flex items-center gap-3 p-3 bg-white rounded-xl border border-dashed border-slate-300 min-h-[50px]">
+                                        <template x-if="selectedIds.length === 2">
+                                            <div class="flex items-center gap-2 w-full justify-center">
+                                                <span class="font-bold text-indigo-600"
+                                                    x-text="getSelectedName(0)"></span>
+                                                <span class="text-slate-400">↔</span>
+                                                <span class="font-bold text-purple-600"
+                                                    x-text="getSelectedName(1)"></span>
+                                            </div>
+                                        </template>
+                                        <template x-if="selectedIds.length !== 2">
+                                            <div class="w-full text-center text-slate-400 text-sm">Waiting for
+                                                selection...</div>
+                                        </template>
+                                    </div>
+                                </div>
+
+                                <!-- 가중치 설정 with Lock -->
+                                <div class="mb-6 space-y-4">
+                                    <h5 class="text-sm font-bold text-slate-700">가중치 설정</h5>
+
+                                    <!-- Similarity -->
+                                    <div>
+                                        <div class="flex justify-between text-xs mb-1 items-center">
+                                            <div class="flex items-center gap-2">
+                                                <span>Similarity</span>
+                                                <button @click="locked.sim = !locked.sim"
+                                                    class="focus:outline-none transition-colors"
+                                                    :class="locked.sim ? 'text-indigo-600' : 'text-slate-300'">
+                                                    <span x-show="locked.sim">🔒</span>
+                                                    <span x-show="!locked.sim">🔓</span>
+                                                </button>
+                                            </div>
+                                            <span x-text="dummyWeights.sim"></span>
+                                        </div>
+                                        <input type="range" min="0" max="1" step="0.1" x-model.number="dummyWeights.sim"
+                                            @input="adjustDummyWeights('sim')" :disabled="locked.sim"
+                                            class="w-full h-2 bg-indigo-200 rounded-lg appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
+                                    </div>
+
+                                    <!-- Chemistry -->
+                                    <div>
+                                        <div class="flex justify-between text-xs mb-1 items-center">
+                                            <div class="flex items-center gap-2">
+                                                <span>Chemistry</span>
+                                                <button @click="locked.chem = !locked.chem"
+                                                    class="focus:outline-none transition-colors"
+                                                    :class="locked.chem ? 'text-indigo-600' : 'text-slate-300'">
+                                                    <span x-show="locked.chem">🔒</span>
+                                                    <span x-show="!locked.chem">🔓</span>
+                                                </button>
+                                            </div>
+                                            <span x-text="dummyWeights.chem"></span>
+                                        </div>
+                                        <input type="range" min="0" max="1" step="0.1"
+                                            x-model.number="dummyWeights.chem" @input="adjustDummyWeights('chem')"
+                                            :disabled="locked.chem"
+                                            class="w-full h-2 bg-rose-200 rounded-lg appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
+                                    </div>
+
+                                    <!-- Activity -->
+                                    <div>
+                                        <div class="flex justify-between text-xs mb-1 items-center">
+                                            <div class="flex items-center gap-2">
+                                                <span>Activity</span>
+                                                <button @click="locked.act = !locked.act"
+                                                    class="focus:outline-none transition-colors"
+                                                    :class="locked.act ? 'text-indigo-600' : 'text-slate-300'">
+                                                    <span x-show="locked.act">🔒</span>
+                                                    <span x-show="!locked.act">🔓</span>
+                                                </button>
+                                            </div>
+                                            <span x-text="dummyWeights.act"></span>
+                                        </div>
+                                        <input type="range" min="0" max="1" step="0.1" x-model.number="dummyWeights.act"
+                                            @input="adjustDummyWeights('act')" :disabled="locked.act"
+                                            class="w-full h-2 bg-amber-200 rounded-lg appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
+                                    </div>
+                                </div>
+
+                                <button @click="runDummySimulation" :disabled="selectedIds.length !== 2 || loading"
+                                    class="w-full py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-md">
+                                    <span x-show="!loading">▶ 시뮬레이션 실행</span>
+                                    <span x-show="loading">계산 중...</span>
+                                </button>
+
+                                <!-- 결과 표시 -->
+                                <template x-if="dummyResult">
+                                    <div
+                                        class="mt-4 p-4 bg-white rounded-xl border border-indigo-200 shadow-sm animate-fade-in-up">
+                                        <div class="text-center">
+                                            <div class="text-xs text-slate-500 font-bold uppercase tracking-wider mb-2">
+                                                Total Match Score</div>
+                                            <div class="text-5xl font-black text-indigo-600 mb-4"
+                                                x-text="dummyResult.match_score"></div>
+                                            <div class="grid grid-cols-3 gap-2 text-center">
+                                                <div class="bg-indigo-50 p-2 rounded-lg">
+                                                    <div class="font-bold text-indigo-600 text-lg"
+                                                        x-text="dummyResult.details ? (dummyResult.details.similarity_score * 100).toFixed(0) : '-'">
+                                                    </div>
+                                                    <div class="text-[10px] text-slate-500 uppercase">Sim</div>
+                                                </div>
+                                                <div class="bg-rose-50 p-2 rounded-lg">
+                                                    <div class="font-bold text-rose-600 text-lg"
+                                                        x-text="dummyResult.details ? (dummyResult.details.chemistry_score * 100).toFixed(0) : '-'">
+                                                    </div>
+                                                    <div class="text-[10px] text-slate-500 uppercase">Chem</div>
+                                                </div>
+                                                <div class="bg-amber-50 p-2 rounded-lg">
+                                                    <div class="font-bold text-amber-600 text-lg"
+                                                        x-text="dummyResult.details ? (dummyResult.details.activity_score * 100).toFixed(0) : '-'">
+                                                    </div>
+                                                    <div class="text-[10px] text-slate-500 uppercase">Act</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </template>
+                                <template x-if="dummyError">
+                                    <div class="mt-4 p-4 bg-red-50 text-red-600 rounded-xl border border-red-100 text-sm font-medium"
+                                        x-text="dummyError"></div>
+                                </template>
+                            </div>
+
+                            <!-- 오른쪽: 하이브리드 시뮬레이션 -->
+                            <div class="bg-slate-50 p-6 rounded-2xl border border-emerald-100">
+                                <h4 class="font-bold text-base text-emerald-700 mb-4 flex items-center gap-2">
+                                    <span>🔗 더미 ↔ 실제 사용자</span>
+                                    <span
+                                        class="text-xs bg-emerald-100 text-emerald-600 px-2 py-0.5 rounded-full font-normal">Hybrid</span>
+                                </h4>
+
+                                <div class="space-y-4 mb-6">
+                                    <div>
+                                        <label class="block text-sm font-medium text-slate-700 mb-1">더미 사용자 선택</label>
+                                        <select x-model="hybridDummyId"
+                                            class="w-full rounded-lg border-slate-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 p-2.5">
+                                            <option value="">선택하세요</option>
+                                            <template x-for="dummy in dummies" :key="dummy.dummy_id">
+                                                <option :value="dummy.dummy_id"
+                                                    x-text="dummy.name + ' (' + dummy.mbti + ')'"></option>
+                                            </template>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-slate-700 mb-1">실제 사용자 ID (User
+                                            ID)</label>
+                                        <input type="number" x-model="hybridUserId" placeholder="예: 1"
+                                            class="w-full rounded-lg border-slate-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 p-2.5">
+                                    </div>
+
+                                    <div class="bg-white p-3 rounded-lg border border-slate-200 text-xs text-slate-500">
+                                        💡 왼쪽의 <strong>가중치 설정</strong>이 이곳에도 동일하게 적용됩니다.
+                                    </div>
+                                </div>
+
+                                <button @click="runHybridSimulation"
+                                    :disabled="!hybridDummyId || !hybridUserId || loading"
+                                    class="w-full py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-md">
+                                    <span x-show="!loading">▶ 하이브리드 시뮬레이션 실행</span>
+                                    <span x-show="loading">계산 중...</span>
+                                </button>
+
+                                <!-- 결과 표시 -->
+                                <template x-if="hybridResult">
+                                    <div
+                                        class="mt-4 p-4 bg-white rounded-xl border border-emerald-200 shadow-sm animate-fade-in-up">
+                                        <div class="text-center">
+                                            <div class="text-xs text-slate-500 font-bold uppercase tracking-wider mb-2">
+                                                Total Match Score</div>
+                                            <div class="text-5xl font-black text-emerald-600 mb-4"
+                                                x-text="hybridResult.match_score"></div>
+                                            <div class="grid grid-cols-3 gap-2 text-center">
+                                                <div class="bg-emerald-50 p-2 rounded-lg">
+                                                    <div class="font-bold text-emerald-600 text-lg"
+                                                        x-text="hybridResult.details ? (hybridResult.details.similarity_score * 100).toFixed(0) : '-'">
+                                                    </div>
+                                                    <div class="text-[10px] text-slate-500 uppercase">Sim</div>
+                                                </div>
+                                                <div class="bg-rose-50 p-2 rounded-lg">
+                                                    <div class="font-bold text-rose-600 text-lg"
+                                                        x-text="hybridResult.details ? (hybridResult.details.chemistry_score * 100).toFixed(0) : '-'">
+                                                    </div>
+                                                    <div class="text-[10px] text-slate-500 uppercase">Chem</div>
+                                                </div>
+                                                <div class="bg-amber-50 p-2 rounded-lg">
+                                                    <div class="font-bold text-amber-600 text-lg"
+                                                        x-text="hybridResult.details ? (hybridResult.details.activity_score * 100).toFixed(0) : '-'">
+                                                    </div>
+                                                    <div class="text-[10px] text-slate-500 uppercase">Act</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </template>
+                                <template x-if="hybridError">
+                                    <div class="mt-4 p-4 bg-red-50 text-red-600 rounded-xl border border-red-100 text-sm font-medium"
+                                        x-text="hybridError"></div>
+                                </template>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div> <!-- End Matching Tab -->
 
             <!-- 5. System Tab -->
             <div x-show="activeTab === 'system'" style="display: none;">
@@ -490,9 +978,9 @@
                         <form action="{{ url_for('admin_upload_candidate') }}" method="POST"
                             enctype="multipart/form-data" class="flex items-center gap-2">
                             <input type="file" name="file" accept=".json" required
-                                class="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100" />
+                                class="block flex-1 text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100" />
                             <button type="submit"
-                                class="px-4 py-2 bg-green-600 text-white text-sm font-bold rounded-lg hover:bg-green-700 shadow-md">
+                                class="px-8 py-2 bg-green-600 text-white text-sm font-bold rounded-lg hover:bg-green-700 shadow-md whitespace-nowrap flex-shrink-0">
                                 업로드
                             </button>
                         </form>
@@ -505,20 +993,36 @@
                                 class="flex items-center justify-between gap-2 p-2 hover:bg-slate-800 rounded-lg transition-colors group">
                                 <div class="flex items-center gap-2 overflow-hidden">
                                     <span class="text-green-400 flex-shrink-0">📄</span>
-                                    <span class="truncate" title="{{ file }}">{{ file }}</span>
+                                    <div class="flex flex-col overflow-hidden">
+                                        <span class="truncate text-white" title="{{ file.filename }}">{{ file.filename
+                                            }}</span>
+                                        {% if file.speaker_name %}
+                                        <span class="text-slate-500 text-sm">
+                                            👤 {{ file.speaker_name }}
+                                            {% if file.mbti %}<span class="text-indigo-400">({{ file.mbti }})</span>{%
+                                            endif
+                                            %}
+                                        </span>
+                                        {% endif %}
+                                    </div>
                                 </div>
-                                <div class="flex items-center gap-1">
-                                    <button @click="viewFile('{{ file }}')"
-                                        class="text-slate-500 hover:text-indigo-500 transition-colors p-1"
-                                        title="내용 보기">
-                                        🔍
+                                <div class="flex items-center gap-1 flex-shrink-0">
+                                    <button @click="viewFile('{{ file.filename }}')"
+                                        class="text-xs bg-slate-700 text-slate-300 hover:bg-slate-600 hover:text-white transition-colors px-2 py-1 rounded"
+                                        title="JSON 텍스트 보기">
+                                        텍스트 보기
                                     </button>
-                                    <form action="{{ url_for('admin_delete_candidate', filename=file) }}" method="POST"
-                                        onsubmit="return confirm('정말 삭제하시겠습니까?');" class="flex-shrink-0">
+                                    <button @click="viewPersonality('{{ file.filename }}')"
+                                        class="text-xs bg-indigo-700 text-indigo-200 hover:bg-indigo-600 hover:text-white transition-colors px-2 py-1 rounded"
+                                        title="성격 수치 보기">
+                                        성격 수치
+                                    </button>
+                                    <form action="{{ url_for('admin_delete_candidate', filename=file.filename) }}"
+                                        method="POST" onsubmit="return confirm('정말 삭제하시겠습니까?');" class="flex-shrink-0">
                                         <button type="submit"
                                             class="text-slate-500 hover:text-red-500 transition-colors p-1 text-base font-bold"
                                             title="삭제">
-                                            🗑️
+                                            ⊖
                                         </button>
                                     </form>
                                 </div>
@@ -542,6 +1046,94 @@
                     </div>
                     <div class="p-4 overflow-y-auto bg-slate-50 font-mono text-xs">
                         <pre x-text="viewingFileContent"></pre>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Personality Viewer Modal -->
+            <div x-show="viewingPersonality" style="display: none;"
+                class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+                @click.self="closePersonalityViewer">
+                <div class="bg-white rounded-xl shadow-2xl w-full max-w-md flex flex-col">
+                    <div class="p-4 border-b flex justify-between items-center">
+                        <h3 class="font-bold text-lg" x-text="'성격 수치 - ' + personalityFileName"></h3>
+                        <button @click="closePersonalityViewer" class="text-slate-500 hover:text-slate-700">X</button>
+                    </div>
+                    <div class="p-4">
+                        <template x-if="personalityData && !personalityData.error">
+                            <div class="space-y-4">
+                                <div class="text-center">
+                                    <div class="text-xl font-bold text-slate-800" x-text="personalityData.name">
+                                    </div>
+                                    <div class="text-xl text-slate-500">
+                                        <span class="text-indigo-600 font-bold" x-text="personalityData.mbti"></span>
+                                        <span class="mx-1">|</span>
+                                        <span class="text-rose-600 font-bold" x-text="personalityData.socionics"></span>
+                                    </div>
+                                </div>
+                                <div class="border-t pt-4">
+                                    <div class="text-sm font-bold text-slate-700 mb-3">Big5 성격 수치</div>
+                                    <div class="space-y-2">
+                                        <div class="flex items-center gap-2">
+                                            <span class="text-xs text-slate-600 w-20">개방성</span>
+                                            <div class="flex-1 bg-slate-200 rounded-full h-3">
+                                                <div class="bg-blue-500 h-3 rounded-full"
+                                                    :style="'width: ' + (personalityData.big5.openness || 50) + '%'">
+                                                </div>
+                                            </div>
+                                            <span class="text-xs text-blue-600 w-8 text-right font-bold"
+                                                x-text="personalityData.big5.openness || 50"></span>
+                                        </div>
+                                        <div class="flex items-center gap-2">
+                                            <span class="text-xs text-slate-600 w-20">성실성</span>
+                                            <div class="flex-1 bg-slate-200 rounded-full h-3">
+                                                <div class="bg-green-500 h-3 rounded-full"
+                                                    :style="'width: ' + (personalityData.big5.conscientiousness || 50) + '%'">
+                                                </div>
+                                            </div>
+                                            <span class="text-xs text-green-600 w-8 text-right font-bold"
+                                                x-text="personalityData.big5.conscientiousness || 50"></span>
+                                        </div>
+                                        <div class="flex items-center gap-2">
+                                            <span class="text-xs text-slate-600 w-20">외향성</span>
+                                            <div class="flex-1 bg-slate-200 rounded-full h-3">
+                                                <div class="bg-yellow-500 h-3 rounded-full"
+                                                    :style="'width: ' + (personalityData.big5.extraversion || 50) + '%'">
+                                                </div>
+                                            </div>
+                                            <span class="text-xs text-yellow-600 w-8 text-right font-bold"
+                                                x-text="personalityData.big5.extraversion || 50"></span>
+                                        </div>
+                                        <div class="flex items-center gap-2">
+                                            <span class="text-xs text-slate-600 w-20">우호성</span>
+                                            <div class="flex-1 bg-slate-200 rounded-full h-3">
+                                                <div class="bg-pink-500 h-3 rounded-full"
+                                                    :style="'width: ' + (personalityData.big5.agreeableness || 50) + '%'">
+                                                </div>
+                                            </div>
+                                            <span class="text-xs text-pink-600 w-8 text-right font-bold"
+                                                x-text="personalityData.big5.agreeableness || 50"></span>
+                                        </div>
+                                        <div class="flex items-center gap-2">
+                                            <span class="text-xs text-slate-600 w-20">신경성</span>
+                                            <div class="flex-1 bg-slate-200 rounded-full h-3">
+                                                <div class="bg-purple-500 h-3 rounded-full"
+                                                    :style="'width: ' + (personalityData.big5.neuroticism || 50) + '%'">
+                                                </div>
+                                            </div>
+                                            <span class="text-xs text-purple-600 w-8 text-right font-bold"
+                                                x-text="personalityData.big5.neuroticism || 50"></span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </template>
+                        <template x-if="personalityData && personalityData.error">
+                            <div class="text-red-500 text-center py-4" x-text="personalityData.error"></div>
+                        </template>
+                        <template x-if="!personalityData">
+                            <div class="text-center text-slate-400 py-4">Loading...</div>
+                        </template>
                     </div>
                 </div>
             </div>
@@ -680,6 +1272,321 @@
             }
         }
     }
+
+    /**
+     * 더미 사용자 관리 및 시뮬레이션 Alpine.js 컴포넌트
+     * 
+     * ========================================================================
+     * TODO [미래 변경 대비] - Frontend 수정 필요 시점
+     * ------------------------------------------------------------------------
+     * 1. MBTI/소시오닉스가 수치로 변경되면:
+     *    - mbtiTypes, socionicsTypes 배열을 제거하거나 수치 범위 슬라이더로 대체
+     *    - formData.mbti, formData.socionics → formData.mbtiScores 등으로 구조 변경
+     *    - 더미 생성 폼 UI를 드롭다운에서 슬라이더로 변경
+     *
+     * 2. 매칭 알고리즘 변경 시:
+     *    - runDummySimulation(), runHybridSimulation() API 호출부 수정
+     *    - 결과 JSON 구조(match_score, details) 파싱 로직 수정
+     *
+     * 3. 가중치 체계 확장 시 (예: 4요소로 확장):
+     *    - dummyWeights 객체 키 추가
+     *    - adjustDummyWeights() 함수 로직 수정
+     *    - 가중치 슬라이더 UI 추가
+     * ========================================================================
+     */
+    function dummyManager() {
+        return {
+            // 유효한 유형 목록
+            mbtiTypes: ['INTJ', 'INTP', 'ENTJ', 'ENTP', 'INFJ', 'INFP', 'ENFJ', 'ENFP',
+                'ISTJ', 'ISFJ', 'ESTJ', 'ESFJ', 'ISTP', 'ISFP', 'ESTP', 'ESFP'],
+            socionicsTypes: ['ILE', 'SEI', 'ESE', 'LII', 'EIE', 'LSI', 'SLE', 'IEI',
+                'SEE', 'ILI', 'LIE', 'ESI', 'LSE', 'EII', 'IEE', 'SLI'],
+
+            // 상태
+            dummies: [],
+            selectedIds: [],
+            expandedDummy: null, // 클릭하면 Big5 상세 정보 펼침
+            formData: {
+                name: '',
+                mbti: 'INTJ',
+                socionics: 'LII',
+                big5: { openness: 50, conscientiousness: 50, extraversion: 50, agreeableness: 50, neuroticism: 50 },
+                activity: 500
+            },
+            dummyResult: null,
+            dummyError: null,
+            loading: false,
+
+            // 가중치 (더미 시뮬레이션용)
+            dummyWeights: { sim: 0.5, chem: 0.4, act: 0.1 },
+            locked: { sim: false, chem: false, act: false },
+
+            // 하이브리드 시뮬레이션 (더미-실제 사용자)
+            hybridDummyId: '',
+            hybridUserId: '',
+            hybridResult: null,
+            hybridError: null,
+
+            // 더미 목록 조회
+            async fetchDummies() {
+                try {
+                    const res = await fetch('/admin/api/dummy/list');
+                    const data = await res.json();
+                    if (data.success) {
+                        this.dummies = data.dummies;
+                    }
+                } catch (e) {
+                    console.error('더미 목록 로드 실패:', e);
+                }
+            },
+
+            // 더미 생성
+            async createDummy() {
+                if (!this.formData.name) {
+                    alert('이름을 입력해주세요.');
+                    return;
+                }
+                this.loading = true;
+                try {
+                    const res = await fetch('/admin/api/dummy/create', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            name: this.formData.name,
+                            mbti: this.formData.mbti,
+                            socionics: this.formData.socionics,
+                            big5: this.formData.big5,
+                            activity_lines: this.formData.activity
+                        })
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                        alert(data.message);
+                        this.formData.name = '';
+                        await this.fetchDummies();
+                    } else {
+                        alert('생성 실패: ' + data.message);
+                    }
+                } catch (e) {
+                    alert('오류: ' + e.message);
+                } finally {
+                    this.loading = false;
+                }
+            },
+
+            // 랜덤 더미 생성
+            async createRandomDummy() {
+                this.loading = true;
+                try {
+                    const res = await fetch('/admin/api/dummy/random', { method: 'POST' });
+                    const data = await res.json();
+                    if (data.success) {
+                        alert(data.message);
+                        // 폼에 생성된 값 표시
+                        if (data.data) {
+                            this.formData.name = data.data.name;
+                            this.formData.mbti = data.data.mbti;
+                            this.formData.socionics = data.data.socionics;
+                            this.formData.big5 = data.data.big5;
+                            this.formData.activity = data.data.activity_lines;
+                        }
+                        await this.fetchDummies();
+                    } else {
+                        alert('생성 실패: ' + data.message);
+                    }
+                } catch (e) {
+                    alert('오류: ' + e.message);
+                } finally {
+                    this.loading = false;
+                }
+            },
+
+            // 더미 삭제
+            async deleteDummy(dummyId) {
+                if (!confirm('이 더미 사용자를 삭제하시겠습니까?')) return;
+                try {
+                    const res = await fetch(`/admin/api/dummy/${dummyId}`, { method: 'DELETE' });
+                    const data = await res.json();
+                    if (data.success) {
+                        // 선택 목록에서도 제거
+                        this.selectedIds = this.selectedIds.filter(id => id !== dummyId);
+                        await this.fetchDummies();
+                    } else {
+                        alert('삭제 실패: ' + data.message);
+                    }
+                } catch (e) {
+                    alert('오류: ' + e.message);
+                }
+            },
+
+            // 체크박스 토글 (최대 2개)
+            toggleSelect(dummyId) {
+                const idx = this.selectedIds.indexOf(dummyId);
+                if (idx >= 0) {
+                    this.selectedIds.splice(idx, 1);
+                } else if (this.selectedIds.length < 2) {
+                    this.selectedIds.push(dummyId);
+                } else {
+                    // 2개 초과 시 첫 번째 제거하고 새로 추가
+                    this.selectedIds.shift();
+                    this.selectedIds.push(dummyId);
+                }
+                this.dummyResult = null;
+                this.dummyError = null;
+            },
+
+            // 선택된 더미 이름 가져오기
+            getSelectedName(index) {
+                if (this.selectedIds.length <= index) return '';
+                const dummy = this.dummies.find(d => d.dummy_id === this.selectedIds[index]);
+                return dummy ? dummy.name : '';
+            },
+
+            // 가중치 조절 로직 (더미용 - 잠금 기능 포함)
+            adjustDummyWeights(trigger) {
+                const weights = this.dummyWeights;
+                const locked = this.locked;
+
+                // 잠겨있으면 변경 불가
+                if (locked[trigger]) return;
+
+                weights[trigger] = Math.max(0, Math.min(1, parseFloat(weights[trigger])));
+
+                // 잠겨있지 않은 다른 항목 찾기
+                const others = ['sim', 'chem', 'act'].filter(k => k !== trigger);
+                const availableOthers = others.filter(k => !locked[k]);
+
+                // 1. 모든 다른 항목이 잠겨있는 경우 -> 변경 불가 (원복해야 하지만 여기서는 무시)
+                if (availableOthers.length === 0) return;
+
+                // 2. 잠긴 항목들의 합 계산
+                let lockedSum = 0;
+                ['sim', 'chem', 'act'].forEach(k => {
+                    if (locked[k] && k !== trigger) lockedSum += weights[k];
+                });
+
+                // 3. 현재 항목이 가질 수 있는 최대값
+                const maxAllowed = 1.0 - lockedSum;
+                if (weights[trigger] > maxAllowed) {
+                    weights[trigger] = maxAllowed;
+                }
+
+                // 4. 남은 값 배분
+                const remaining = maxAllowed - weights[trigger];
+                let currentSumAvailable = 0;
+                availableOthers.forEach(k => currentSumAvailable += weights[k]);
+
+                if (currentSumAvailable === 0) {
+                    const share = remaining / availableOthers.length;
+                    availableOthers.forEach(k => weights[k] = share);
+                } else {
+                    availableOthers.forEach(k => {
+                        weights[k] = (weights[k] / currentSumAvailable) * remaining;
+                    });
+                }
+
+                // 5. 소수점 정리
+                let total = 0;
+                ['sim', 'chem', 'act'].forEach(k => {
+                    weights[k] = parseFloat(weights[k].toFixed(2));
+                    total += weights[k];
+                });
+
+                // 6. 오차 보정 (마지막 조절 가능한 항목에 남은 값 할당)
+                if (Math.abs(total - 1.0) > 0.01) {
+                    const lastAvailable = availableOthers[availableOthers.length - 1];
+                    if (lastAvailable) {
+                        weights[lastAvailable] += (1.0 - total);
+                        weights[lastAvailable] = parseFloat(weights[lastAvailable].toFixed(2));
+                    }
+                }
+            },
+
+            // 더미 간 시뮬레이션
+            async runDummySimulation() {
+                if (this.selectedIds.length !== 2) {
+                    this.dummyError = '2명의 더미 사용자를 선택해주세요.';
+                    return;
+                }
+                this.loading = true;
+                this.dummyError = null;
+                this.dummyResult = null;
+                try {
+                    const res = await fetch('/admin/api/dummy/simulate', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            dummy_id_a: this.selectedIds[0],
+                            dummy_id_b: this.selectedIds[1],
+                            w_sim: this.dummyWeights.sim,    // 수정: 가중치 적용
+                            w_chem: this.dummyWeights.chem,
+                            w_act: this.dummyWeights.act
+                        })
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                        this.dummyResult = data;
+                    } else {
+                        this.dummyError = data.message;
+                    }
+                } catch (e) {
+                    this.dummyError = e.message;
+                } finally {
+                    this.loading = false;
+                }
+            },
+
+            // 하이브리드 시뮬레이션 (더미-실제 사용자)
+            async runHybridSimulation() {
+                if (!this.hybridDummyId || !this.hybridUserId) {
+                    this.hybridError = '더미 사용자와 실제 사용자 ID를 모두 입력해주세요.';
+                    return;
+                }
+                this.loading = true;
+                this.hybridError = null;
+                this.hybridResult = null;
+                try {
+                    const res = await fetch('/admin/api/dummy/hybrid-simulate', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            dummy_id: this.hybridDummyId,
+                            user_id: this.hybridUserId,
+                            w_sim: this.dummyWeights.sim,   // 더미용 가중치 재사용
+                            w_chem: this.dummyWeights.chem,
+                            w_act: this.dummyWeights.act
+                        })
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                        this.hybridResult = data;
+                    } else {
+                        this.hybridError = data.message;
+                    }
+                } catch (e) {
+                    this.hybridError = e.message;
+                } finally {
+                    this.loading = false;
+                }
+            },
+
+            // 후보군으로 등록
+            async registerAsCandidate(dummyId) {
+                if (!confirm('이 더미 사용자를 실제 후보군으로 등록하시겠습니까?')) return;
+                try {
+                    const res = await fetch(`/admin/api/dummy/${dummyId}/register`, { method: 'POST' });
+                    const data = await res.json();
+                    if (data.success) {
+                        alert(data.message);
+                    } else {
+                        alert('등록 실패: ' + data.message);
+                    }
+                } catch (e) {
+                    alert('오류: ' + e.message);
+                }
+            }
+        }
+    }
 </script>
 <script>
     // Chart instances
@@ -688,7 +1595,7 @@
     let big5ChartPtr = null;
 
     // Data from backend
-    const statsData = {{ chart_data | tojson }};
+    const statsData = JSON.parse('{{ chart_data | tojson | safe }}');
 
     window.updateMbtiView = function () { };
     window.updateSocionicsView = function () { };

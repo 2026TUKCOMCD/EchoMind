@@ -8,3 +8,4 @@ __pycache__/
 profile/
 static/reports/
 debug.log
+dummy_*.json
