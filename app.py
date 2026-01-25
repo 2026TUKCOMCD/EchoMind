@@ -45,8 +45,16 @@ LOG_LEVEL_MAP = {
     4: logging.ERROR,
     5: logging.CRITICAL
 }
-CURRENT_LOG_MODE = 2  # [설정] 1: DEBUG, 2: INFO ... (터미널에는 INFO 표시)
-target_log_level = LOG_LEVEL_MAP.get(CURRENT_LOG_MODE, logging.INFO)
+
+# [설정] 개발자가 편하게 변경할 수 있는 로그 레벨 설정
+from utils_system import get_system_config
+sys_conf = get_system_config()
+
+CONSOLE_LOG_MODE = 2  # 터미널 출력 레벨 (1: DEBUG, 2: INFO ...)
+FILE_LOG_MODE = sys_conf.get('log_level', 4)     # 파일 기록 레벨 (Config에서 로드)
+
+console_level = LOG_LEVEL_MAP.get(CONSOLE_LOG_MODE, logging.INFO)
+file_level = LOG_LEVEL_MAP.get(FILE_LOG_MODE, logging.DEBUG)
 
 # Logging Configuration
 if not app.debug:
@@ -57,30 +65,30 @@ if not app.debug:
     file_handler.setFormatter(logging.Formatter(
         '%(asctime)s %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]'
     ))
-    file_handler.setLevel(target_log_level)
+    file_handler.setLevel(file_level)
     app.logger.addHandler(file_handler)
-    app.logger.setLevel(target_log_level)
+    app.logger.setLevel(min(console_level, file_level)) # 둘 중 더 낮은 레벨을 로거 기본 레벨로 설정
     app.logger.info('EchoMind startup')
 else:
     # Development: Console(INFO) + File(ERROR) for debugging
     
-    # 1. File Handler (ERROR only)
+    # 1. File Handler
     file_handler = logging.FileHandler("debug.log", mode='a', encoding='utf-8')
-    file_handler.setLevel(logging.ERROR) # 파일에는 에러만 기록
+    file_handler.setLevel(file_level)
     file_handler.setFormatter(logging.Formatter(
         '%(asctime)s %(levelname)s: %(message)s [in %(filename)s:%(lineno)d]'
     ))
     
-    # 2. Stream Handler (INFO)
+    # 2. Stream Handler (Console)
     stream_handler = logging.StreamHandler()
-    stream_handler.setLevel(logging.INFO) # 터미널에는 INFO(접속 주소 등) 출력
+    stream_handler.setLevel(console_level)
     stream_handler.setFormatter(logging.Formatter(
         '%(asctime)s %(levelname)s: %(message)s [in %(filename)s:%(lineno)d]'
     ))
 
     # 3. Apply Config
     logging.basicConfig(
-        level=logging.INFO, # Root Logger는 INFO까지 허용
+        level=min(console_level, file_level), # Root Logger는 둘 중 낮은 레벨 허용
         handlers=[file_handler, stream_handler],
         force=True
     )
@@ -93,6 +101,21 @@ else:
 
 # 업로드 폴더 자동 생성
 if not os.path.exists(app.config['UPLOAD_FOLDER']):
+    os.makedirs(app.config['UPLOAD_FOLDER'])
+
+# --- Helper Functions ---
+def _parse_json_safe(data):
+    """
+    JSON 문자열을 안전하게 파싱하여 dict로 반환합니다.
+    이미 dict/list라면 그대로 반환하고, 파싱 실패 시 원본을 반환하거나 빈 dict를 반환합니다.
+    """
+    if isinstance(data, str):
+        try:
+            return json.loads(data)
+        except (json.JSONDecodeError, TypeError):
+            return {} # 파싱 실패 시 빈 딕셔너리 안전 반환 (상황에 따라 원본 반환 가능)
+    return data if data is not None else {}
+
     os.makedirs(app.config['UPLOAD_FOLDER']) 
 
 # SQLAlchemy 인스턴스를 extensions에서 임포트 (순환 참조 방지)
@@ -125,51 +148,52 @@ def admin_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
-def dummy_simulation_required(f):
-    """
-    더미 시뮬레이션 기능이 활성화된 환경에서만 동작하도록 하는 데코레이터.
-    config.py의 ENABLE_DUMMY_SIMULATION 플래그로 제어됩니다.
-    
-    사용법:
-      @app.route('/admin/api/dummy/...')
-      @admin_required
-      @dummy_simulation_required
-      def some_dummy_api():
-          ...
-    
-    EC2 배포 시:
-      - FLASK_ENV=production으로 설정하면 자동 비활성화
-      - .env에 ENABLE_DUMMY_SIMULATION=true로 오버라이드 가능
-    """
-    from functools import wraps
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if not app.config.get('ENABLE_DUMMY_SIMULATION', False):
-            return jsonify({
-                'success': False, 
-                'message': '이 환경에서는 더미 시뮬레이션이 비활성화되어 있습니다. (ENABLE_DUMMY_SIMULATION=false)'
-            }), 403
-        return f(*args, **kwargs)
-    return decorated_function
+# [REMOVED] dummy_simulation_required 데코레이터 삭제됨
+# 더미 사용자도 이제 DB에 저장되므로, 환경 변수 플래그로 기능을 제한할 필요가 없음.
 
 # -------------------------------------------------------------------
 # DB Schema Update Utility
 # -------------------------------------------------------------------
 def check_and_update_db_schema():
     """
-    Checks if 'is_banned' column exists in 'users' table.
-    If not, adds it dynamically.
+    DB 스키마 자동 마이그레이션:
+    - 'is_banned' 컬럼 추가 (users)
+    - 'is_dummy' 컬럼 추가 (users) - 더미 사용자 마이그레이션용
+    - 'log_id' nullable 변경 (personality_results) - 더미 사용자용
     """
     with app.app_context():
         try:
             inspector = sqlalchemy.inspect(db.engine)
-            columns = [col['name'] for col in inspector.get_columns('users')]
-            if 'is_banned' not in columns:
-                print("Adding 'is_banned' column to users table...")
-                with db.engine.connect() as conn:
+            user_columns = [col['name'] for col in inspector.get_columns('users')]
+            
+            with db.engine.connect() as conn:
+                # 1. is_banned 컬럼 추가
+                if 'is_banned' not in user_columns:
+                    print("Adding 'is_banned' column to users table...")
                     conn.execute(sqlalchemy.text("ALTER TABLE users ADD COLUMN is_banned BOOLEAN DEFAULT FALSE"))
                     conn.commit()
-                print("'is_banned' column added successfully.")
+                    print("'is_banned' column added successfully.")
+                
+                # 2. is_dummy 컬럼 추가 (더미 사용자 지원)
+                if 'is_dummy' not in user_columns:
+                    print("Adding 'is_dummy' column to users table...")
+                    conn.execute(sqlalchemy.text("ALTER TABLE users ADD COLUMN is_dummy BOOLEAN DEFAULT FALSE"))
+                    conn.commit()
+                    print("'is_dummy' column added successfully.")
+                
+                # 3. log_id nullable 변경 (ALTER COLUMN은 DB마다 문법이 다름 - MySQL 기준)
+                # 이미 nullable이면 무시됨
+                try:
+                    conn.execute(sqlalchemy.text("""
+                        ALTER TABLE personality_results 
+                        MODIFY COLUMN log_id INT NULL
+                    """))
+                    conn.commit()
+                    print("'log_id' column modified to nullable.")
+                except Exception as e:
+                    # 이미 nullable이거나 다른 DB 엔진인 경우 무시
+                    print(f"log_id modification skipped or already nullable: {e}")
+                    
         except Exception as e:
             print(f"Schema update failed: {e}")
 
@@ -241,18 +265,37 @@ def home():
 
 @app.route('/result')
 @app.route('/result/<int:result_id>')
-@login_required
 def view_result(result_id=None):
     """결과 조회 페이지 (특정 ID 또는 대표 결과)"""
-    if result_id:
-        result = PersonalityResult.query.filter_by(user_id=g.user.user_id, result_id=result_id).first()
-    else:
-        result = PersonalityResult.query.filter_by(user_id=g.user.user_id, is_representative=True).first()
-    if not result:
-        flash("분석된 결과가 없습니다. 채팅 로그를 먼저 업로드해주세요.", "info")
-        return redirect(url_for('upload_chat'))
+    # [Auth Check] 관리자 또는 로그인 유저만 접근 가능
+    is_admin = session.get('is_admin')
+    if not g.user and not is_admin:
+        flash("로그인이 필요합니다.", "warning")
+        return redirect(url_for('login'))
+
+    # [Admin Logic] 관리자는 모든 결과 조회 가능 (단, 본인 조회 의도인 경우 제외)
+    if is_admin and (result_id or not g.user):
+        if not result_id:
+             flash("관리자는 특정 결과 ID를 지정해야 합니다.", "warning")
+             return redirect(url_for('admin_dashboard'))
         
-    # [Embedded Report Strategy]
+        result = PersonalityResult.query.get(result_id)
+        if not result:
+            flash("존재하지 않는 결과입니다.", "danger")
+            return redirect(url_for('admin_dashboard'))
+            
+    # [User Logic] 본인의 결과만 조회 가능
+    else:
+        if result_id:
+            result = PersonalityResult.query.filter_by(user_id=g.user.user_id, result_id=result_id).first()
+        else:
+            result = PersonalityResult.query.filter_by(user_id=g.user.user_id, is_representative=True).first()
+        
+        if not result:
+            flash("분석된 결과가 없습니다. 채팅 로그를 먼저 업로드해주세요.", "info")
+            return redirect(url_for('upload_chat'))
+
+    # [Common Rendering]
     try:
         if result.full_report_json:
              # [Robustness Fix] full_report_json 구조 확인
@@ -269,9 +312,13 @@ def view_result(result_id=None):
             return render_template('result.html', report_content=html_content)
         else:
             flash("상세 리포트 데이터가 없어 결과를 표시할 수 없습니다.", "warning")
+            if is_admin:
+                return redirect(url_for('admin_dashboard'))
             return redirect(url_for('upload_chat'))
     except Exception as e:
         flash(f"리포트 생성 실패: {str(e)}", "danger")
+        if is_admin:
+            return redirect(url_for('admin_dashboard'))
         return redirect(url_for('upload_chat'))
 
 @app.route('/history')
@@ -624,10 +671,7 @@ def match_inbox():
             # full_report_json 처리
             raw_report = profile.full_report_json
             if raw_report:
-                try:
-                    req_dict['full_report_json'] = json.loads(raw_report) if isinstance(raw_report, str) else raw_report
-                except:
-                    req_dict['full_report_json'] = raw_report if raw_report else {}
+                req_dict['full_report_json'] = _parse_json_safe(raw_report)
         
         received_requests.append(req_dict)
     
@@ -995,30 +1039,37 @@ def admin_dashboard():
 @app.route('/admin/api/users', methods=['GET'])
 @admin_required
 def admin_api_users():
-    """사용자 목록 검색 API (JSON)"""
+    """사용자 목록 검색 API (JSON) - 대표 결과 ID 포함"""
     query = request.args.get('q', '').strip()
     
+    # User와 Representative Result ID를 함께 조회 (Outer Join)
+    # PersonalityResult가 중복될 수 있으므로, 대표 결과(is_representative=True)만 조인
+    q = db.session.query(User, PersonalityResult.result_id)\
+        .outerjoin(PersonalityResult, (User.user_id == PersonalityResult.user_id) & (PersonalityResult.is_representative == True))
+
     if query:
         # Numeric ID search support
         from sqlalchemy import cast, String
-        users = User.query.filter(
+        q = q.filter(
             (User.username.ilike(f'%{query}%')) | 
             (User.nickname.ilike(f'%{query}%')) |
             (User.email.ilike(f'%{query}%')) |
             (cast(User.user_id, String).ilike(f'%{query}%'))
-        ).order_by(User.created_at.desc()).all()
-    else:
-        users = User.query.order_by(User.created_at.desc()).all()
+        )
+    
+    results = q.order_by(User.created_at.desc()).all()
         
     users_data = []
-    for u in users:
+    for u, result_id in results:
         users_data.append({
             'user_id': u.user_id,
             'username': u.username,
             'nickname': u.nickname or u.username,
             'email': u.email,
             'created_at': u.created_at.strftime('%Y-%m-%d'),
-            'is_banned': u.is_banned
+            'is_banned': u.is_banned,
+            'is_dummy': getattr(u, 'is_dummy', False),
+            'representative_result_id': result_id # 프론트엔드에서 상세보기 링크용
         })
         
     return {'success': True, 'users': users_data}
@@ -1212,6 +1263,7 @@ def admin_logout():
     return redirect(url_for('home'))
 
 # --- 더미 사용자 시뮬레이션 (Dummy User Simulation) ---
+# [DB Migration] JSON 파일 대신 DB 테이블(users, personality_results)을 사용합니다.
 
 # 유효한 MBTI 유형 목록
 VALID_MBTI_TYPES = [
@@ -1229,102 +1281,40 @@ VALID_SOCIONICS_TYPES = [
     'LSE', 'EII', 'IEE', 'SLI'
 ]
 
-# 더미 사용자 파일 경로
-DUMMY_STORAGE_DIR = os.path.join(os.path.dirname(__file__), 'candidates_db', 'dummy_storage')
-if not os.path.exists(DUMMY_STORAGE_DIR):
-    os.makedirs(DUMMY_STORAGE_DIR)
-DUMMY_USERS_FILE = os.path.join(DUMMY_STORAGE_DIR, 'dummy_users.json')
-
-def load_dummy_users():
-    """더미 사용자 목록 파일 로드"""
-    if not os.path.exists(DUMMY_USERS_FILE):
-        return []
-    try:
-        with open(DUMMY_USERS_FILE, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    except (json.JSONDecodeError, IOError) as e:
-        app.logger.warning(f"더미 파일 로드 실패, 빈 리스트로 초기화: {e}")
-        return []
-
-def save_dummy_users(data):
-    """더미 사용자 목록 파일 저장"""
-    # candidates_db 폴더 없으면 생성
-    os.makedirs(os.path.dirname(DUMMY_USERS_FILE), exist_ok=True)
-    with open(DUMMY_USERS_FILE, 'w', encoding='utf-8') as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
-
-@app.route('/admin/api/dummy/list', methods=['GET'])
-@admin_required
-@dummy_simulation_required
-def admin_list_dummies():
-    """[관리자] 저장된 더미 사용자 목록 조회"""
-    dummy_list = load_dummy_users()
+def _create_dummy_user_in_db(name, mbti, socionics, big5, activity_lines):
+    """
+    [Helper] 더미 사용자를 DB에 생성합니다.
     
-    result = []
-    for dummy in dummy_list:
-        meta = dummy.get('meta', {})
-        profile = dummy.get('llm_profile', {})
-        quality = dummy.get('parse_quality', {})
-        
-        result.append({
-            'dummy_id': meta.get('user_id', ''),
-            'name': meta.get('speaker_name', ''),
-            'mbti': profile.get('mbti', {}).get('type', ''),
-            'socionics': profile.get('socionics', {}).get('type', ''),
-            'big5': profile.get('big5', {}).get('scores_0_100', {}),
-            'activity': quality.get('parsed_lines', 0),
-            'created_at': meta.get('generated_at_utc', '')
-        })
-    
-    return {'success': True, 'dummies': result}
-
-@app.route('/admin/api/dummy/create', methods=['POST'])
-@admin_required
-@dummy_simulation_required
-def admin_create_dummy():
-    """[관리자] 더미 사용자 생성"""
+    Returns:
+        dict: {'success': bool, 'user_id': int or None, 'message': str}
+    """
     try:
-        data = request.get_json()
+        # 고유 식별자 생성 (UUID 기반)
+        import uuid
+        unique_id = uuid.uuid4().hex[:12]
         
-        # 입력값 추출
-        name = data.get('name', '').strip()
-        mbti = data.get('mbti', '').upper().strip()
-        socionics = data.get('socionics', '').upper().strip()
-        big5 = data.get('big5', {})
-        activity_lines = int(data.get('activity_lines', 500))
+        # 1. User 레코드 생성 (is_dummy=True, 가상 이메일 사용)
+        new_user = User(
+            email=f"dummy_{unique_id}@echomind.internal",  # 고유 가상 이메일
+            password_hash="DUMMY_NO_LOGIN",  # 로그인 불가 마커
+            username=name,
+            nickname=name,
+            gender="MALE", # 기본값 추가 (IntegrityError 방지)
+            birth_date=datetime(2000, 1, 1), # 기본값 추가
+            is_dummy=True,
+            is_banned=False
+        )
+        db.session.add(new_user)
+        db.session.flush()  # user_id 확보
         
-        # 입력값 검증
-        if not name:
-            return {'success': False, 'message': '이름을 입력해주세요.'}, 400
-        
-        if mbti not in VALID_MBTI_TYPES:
-            return {'success': False, 'message': f'유효하지 않은 MBTI 유형입니다. 유효값: {VALID_MBTI_TYPES}'}, 400
-        
-        if socionics not in VALID_SOCIONICS_TYPES:
-            return {'success': False, 'message': f'유효하지 않은 소시오닉스 유형입니다. 유효값: {VALID_SOCIONICS_TYPES}'}, 400
-        
-        # Big5 점수 검증 (0-100 범위)
-        big5_keys = ['openness', 'conscientiousness', 'extraversion', 'agreeableness', 'neuroticism']
-        for key in big5_keys:
-            score = big5.get(key, 50)
-            if not isinstance(score, (int, float)) or score < 0 or score > 100:
-                return {'success': False, 'message': f'Big5 {key} 점수는 0-100 사이여야 합니다.'}, 400
-        
-        # 활동성 검증
-        if activity_lines < 0 or activity_lines > 10000:
-            return {'success': False, 'message': '활동성(라인 수)은 0-10000 사이여야 합니다.'}, 400
-        
-        # 고유 ID 생성
-        dummy_id = f"dummy_{uuid.uuid4().hex[:8]}"
-        
-        # JSON 구조 생성 (candidates_db 형식 준수)
-        dummy_data = {
+        # 2. full_report_json 구조 생성 (기존 형식 유지)
+        full_report = {
             "meta": {
                 "source": "dummy_simulation",
                 "is_dummy": True,
                 "generated_at_utc": datetime.utcnow().isoformat() + "Z",
                 "speaker_name": name,
-                "user_id": dummy_id
+                "user_id": new_user.user_id  # 이제 정수형 ID
             },
             "parse_quality": {
                 "total_lines": activity_lines,
@@ -1364,12 +1354,117 @@ def admin_create_dummy():
             }
         }
         
-        # 파일에 저장
-        dummy_list = load_dummy_users()
-        dummy_list.append(dummy_data)
-        save_dummy_users(dummy_list)
+        # 3. PersonalityResult 레코드 생성
+        new_result = PersonalityResult(
+            user_id=new_user.user_id,
+            log_id=None,  # 더미는 ChatLog 없음
+            is_representative=True,
+            line_count_at_analysis=activity_lines,
+            openness=float(big5.get('openness', 50)),
+            conscientiousness=float(big5.get('conscientiousness', 50)),
+            extraversion=float(big5.get('extraversion', 50)),
+            agreeableness=float(big5.get('agreeableness', 50)),
+            neuroticism=float(big5.get('neuroticism', 50)),
+            big5_confidence=1.0,
+            mbti_prediction=mbti,
+            mbti_confidence=1.0,
+            socionics_prediction=socionics,
+            socionics_confidence=1.0,
+            summary_text=f"[더미 데이터] {name} - 시뮬레이션 테스트용",
+            full_report_json=full_report
+        )
+        db.session.add(new_result)
+        db.session.commit()
         
-        return {'success': True, 'dummy_id': dummy_id, 'message': f'더미 사용자 "{name}" 생성 완료'}
+        return {'success': True, 'user_id': new_user.user_id, 'message': f'더미 사용자 "{name}" 생성 완료'}
+    
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"더미 생성 오류: {e}")
+        return {'success': False, 'user_id': None, 'message': str(e)}
+
+@app.route('/admin/api/dummy/list', methods=['GET'])
+@admin_required
+def admin_list_dummies():
+    """[관리자] DB에서 더미 사용자 목록 조회 (is_dummy=True)"""
+    try:
+        # DB에서 더미 사용자 조회 (User + PersonalityResult JOIN)
+        dummies = db.session.query(User, PersonalityResult)\
+            .outerjoin(PersonalityResult, (User.user_id == PersonalityResult.user_id) & (PersonalityResult.is_representative == True))\
+            .filter(User.is_dummy == True)\
+            .all()
+        
+        result = []
+        for user, pr in dummies:
+            # PersonalityResult에서 데이터 추출
+            big5_data = {}
+            if pr:
+                big5_data = {
+                    'openness': pr.openness,
+                    'conscientiousness': pr.conscientiousness,
+                    'extraversion': pr.extraversion,
+                    'agreeableness': pr.agreeableness,
+                    'neuroticism': pr.neuroticism
+                }
+            
+            result.append({
+                'dummy_id': user.user_id,  # 이제 정수형 ID
+                'name': user.nickname or user.username,
+                'mbti': pr.mbti_prediction if pr else '',
+                'socionics': pr.socionics_prediction if pr else '',
+                'big5': big5_data,
+                'activity': pr.line_count_at_analysis if pr else 0,
+                'created_at': user.created_at.isoformat() if user.created_at else ''
+            })
+        
+        return {'success': True, 'dummies': result}
+    
+    except Exception as e:
+        app.logger.error(f"더미 목록 조회 오류: {e}")
+        return {'success': False, 'message': str(e)}, 500
+
+@app.route('/admin/api/dummy/create', methods=['POST'])
+@admin_required
+def admin_create_dummy():
+    """[관리자] 더미 사용자 생성 (DB 저장)"""
+    try:
+        data = request.get_json()
+        
+        # 입력값 추출
+        name = data.get('name', '').strip()
+        mbti = data.get('mbti', '').upper().strip()
+        socionics = data.get('socionics', '').upper().strip()
+        big5 = data.get('big5', {})
+        activity_lines = int(data.get('activity_lines', 500))
+        
+        # 입력값 검증
+        if not name:
+            return {'success': False, 'message': '이름을 입력해주세요.'}, 400
+        
+        if mbti not in VALID_MBTI_TYPES:
+            return {'success': False, 'message': f'유효하지 않은 MBTI 유형입니다. 유효값: {VALID_MBTI_TYPES}'}, 400
+        
+        if socionics not in VALID_SOCIONICS_TYPES:
+            return {'success': False, 'message': f'유효하지 않은 소시오닉스 유형입니다. 유효값: {VALID_SOCIONICS_TYPES}'}, 400
+        
+        # Big5 점수 검증 (0-100 범위)
+        big5_keys = ['openness', 'conscientiousness', 'extraversion', 'agreeableness', 'neuroticism']
+        for key in big5_keys:
+            score = big5.get(key, 50)
+            if not isinstance(score, (int, float)) or score < 0 or score > 100:
+                return {'success': False, 'message': f'Big5 {key} 점수는 0-100 사이여야 합니다.'}, 400
+        
+        # 활동성 검증
+        if activity_lines < 0 or activity_lines > 10000:
+            return {'success': False, 'message': '활동성(라인 수)은 0-10000 사이여야 합니다.'}, 400
+        
+        # DB에 저장 (헬퍼 함수 호출)
+        result = _create_dummy_user_in_db(name, mbti, socionics, big5, activity_lines)
+        
+        if result['success']:
+            return {'success': True, 'dummy_id': result['user_id'], 'message': result['message']}
+        else:
+            return {'success': False, 'message': result['message']}, 500
     
     except Exception as e:
         app.logger.error(f"더미 생성 오류: {e}")
@@ -1377,108 +1472,79 @@ def admin_create_dummy():
 
 @app.route('/admin/api/dummy/random', methods=['POST'])
 @admin_required
-@dummy_simulation_required
 def admin_create_random_dummy():
-    """[관리자] 랜덤 더미 사용자 생성"""
+    """[관리자] 랜덤 더미 사용자 일괄 생성 (DB 저장)"""
     import random
     import string
     
-    # 랜덤 값 생성
-    random_name = "Dummy_" + ''.join(random.choices(string.ascii_uppercase, k=4))
-    random_mbti = random.choice(VALID_MBTI_TYPES)
-    random_socionics = random.choice(VALID_SOCIONICS_TYPES)
-    random_big5 = {
-        'openness': random.randint(20, 80),
-        'conscientiousness': random.randint(20, 80),
-        'extraversion': random.randint(20, 80),
-        'agreeableness': random.randint(20, 80),
-        'neuroticism': random.randint(20, 80)
-    }
-    random_activity = random.randint(100, 2000)
-    
-    # create 로직 재사용을 위해 request context 조작 대신 직접 구현
-    dummy_id = f"dummy_{uuid.uuid4().hex[:8]}"
-    
-    dummy_data = {
-        "meta": {
-            "source": "dummy_simulation",
-            "is_dummy": True,
-            "generated_at_utc": datetime.utcnow().isoformat() + "Z",
-            "speaker_name": random_name,
-            "user_id": dummy_id
-        },
-        "parse_quality": {
-            "total_lines": random_activity,
-            "parsed_lines": random_activity,
-            "parse_failed_lines": 0,
-            "filtered_system_lines": 0,
-            "empty_text_lines": 0,
-            "pii_masked_hits": 0
-        },
-        "llm_profile": {
-            "summary": {
-                "one_paragraph": f"[더미 데이터] {random_name} - 랜덤 생성된 가상 사용자입니다.",
-                "communication_style_bullets": ["랜덤 생성된 시뮬레이션 테스트용 더미 데이터"]
-            },
-            "mbti": {
-                "type": random_mbti,
-                "confidence": 1.0,
-                "reasons": ["더미 데이터 - 랜덤 생성"]
-            },
-            "big5": {
-                "scores_0_100": random_big5,
-                "confidence": 1.0,
-                "reasons": ["더미 데이터 - 랜덤 생성"]
-            },
-            "socionics": {
-                "type": random_socionics,
-                "confidence": 1.0,
-                "reasons": ["더미 데이터 - 랜덤 생성"]
-            },
-            "caveats": ["이 데이터는 시뮬레이션 테스트용 더미 데이터입니다."]
+    try:
+        # 요청 파라미터에서 count 확인 (기본값 1, 최대 50)
+        data = request.get_json(silent=True) or {}
+        count = int(data.get('count', 1))
+        
+        if count < 1: count = 1
+        if count > 50: count = 50  # 안전을 위한 최대 제한
+        
+        created_users = []
+        
+        for _ in range(count):
+            # 랜덤 값 생성
+            random_name = "Dummy_" + ''.join(random.choices(string.ascii_uppercase, k=4))
+            random_mbti = random.choice(VALID_MBTI_TYPES)
+            random_socionics = random.choice(VALID_SOCIONICS_TYPES)
+            random_big5 = {
+                'openness': random.randint(20, 80),
+                'conscientiousness': random.randint(20, 80),
+                'extraversion': random.randint(20, 80),
+                'agreeableness': random.randint(20, 80),
+                'neuroticism': random.randint(20, 80)
+            }
+            random_activity = random.randint(100, 2000)
+            
+            # DB에 저장 (헬퍼 함수 호출)
+            result = _create_dummy_user_in_db(random_name, random_mbti, random_socionics, random_big5, random_activity)
+            
+            if result['success']:
+                created_users.append({
+                    'dummy_id': result['user_id'],
+                    'name': random_name
+                })
+        
+        return {
+            'success': True,
+            'message': f'총 {len(created_users)}명의 더미 사용자가 생성되었습니다.',
+            'count': len(created_users),
+            'last_created': created_users[-1] if created_users else None
         }
-    }
     
-    dummy_list = load_dummy_users()
-    dummy_list.append(dummy_data)
-    save_dummy_users(dummy_list)
-    
-    return {
-        'success': True, 
-        'dummy_id': dummy_id, 
-        'data': {
-            'name': random_name,
-            'mbti': random_mbti,
-            'socionics': random_socionics,
-            'big5': random_big5,
-            'activity_lines': random_activity
-        },
-        'message': f'랜덤 더미 사용자 "{random_name}" 생성 완료'
-    }
+    except Exception as e:
+        app.logger.error(f"랜덤 더미 일괄 생성 오류: {e}")
+        return {'success': False, 'message': str(e)}, 500
 
-@app.route('/admin/api/dummy/<dummy_id>', methods=['DELETE'])
+@app.route('/admin/api/dummy/<int:dummy_id>', methods=['DELETE'])
 @admin_required
-@dummy_simulation_required
 def admin_delete_dummy(dummy_id):
-    """[관리자] 더미 사용자 삭제"""
-    dummy_list = load_dummy_users()
+    """[관리자] 더미 사용자 삭제 (DB에서 삭제, CASCADE로 PersonalityResult도 삭제됨)"""
+    try:
+        user = User.query.filter_by(user_id=dummy_id, is_dummy=True).first()
+        
+        if not user:
+            return {'success': False, 'message': '해당 더미 사용자를 찾을 수 없습니다.'}, 404
+        
+        nickname = user.nickname or user.username
+        db.session.delete(user)  # CASCADE로 연관 데이터 자동 삭제
+        db.session.commit()
+        
+        return {'success': True, 'message': f'더미 사용자 "{nickname}" (ID: {dummy_id}) 삭제 완료'}
     
-    # 해당 ID 찾아서 삭제
-    new_list = [d for d in dummy_list if d.get('meta', {}).get('user_id') != dummy_id]
-    
-    if len(new_list) == len(dummy_list):
-        return {'success': False, 'message': '해당 더미 사용자를 찾을 수 없습니다.'}, 404
-    
-    save_dummy_users(new_list)
-    return {'success': True, 'message': f'더미 사용자 "{dummy_id}" 삭제 완료'}
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"더미 삭제 오류: {e}")
+        return {'success': False, 'message': str(e)}, 500
 
-@app.route('/admin/api/dummy/simulate', methods=['POST'])
-@admin_required
-@dummy_simulation_required
-def admin_simulate_dummy_match():
-    """[관리자] 두 더미 사용자 간 매칭 시뮬레이션
-    
-    # ========================================================================
+
+
+ # ========================================================================
     # TODO [미래 변경 대비]
     # ------------------------------------------------------------------------
     # 1. MBTI/소시오닉스가 문자열("INTJ", "LII")에서 수치(0-1 스케일)로 변경되면:
@@ -1492,198 +1558,160 @@ def admin_simulate_dummy_match():
     # 3. 가중치 파라미터 구조가 변경되면:
     #    - weights dict 키 이름 및 개수 변경 대응 필요
     # ========================================================================
-    """
-    try:
-        data = request.get_json()
-        dummy_id_a = data.get('dummy_id_a', '')
-        dummy_id_b = data.get('dummy_id_b', '')
-        weights = {
-            'similarity': float(data.get('w_sim', 0.5)),
-            'chemistry': float(data.get('w_chem', 0.4)),
-            'activity': float(data.get('w_act', 0.1))
-        }
-        
-        if not dummy_id_a or not dummy_id_b:
-            return {'success': False, 'message': '두 더미 사용자 ID를 모두 입력해주세요.'}, 400
-        
-        if dummy_id_a == dummy_id_b:
-            return {'success': False, 'message': '서로 다른 더미 사용자를 선택해주세요.'}, 400
-        
-        dummy_list = load_dummy_users()
-        
-        # 두 더미 데이터 찾기
-        dummy_a = None
-        dummy_b = None
-        for d in dummy_list:
-            uid = d.get('meta', {}).get('user_id', '')
-            if uid == dummy_id_a:
-                dummy_a = d
-            elif uid == dummy_id_b:
-                dummy_b = d
-        
-        if not dummy_a:
-            return {'success': False, 'message': f'더미 사용자 "{dummy_id_a}"를 찾을 수 없습니다.'}, 404
-        if not dummy_b:
-            return {'success': False, 'message': f'더미 사용자 "{dummy_id_b}"를 찾을 수 없습니다.'}, 404
-        
-        # MatchManager._calculate_match_scores 활용
-        candidates = [{
-            'user_id': dummy_id_b,
-            'full_report_json': dummy_b,
-            'match_score': 0
-        }]
-        
-        results = MatchManager._calculate_match_scores(
-            my_user_id=dummy_id_a,
-            candidates=candidates,
-            current_user_profile_json=dummy_a,
-            weights=weights
-        )
-        
-        if not results:
-            return {'success': False, 'message': '매칭 계산 실패'}, 500
-        
-        result = results[0]
-        return {
-            'success': True,
-            'match_score': result.get('match_score'),
-            'details': result.get('match_details'),
-            'relative_traits': result.get('relative_traits'),
-            'dummy_a': {
-                'name': dummy_a.get('meta', {}).get('speaker_name', ''),
-                'mbti': dummy_a.get('llm_profile', {}).get('mbti', {}).get('type', '')
-            },
-            'dummy_b': {
-                'name': dummy_b.get('meta', {}).get('speaker_name', ''),
-                'mbti': dummy_b.get('llm_profile', {}).get('mbti', {}).get('type', '')
-            }
-        }
 
+
+# [DEPRECATED] admin_register_dummy_as_candidate 라우트 삭제됨
+# 더미 사용자가 이제 DB에 직접 저장되므로, 별도 파일 등록 기능이 필요 없음
+# 더미는 생성 시점에 users/personality_results 테이블에 저장됨
+
+
+
+@app.route('/admin/api/stats', methods=['GET'])
+@admin_required
+def admin_dashboard_stats():
+    """[관리자] 대시보드 통계 데이터 JSON 반환 (새로고침용)"""
+    try:
+        # Chart Data
+        chart_data = visualize_profile.generate_dashboard_stats()
+        return {'success': True, 'chart_data': chart_data}
     except Exception as e:
-        app.logger.error(f"Dummy simulation error: {str(e)}")
+        app.logger.error(f"통계 데이터 조회 오류: {e}")
         return {'success': False, 'message': str(e)}, 500
 
-@app.route('/admin/api/dummy/hybrid-simulate', methods=['POST'])
+
+@app.route('/admin/api/dummy/bulk_delete', methods=['POST'])
 @admin_required
-@dummy_simulation_required
-def admin_hybrid_simulation():
-    """[관리자] 더미 사용자 vs 실제 사용자 간 매칭 시뮬레이션"""
+def admin_delete_bulk_dummies():
+    """[관리자] 더미 사용자 일괄 삭제"""
     try:
         data = request.get_json()
-        dummy_id = data.get('dummy_id')
-        user_id = data.get('user_id')
-        weights = {
-            'similarity': float(data.get('w_sim', 0.5)),
-            'chemistry': float(data.get('w_chem', 0.4)),
-            'activity': float(data.get('w_act', 0.1))
-        }
+        count = int(data.get('count', 0))
+        order = data.get('order', 'recent') # 'recent' or 'oldest'
         
-        # 1. 더미 사용자 로드
-        dummy_list = load_dummy_users()
-        dummy_data = next((d for d in dummy_list if d.get('meta', {}).get('user_id') == dummy_id), None)
-        
-        if not dummy_data:
-            return {'success': False, 'message': '더미 사용자를 찾을 수 없습니다.'}, 404
+        if count <= 0:
+            return {'success': False, 'message': '삭제할 수량을 입력해주세요.'}, 400
             
-        # 2. 실제 사용자 프로필 로드 (DB에서)
-        # 2. 실제 사용자 프로필 로드 (DB에서)
-        # SQLAlchemy ORM 사용
-        try:
-            target_result = PersonalityResult.query.filter_by(
-                user_id=user_id, 
-                is_representative=True
-            ).first()
-
-            if not target_result:
-                # 대표 결과가 없으면 최신 결과 조회 (Fallback)
-                target_result = PersonalityResult.query.filter_by(user_id=user_id).order_by(PersonalityResult.created_at.desc()).first()
-
-            if not target_result:
-                return {'success': False, 'message': f'사용자(ID: {user_id})의 분석 리포트가 없습니다.'}, 404
-                
-            user_profile_json = target_result.full_report_json
-            if isinstance(user_profile_json, str):
-                user_profile_json = json.loads(user_profile_json)
-
-        except Exception as e:
-            return {'success': False, 'message': f'DB 조회 오류: {str(e)}'}, 500
-
-        # 3. 매칭 점수 계산
-        # 실제 사용자를 Target(current_user)으로, 더미를 Candidate로 설정
+        # 더미 사용자 조회 Query
+        query = User.query.filter_by(is_dummy=True)
         
-        # 더미 데이터를 candidate 포맷으로 변환
-        dummy_candidate = {
-            'user_id': dummy_data.get('meta', {}).get('user_id'),
-            'username': dummy_data.get('meta', {}).get('speaker_name'),
-            'full_report_json': dummy_data, # 전체 JSON 전달
-            'match_score': 0
-        }
-        
-        candidates = [dummy_candidate]
-
-        # 계산 실행
-        results = MatchManager._calculate_match_scores(
-            user_id,
-            candidates,
-            current_user_profile_json=user_profile_json,
-            weights=weights
-        )
-        
-        if len(results) > 0:
-            result = results[0]
-            return {
-                'success': True,
-                'match_score': result.get('match_score', 0),
-                'details': result.get('match_details', {})
-            }
+        if order == 'recent':
+            query = query.order_by(User.created_at.desc())
         else:
-            return {'success': False, 'message': '매칭 계산에 실패했습니다.'}
+            query = query.order_by(User.created_at.asc())
             
+        targets = query.limit(count).all()
+        
+        if not targets:
+            return {'success': False, 'message': '삭제할 더미 사용자가 없습니다.'}
+            
+        deleted_count = 0
+        from extensions import MatchRequest
+        
+        for user in targets:
+            # 연관 데이터 삭제 (Cascade 설정이 되어있지 않을 수 있으므로 명시적 삭제 권장)
+            # PersonalityResult 삭제
+            PersonalityResult.query.filter_by(user_id=user.user_id).delete()
+            # MatchRequest 삭제
+            MatchRequest.query.filter((MatchRequest.sender_id==user.user_id) | (MatchRequest.receiver_id==user.user_id)).delete()
+            
+            # User 삭제
+            db.session.delete(user)
+            deleted_count += 1
+            
+        db.session.commit()
+        
+        return {
+            'success': True, 
+            'message': f'{deleted_count}명의 더미 사용자가 삭제되었습니다.',
+            'deleted_count': deleted_count
+        }
+        
     except Exception as e:
-        app.logger.error(f"Hybrid simulation error: {str(e)}")
-        return {'success': False, 'message': str(e)}, 500
-    
-    except Exception as e:
-        app.logger.error(f"더미 시뮬레이션 오류: {e}")
+        db.session.rollback()
+        app.logger.error(f"일괄 삭제 오류: {e}")
         return {'success': False, 'message': str(e)}, 500
 
-@app.route('/admin/api/dummy/<dummy_id>/register', methods=['POST'])
+# -------------------------------------------------------------------------
+# [System Management APIs]
+# -------------------------------------------------------------------------
+from utils_system import get_system_config, update_system_config, get_log_file_path
+
+@app.route('/admin/api/system/config', methods=['GET', 'POST'])
 @admin_required
-def admin_register_dummy_as_candidate(dummy_id):
-    """[관리자] 더미 데이터를 실제 후보군 파일로 등록"""
-    dummy_list = load_dummy_users()
-    
-    # 해당 더미 찾기
-    dummy = None
-    for d in dummy_list:
-        if d.get('meta', {}).get('user_id') == dummy_id:
-            dummy = d
-            break
-    
-    if not dummy:
-        return {'success': False, 'message': '해당 더미 사용자를 찾을 수 없습니다.'}, 404
-    
+def admin_system_config():
+    """시스템 설정 조회 및 업데이트"""
+    if request.method == 'GET':
+        return {'success': True, 'config': get_system_config()}
+    else: # POST
+        try:
+            data = request.get_json()
+            # Update known keys
+            if 'hide_dummies' in data:
+                update_system_config('hide_dummies', bool(data['hide_dummies']))
+            
+            if 'log_level' in data:
+                new_level = int(data['log_level'])
+                if 1 <= new_level <= 5:
+                    update_system_config('log_level', new_level)
+                    # 로그 레벨 즉시 적용 시도 (재시작 없이)
+                    # Root Logger 및 File Handler 레벨 조정
+                    app.logger.setLevel(LOG_LEVEL_MAP.get(new_level, logging.ERROR))
+                    for h in app.logger.handlers:
+                        if isinstance(h, (logging.FileHandler, RotatingFileHandler)):
+                            h.setLevel(LOG_LEVEL_MAP.get(new_level, logging.ERROR))
+            
+            return {'success': True, 'message': '설정이 저장되었습니다.', 'config': get_system_config()}
+        except Exception as e:
+            return {'success': False, 'message': str(e)}, 500
+
+@app.route('/admin/api/system/logs', methods=['GET'])
+@admin_required
+def admin_system_logs():
+    """서버 로그 파일 조회 (Tail 100 lines)"""
     try:
-        # 새 파일명 생성
-        filename = f"dummy_registered_{dummy_id}.json"
-        candidates_dir = os.path.join(os.path.dirname(__file__), 'candidates_db')
-        filepath = os.path.join(candidates_dir, filename)
-        
-        # 이미 존재하는지 확인
-        if os.path.exists(filepath):
-            return {'success': False, 'message': '이미 등록된 더미 사용자입니다.'}, 400
-        
-        # 파일로 저장
-        with open(filepath, 'w', encoding='utf-8') as f:
-            json.dump(dummy, f, ensure_ascii=False, indent=2)
-        
-        name = dummy.get('meta', {}).get('speaker_name', dummy_id)
-        return {'success': True, 'filename': filename, 'message': f'더미 "{name}"가 후보군으로 등록되었습니다.'}
-    
+        log_path = get_log_file_path(app.debug)
+        lines = []
+        if os.path.exists(log_path):
+            with open(log_path, 'r', encoding='utf-8', errors='ignore') as f:
+                # Read all lines and take last 100
+                # 효율적인 tail reading은 아니지만 로그 파일이 아주 크지 않다고 가정
+                all_lines = f.readlines()
+                lines = all_lines[-100:]
+        return {'success': True, 'logs': lines, 'path': log_path}
     except Exception as e:
-        app.logger.error(f"더미 등록 오류: {e}")
         return {'success': False, 'message': str(e)}, 500
 
+@app.route('/admin/api/system/reset_dummies', methods=['POST'])
+@admin_required
+def admin_reset_dummies():
+    """[Danger] 모든 더미 사용자 및 관련 데이터 삭제"""
+    try:
+        # DB에서 더미 사용자 조회
+        dummies = User.query.filter_by(is_dummy=True).all()
+        count = len(dummies)
+        
+        if count == 0:
+            return {'success': True, 'message': '삭제할 더미 사용자가 없습니다.'}
+            
+        from extensions import MatchRequest
+        
+        deleted_count = 0
+        for user in dummies:
+             # 연관 데이터 먼저 삭제
+            PersonalityResult.query.filter_by(user_id=user.user_id).delete()
+            MatchRequest.query.filter((MatchRequest.sender_id==user.user_id) | (MatchRequest.receiver_id==user.user_id)).delete()
+            
+            db.session.delete(user)
+            deleted_count += 1
+            
+        db.session.commit()
+        app.logger.warning(f"[System] Admin reset {deleted_count} dummy users.")
+        
+        return {'success': True, 'message': f'총 {deleted_count}명의 더미 사용자가 완전히 초기화되었습니다.'}
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"더미 초기화 오류: {e}")
+        return {'success': False, 'message': str(e)}, 500
 
 
 if __name__ == '__main__':
@@ -1694,3 +1722,4 @@ if __name__ == '__main__':
         db.create_all() 
         check_and_update_db_schema()
     app.run(host=config_class.RUN_HOST, port=config_class.RUN_PORT)
+

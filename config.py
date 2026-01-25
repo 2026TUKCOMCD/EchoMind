@@ -76,16 +76,13 @@ class DevelopmentConfig(Config):
     """개발 환경 설정"""
     DEBUG = True
     SESSION_COOKIE_SECURE = False
-    # 더미 시뮬레이션 기능 활성화 (개발 환경에서만)
-    ENABLE_DUMMY_SIMULATION = True
+    # [REMOVED] ENABLE_DUMMY_SIMULATION 삭제됨 (더미 기능은 이제 DB 기반으로 통합됨)
 
 class ProductionConfig(Config):
     """운영 환경 설정"""
     DEBUG = False
     SESSION_COOKIE_SECURE = True
-    # 더미 시뮬레이션 기능 비활성화 (운영 환경)
-    # 필요 시 .env에서 ENABLE_DUMMY_SIMULATION=true로 오버라이드 가능
-    ENABLE_DUMMY_SIMULATION = os.environ.get('ENABLE_DUMMY_SIMULATION', 'false').lower() == 'true'
+
 
 config_by_name = {
     'development': DevelopmentConfig,

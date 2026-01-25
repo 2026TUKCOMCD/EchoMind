@@ -1,0 +1,106 @@
+<!-- 1. Statistics (Dashboard) Tab -->
+<div x-show="activeTab === 'dashboard'" class="space-y-6">
+    <!-- Counters -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <div class="glass-panel p-6 rounded-2xl border border-indigo-100">
+            <h3 class="text-sm font-medium text-slate-500">총 사용자</h3>
+            <p class="text-3xl font-bold text-slate-900 mt-2">{{ stats.total_users }}</p>
+        </div>
+        <div class="glass-panel p-6 rounded-2xl border border-indigo-100">
+            <h3 class="text-sm font-medium text-slate-500">누적 매칭 요청</h3>
+            <p class="text-3xl font-bold text-indigo-600 mt-2">{{ stats.total_requests }}</p>
+        </div>
+        <div class="glass-panel p-6 rounded-2xl border border-indigo-100">
+            <h3 class="text-sm font-medium text-slate-500">분석 완료</h3>
+            <p class="text-3xl font-bold text-rose-600 mt-2">{{ stats.total_results }}</p>
+        </div>
+        <div class="glass-panel p-6 rounded-2xl border border-indigo-100">
+            <h3 class="text-sm font-medium text-slate-500">후보군 파일</h3>
+            <p class="text-3xl font-bold text-amber-600 mt-2">{{ stats.candidate_files }}</p>
+        </div>
+    </div>
+
+    <!-- Charts -->
+    <div class="space-y-6">
+        <!-- MBTI Chart -->
+        <div class="glass-panel p-6 rounded-2xl border border-slate-100" x-data="{ mbtiView: 'full' }">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-bold text-slate-800">MBTI 유형 분포</h3>
+                <div class="flex gap-2">
+                    <button @click="mbtiView = 'full'; window.updateMbtiView && updateMbtiView()"
+                        :class="mbtiView === 'full' ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-600'"
+                        class="px-4 py-2 rounded-lg text-sm font-bold transition-colors">전체 보기</button>
+                    <button @click="mbtiView = 'dimensions'; window.updateMbtiView && updateMbtiView()"
+                        :class="mbtiView === 'dimensions' ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-600'"
+                        class="px-4 py-2 rounded-lg text-sm font-bold transition-colors">차원별</button>
+                </div>
+            </div>
+            <div x-show="mbtiView === 'full'" class="relative h-[250px] w-full" style="height: 250px; width: 100%;">
+                <canvas id="mbtiChartFull"></canvas>
+            </div>
+            <div x-show="mbtiView === 'dimensions'" style="display: none;" class="grid grid-cols-2 gap-4">
+                <div class="relative h-[180px]" style="height: 180px; width: 100%;">
+                    <h4 class="text-xs font-bold text-center mb-2">E / I</h4>
+                    <canvas id="mbtiChartEI"></canvas>
+                </div>
+                <div class="relative h-[180px]" style="height: 180px; width: 100%;">
+                    <h4 class="text-xs font-bold text-center mb-2">S / N</h4>
+                    <canvas id="mbtiChartSN"></canvas>
+                </div>
+                <div class="relative h-[180px]" style="height: 180px; width: 100%;">
+                    <h4 class="text-xs font-bold text-center mb-2">T / F</h4>
+                    <canvas id="mbtiChartTF"></canvas>
+                </div>
+                <div class="relative h-[180px]" style="height: 180px; width: 100%;">
+                    <h4 class="text-xs font-bold text-center mb-2">P / J</h4>
+                    <canvas id="mbtiChartPJ"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Socionics Chart -->
+        <div class="glass-panel p-6 rounded-2xl border border-slate-100" x-data="{ socionicsView: 'full' }">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-bold text-slate-800">소시오닉스 분포</h3>
+                <div class="flex gap-2">
+                    <button @click="socionicsView = 'full'; window.updateSocionicsView && updateSocionicsView()"
+                        :class="socionicsView === 'full' ? 'bg-rose-600 text-white' : 'bg-slate-200 text-slate-600'"
+                        class="px-4 py-2 rounded-lg text-sm font-bold transition-colors">전체 보기</button>
+                    <button @click="socionicsView = 'dimensions'; window.updateSocionicsView && updateSocionicsView()"
+                        :class="socionicsView === 'dimensions' ? 'bg-rose-600 text-white' : 'bg-slate-200 text-slate-600'"
+                        class="px-4 py-2 rounded-lg text-sm font-bold transition-colors">차원별</button>
+                </div>
+            </div>
+            <div x-show="socionicsView === 'full'" class="relative h-[250px] w-full"
+                style="height: 250px; width: 100%;">
+                <canvas id="socionicsChartFull"></canvas>
+            </div>
+            <div x-show="socionicsView === 'dimensions'" style="display: none;" class="grid grid-cols-2 gap-4">
+                <div class="relative h-[180px]" style="height: 180px; width: 100%;">
+                    <h4 class="text-xs font-bold text-center mb-2">E / I</h4>
+                    <canvas id="socionicsChartEI"></canvas>
+                </div>
+                <div class="relative h-[180px]" style="height: 180px; width: 100%;">
+                    <h4 class="text-xs font-bold text-center mb-2">S / N</h4>
+                    <canvas id="socionicsChartSN"></canvas>
+                </div>
+                <div class="relative h-[180px]" style="height: 180px; width: 100%;">
+                    <h4 class="text-xs font-bold text-center mb-2">T / F</h4>
+                    <canvas id="socionicsChartTF"></canvas>
+                </div>
+                <div class="relative h-[180px]" style="height: 180px; width: 100%;">
+                    <h4 class="text-xs font-bold text-center mb-2">J / P</h4>
+                    <canvas id="socionicsChartPJ"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Big5 Chart -->
+        <div class="glass-panel p-6 rounded-2xl border border-slate-100">
+            <h3 class="text-lg font-bold text-slate-800 mb-4">Big5 평균 점수</h3>
+            <div class="relative h-[250px] w-full" style="height: 250px; width: 100%;">
+                <canvas id="big5Chart"></canvas>
+            </div>
+        </div>
+    </div>
+</div>

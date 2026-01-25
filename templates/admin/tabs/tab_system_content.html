@@ -1,0 +1,96 @@
+<!-- 5. System Tab -->
+<div x-show="activeTab === 'system'" style="display: none;"
+    x-effect="console.log('Current activeTab (System Wrapper):', activeTab)">
+    <div x-data="systemTab" x-init="initSystem()">
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- Left: Config & Danger Zone -->
+            <div class="lg:col-span-1 space-y-6">
+
+                <!-- 1. System Config -->
+                <div class="glass-panel p-6 rounded-2xl border border-slate-100">
+                    <h3 class="font-bold text-slate-800 text-lg mb-4 flex items-center gap-2">
+                        <span>⚙️</span> 시스템 설정
+                    </h3>
+
+                    <div class="space-y-4">
+                        <!-- Hide Dummies Toggle -->
+                        <div class="flex items-center justify-between p-3 bg-slate-50 rounded-xl">
+                            <div class="text-sm">
+                                <div class="font-bold text-slate-700">더미 사용자 숨기기</div>
+                                <div class="text-xs text-slate-400">일반 매칭 후보에 노출되지 않습니다.</div>
+                            </div>
+                            <button @click="updateConfig('hide_dummies', !sysConfig.hide_dummies)"
+                                :class="sysConfig.hide_dummies ? 'bg-indigo-600' : 'bg-slate-300'"
+                                class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none">
+                                <span :class="sysConfig.hide_dummies ? 'translate-x-6' : 'translate-x-1'"
+                                    class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"></span>
+                            </button>
+                        </div>
+
+                        <!-- Log Level Dropdown -->
+                        <div class="p-3 bg-slate-50 rounded-xl">
+                            <div class="font-bold text-slate-700 text-sm mb-2">서버 로그 레벨 (Log Level)
+                            </div>
+                            <select x-model.number="sysConfig.log_level"
+                                @change="updateConfig('log_level', $event.target.value)"
+                                class="w-full text-sm border-slate-200 rounded-lg focus:ring-indigo-500">
+                                <option value="1">DEBUG (모든 로그)</option>
+                                <option value="2">INFO (중요 정보)</option>
+                                <option value="3">WARNING (경고만)</option>
+                                <option value="4">ERROR (오류만)</option>
+                                <option value="5">CRITICAL (치명적 오류만)</option>
+                            </select>
+                            <div class="mt-1 text-xs text-slate-400 font-mono">Current: FILE_LOG_MODE
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 2. Danger Zone -->
+                <div class="bg-red-50 p-6 rounded-2xl border border-red-100">
+                    <h3 class="font-bold text-red-700 text-lg mb-4 flex items-center gap-2">
+                        <span>☢️</span> 데이터 초기화
+                    </h3>
+                    <p class="text-xs text-red-600 mb-4 leading-relaxed">
+                        테스트를 위해 생성된 <strong>모든 더미 사용자</strong>와 관련된 매칭/분석 데이터를 일괄 삭제합니다.<br>
+                        (일반 사용자는 삭제되지 않습니다)
+                    </p>
+                    <button @click="resetAllDummies" :disabled="sysLoading"
+                        class="w-full py-3 bg-white border border-red-200 text-red-600 font-bold rounded-xl hover:bg-red-600 hover:text-white transition-all shadow-sm flex items-center justify-center gap-2">
+                        <span>🗑️</span> 더미 전체 초기화
+                    </button>
+                </div>
+            </div>
+
+            <!-- Right: Log Viewer -->
+            <div class="lg:col-span-2">
+                <div
+                    class="glass-panel p-0 rounded-2xl border border-slate-100 overflow-hidden flex flex-col h-[600px]">
+                    <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                        <h3 class="font-bold text-slate-800 flex items-center gap-2">
+                            <span>📜</span> 서버 로그 (Live)
+                        </h3>
+                        <div class="flex items-center gap-3">
+                            <span class="text-xs font-mono text-slate-400 hidden md:inline" x-text="logPath"></span>
+                            <button @click="fetchLogs"
+                                class="text-xs bg-white border border-slate-300 px-3 py-1 rounded hover:bg-slate-100">
+                                새로고침
+                            </button>
+                        </div>
+                    </div>
+                    <div x-ref="logBox"
+                        class="flex-1 bg-[#1e1e1e] p-4 overflow-y-auto font-mono text-xs text-gray-300 leading-snug">
+                        <template x-if="logs.length === 0">
+                            <div class="h-full flex items-center justify-center text-gray-600 italic">로그
+                                데이터가 없거나 로딩 중입니다...</div>
+                        </template>
+                        <template x-for="line in logs">
+                            <div class="whitespace-pre-wrap hover:bg-[#2d2d2d]" x-text="line"></div>
+                        </template>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

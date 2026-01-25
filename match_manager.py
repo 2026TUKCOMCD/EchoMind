@@ -66,8 +66,11 @@ class MatchManager:
         """
         from extensions import db, User, PersonalityResult, MatchRequest
         from sqlalchemy import or_
-        import glob
-
+        from utils_system import get_system_config
+        
+        sys_conf = get_system_config()
+        hide_dummies = sys_conf.get('hide_dummies', False)
+        
         candidates = []
         seen_user_ids = set()
         excluded_user_ids = {str(my_user_id)}
@@ -86,45 +89,9 @@ class MatchManager:
         except Exception as e:
             logger.exception("Error fetching excluded users")
 
-        # 1. File System (candidates_db) - 더미 시뮬레이션 모드에서만 활성화
-        from flask import current_app
-        enable_dummy = current_app.config.get('ENABLE_DUMMY_SIMULATION', False)
-        
-        if enable_dummy:
-            try:
-                base_dir = os.path.dirname(__file__)
-                candidates_path = os.path.join(base_dir, 'candidates_db', '*.json')
-                json_files = glob.glob(candidates_path)
-                
-                for json_file in json_files:
-                    try:
-                        with open(json_file, 'r', encoding='utf-8') as f:
-                            data = json.load(f)
-                        
-                        meta = data.get('meta', {})
-                        llm_profile = data.get('llm_profile', {})
-                        user_id = meta.get('user_id')
-                        
-                        if str(user_id) in excluded_user_ids: continue
-                        if str(user_id) in seen_user_ids: continue
-                        
-                        candidate = {
-                            'user_id': user_id,
-                            'username': meta.get('speaker_name', 'Unknown'),
-                            'nickname': meta.get('speaker_name', 'Unknown'),
-                            'mbti_prediction': llm_profile.get('mbti', {}).get('type', 'Unknown'),
-                            'socionics_prediction': llm_profile.get('socionics', {}).get('type', 'Unknown'),
-                            'summary_text': llm_profile.get('summary', {}).get('one_paragraph', ''),
-                            'full_report_json': data,
-                            'line_count_at_analysis': data.get('parse_quality', {}).get('parsed_lines', 0),
-                            'big5': llm_profile.get('big5', {}).get('scores_0_100', {})
-                        }
-                        candidates.append(candidate)
-                        seen_user_ids.add(str(user_id))
-                    except Exception as e:
-                        logger.exception(f"Error loading file candidate {json_file}")
-            except Exception as e:
-                logger.exception("Error in file candidate fetching")
+        # [REMOVED] File System (candidates_db) 로드 로직 삭제됨
+        # 더미 사용자도 이제 DB에 저장되므로, JSON 파일 로드 불필요
+        # 아래 DB 조회만으로 모든 후보(더미 포함) 조회 가능
 
         # 2. Database (personality_results) - SQLAlchemy ORM
         try:
@@ -138,6 +105,10 @@ class MatchManager:
                 if uid_str in excluded_user_ids: continue
                 if uid_str in seen_user_ids: continue
                 if user.is_banned: continue
+                
+                # [System Config] 더미 숨김 처리
+                if hide_dummies and user.is_dummy:
+                    continue
 
                 try:
                     full_report = p_result.full_report_json
@@ -214,20 +185,10 @@ class MatchManager:
 
             results = []
             
-            # 결과 포맷팅 (Dict 형태로 변환하여 템플릿 호환성 유지)
-            for req, partner in sent_matches:
-                results.append({
-                    'user_id': partner.user_id,
-                    'username': partner.username,
-                    'nickname': partner.nickname,
-                    'matched_at': req.updated_at,
-                    'request_id': req.request_id,
-                    'status': req.status,
-                    'sender_id': req.sender_id,
-                    'receiver_id': req.receiver_id
-                })
-                
-            for req, partner in received_matches:
+            # [Refactor] 두 리스트 병합 후 일괄 처리 (중복 코드 제거)
+            all_matches = sent_matches + received_matches
+            
+            for req, partner in all_matches:
                 results.append({
                     'user_id': partner.user_id,
                     'username': partner.username,
@@ -492,14 +453,6 @@ class MatchManager:
         """
         from extensions import db, MatchRequest
         from sqlalchemy import or_
-
-        # [Safety Check] 더미 사용자(문자열 ID) 매칭 시도 시 예외 처리
-        # DB에는 정수 ID만 저장되므로, 더미 데이터 매칭은 시뮬레이션 성공 메시지만 반환하고 실제 저장하지 않음.
-        try:
-            int(sender_id)
-            int(receiver_id)
-        except ValueError:
-             return {"success": True, "message": "[시뮬레이션] 더미 사용자에게 매칭 신청을 보냈습니다. (DB 미저장)"}
 
         # 자기 자신에게 신청 방지
         if int(sender_id) == int(receiver_id):

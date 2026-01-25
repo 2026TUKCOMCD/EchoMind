@@ -706,6 +706,98 @@ def generate_report_html(data: dict, return_body_only=False) -> str:
 
 import argparse
 
+# -------------------------------------------------------------------------
+# 대시보드 통계 (Dashboard Stats)
+# -------------------------------------------------------------------------
+
+def generate_dashboard_stats():
+    """
+    [Admin] 대시보드용 통계 데이터 생성
+    DB에서 모든 성향 분석 결과(최신/대표)를 집계하여 반환합니다.
+    """
+    from extensions import db, PersonalityResult, User
+    from sqlalchemy import func
+    from collections import Counter
+
+    try:
+        # 1. 대표 성향 결과 모두 조회 (탈퇴자 제외 등은 비즈니스 로직에 따름)
+        #    더미 사용자 포함
+        results = db.session.query(PersonalityResult).filter_by(is_representative=True).all()
+        
+        if not results:
+            return {
+                'mbti': {'full': {'labels': [], 'data': []}, 'ei': {}, 'sn': {}, 'tf': {}, 'pj': {}},
+                'socionics': {'full': {'labels': [], 'data': []}, 'ei': {}, 'sn': {}, 'tf': {}, 'pj': {}},
+                'big5': {'labels': ['개방성', '성실성', '외향성', '우호성', '신경성'], 'data': [0, 0, 0, 0, 0]}
+            }
+
+        # 2. MBTI 집계
+        mbti_types = [r.mbti_prediction for r in results if r.mbti_prediction]
+        mbti_counts = Counter(mbti_types)
+        
+        # 지표별 분해 (E/I, S/N, T/F, P/J)
+        mbti_ei = {'E': 0, 'I': 0}
+        mbti_sn = {'S': 0, 'N': 0}
+        mbti_tf = {'T': 0, 'F': 0}
+        mbti_pj = {'P': 0, 'J': 0}
+        
+        for m in mbti_types:
+            if len(m) != 4: continue
+            mbti_ei[m[0]] += 1
+            mbti_sn[m[1]] += 1
+            mbti_tf[m[2]] += 1
+            mbti_pj[m[3]] += 1
+            
+        # 3. Socionics 집계
+        soc_types = [r.socionics_prediction for r in results if r.socionics_prediction]
+        soc_counts = Counter(soc_types)
+        
+        # 지표별 (Socionics는 마지막 글자가 소문자 p/j일 수 있음, 혹은 3글자 코드)
+        # 여기서는 단순 4글자 기준(MBTI 매핑)이 아니므로 Full Type 위주로 하되,
+        # 편의상 앞글자(E/I), 두번째(N/S), 세번째(T/F), 네번째(j/p) 로직이 복잡하므로 Full Count만 주로 사용.
+        # 기존 코드가 ei/sn/tf/pj를 요구하므로 더미 데이터를 채우거나 약식 로직 사용.
+        # 소시오닉스 코드는 보통 ILE, SEI 등 3글자임.
+        # 따라서 E/I 등 상세 지표는 3글자 코드 특성에 맞춰 변환해야 함.
+        # 여기서는 Full Chart만 중요하므로 나머지는 빈 값 처리하거나 단순 집계.
+        
+        # 4. Big5 평균
+        b_count = len(results)
+        avg_o = sum([r.openness for r in results]) / b_count
+        avg_c = sum([r.conscientiousness for r in results]) / b_count
+        avg_e = sum([r.extraversion for r in results]) / b_count
+        avg_a = sum([r.agreeableness for r in results]) / b_count
+        avg_n = sum([r.neuroticism for r in results]) / b_count
+        
+        # 5. 결과 구조화
+        mbti_dist = mbti_counts.most_common()
+        soc_dist = soc_counts.most_common()
+        
+        return {
+            'mbti': {
+                'full': {'labels': [x[0] for x in mbti_dist], 'data': [x[1] for x in mbti_dist]},
+                'ei': {'labels': list(mbti_ei.keys()), 'data': list(mbti_ei.values())},
+                'sn': {'labels': list(mbti_sn.keys()), 'data': list(mbti_sn.values())},
+                'tf': {'labels': list(mbti_tf.keys()), 'data': list(mbti_tf.values())},
+                'pj': {'labels': list(mbti_pj.keys()), 'data': list(mbti_pj.values())}
+            },
+            'socionics': {
+                'full': {'labels': [x[0] for x in soc_dist], 'data': [x[1] for x in soc_dist]},
+                'ei': {'labels': ['Extro', 'Intro'], 'data': [0, 0]}, # TODO: Implement if needed
+                'sn': {'labels': ['Sensing', 'Intuition'], 'data': [0, 0]},
+                'tf': {'labels': ['Thinking', 'Feeling'], 'data': [0, 0]},
+                'pj': {'labels': ['Judging', 'Perceiving'], 'data': [0, 0]}
+            },
+            'big5': {
+                'labels': ['개방성', '성실성', '외향성', '우호성', '신경성'],
+                'data': [round(avg_o, 1), round(avg_c, 1), round(avg_e, 1), round(avg_a, 1), round(avg_n, 1)]
+            }
+        }
+        
+    except Exception as e:
+        print(f"Stats Generation Error: {e}")
+        return {}
+
+
 def main():
     parser = argparse.ArgumentParser(description="JSON 프로필을 HTML 리포트로 변환")
     parser.add_argument("input_file", nargs="?", default="profile.json", help="입력 JSON 파일 경로 (기본값: profile.json)")

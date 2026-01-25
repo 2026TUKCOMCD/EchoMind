@@ -1,0 +1,86 @@
+<!-- Personality Viewer Modal -->
+<div x-show="viewingPersonality" style="display: none;"
+    class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" @click.self="closePersonalityViewer">
+    <div class="bg-white rounded-xl shadow-2xl w-full max-w-md flex flex-col">
+        <div class="p-4 border-b flex justify-between items-center">
+            <h3 class="font-bold text-lg" x-text="'성격 수치 - ' + personalityFileName"></h3>
+            <button @click="closePersonalityViewer" class="text-slate-500 hover:text-slate-700">X</button>
+        </div>
+        <div class="p-4">
+            <template x-if="personalityData && !personalityData.error">
+                <div class="space-y-4">
+                    <div class="text-center">
+                        <div class="text-xl font-bold text-slate-800" x-text="personalityData.name">
+                        </div>
+                        <div class="text-xl text-slate-500">
+                            <span class="text-indigo-600 font-bold" x-text="personalityData.mbti"></span>
+                            <span class="mx-1">|</span>
+                            <span class="text-rose-600 font-bold" x-text="personalityData.socionics"></span>
+                        </div>
+                    </div>
+                    <div class="border-t pt-4">
+                        <div class="text-sm font-bold text-slate-700 mb-3">Big5 성격 수치</div>
+                        <div class="space-y-2">
+                            <div class="flex items-center gap-2">
+                                <span class="text-xs text-slate-600 w-20">개방성</span>
+                                <div class="flex-1 bg-slate-200 rounded-full h-3">
+                                    <div class="bg-blue-500 h-3 rounded-full"
+                                        :style="'width: ' + (personalityData.big5.openness || 50) + '%'">
+                                    </div>
+                                </div>
+                                <span class="text-xs text-blue-600 w-8 text-right font-bold"
+                                    x-text="personalityData.big5.openness || 50"></span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <span class="text-xs text-slate-600 w-20">성실성</span>
+                                <div class="flex-1 bg-slate-200 rounded-full h-3">
+                                    <div class="bg-green-500 h-3 rounded-full"
+                                        :style="'width: ' + (personalityData.big5.conscientiousness || 50) + '%'">
+                                    </div>
+                                </div>
+                                <span class="text-xs text-green-600 w-8 text-right font-bold"
+                                    x-text="personalityData.big5.conscientiousness || 50"></span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <span class="text-xs text-slate-600 w-20">외향성</span>
+                                <div class="flex-1 bg-slate-200 rounded-full h-3">
+                                    <div class="bg-yellow-500 h-3 rounded-full"
+                                        :style="'width: ' + (personalityData.big5.extraversion || 50) + '%'">
+                                    </div>
+                                </div>
+                                <span class="text-xs text-yellow-600 w-8 text-right font-bold"
+                                    x-text="personalityData.big5.extraversion || 50"></span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <span class="text-xs text-slate-600 w-20">우호성</span>
+                                <div class="flex-1 bg-slate-200 rounded-full h-3">
+                                    <div class="bg-pink-500 h-3 rounded-full"
+                                        :style="'width: ' + (personalityData.big5.agreeableness || 50) + '%'">
+                                    </div>
+                                </div>
+                                <span class="text-xs text-pink-600 w-8 text-right font-bold"
+                                    x-text="personalityData.big5.agreeableness || 50"></span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <span class="text-xs text-slate-600 w-20">신경성</span>
+                                <div class="flex-1 bg-slate-200 rounded-full h-3">
+                                    <div class="bg-purple-500 h-3 rounded-full"
+                                        :style="'width: ' + (personalityData.big5.neuroticism || 50) + '%'">
+                                    </div>
+                                </div>
+                                <span class="text-xs text-purple-600 w-8 text-right font-bold"
+                                    x-text="personalityData.big5.neuroticism || 50"></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </template>
+            <template x-if="personalityData && personalityData.error">
+                <div class="text-red-500 text-center py-4" x-text="personalityData.error"></div>
+            </template>
+            <template x-if="!personalityData">
+                <div class="text-center text-slate-400 py-4">Loading...</div>
+            </template>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,100 @@
+<!-- 2. Users Tab -->
+<div x-show="activeTab === 'users'" style="display: none;" x-data="userSearch" x-init="fetchUsers()"
+    @refresh-users.window="fetchUsers()">
+    <div class="glass-panel p-6 rounded-2xl border border-slate-100">
+        <div class="flex justify-between items-center mb-6">
+            <h2 class="text-xl font-bold text-slate-800">회원 목록 (<span x-text="users.length"></span>)</h2>
+            <div class="flex gap-2 relative">
+                <input type="text" x-model="query" @input.debounce.300ms="fetchUsers()" placeholder="ID/닉네임/이메일 검색"
+                    class="border border-slate-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:border-indigo-500 w-80 pr-10 shadow-sm transition-all focus:ring-2 focus:ring-indigo-100">
+
+                <button @click="query = ''; fetchUsers()" x-show="query.length > 0" style="display: none;"
+                    class="absolute right-16 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 bg-slate-100 rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold transition-colors">
+                    X
+                </button>
+
+                <button @click="fetchUsers()"
+                    class="bg-indigo-600 text-white px-5 py-2 rounded-lg text-sm font-bold hover:bg-indigo-700 shadow-md transition-all active:scale-95">
+                    🔍
+                </button>
+            </div>
+        </div>
+
+        <div class="overflow-x-auto min-h-[300px]">
+            <table class="min-w-full divide-y divide-slate-200">
+                <thead class="bg-slate-50">
+                    <tr>
+                        <th scope="col"
+                            class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
+                            ID</th>
+                        <th scope="col"
+                            class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
+                            사용자 정보</th>
+                        <th scope="col"
+                            class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
+                            가입일</th>
+                        <th scope="col"
+                            class="px-6 py-3 text-center text-xs font-medium text-slate-500 uppercase tracking-wider">
+                            상태</th>
+                        <th scope="col"
+                            class="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">
+                            관리</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-slate-200">
+                    <template x-for="user in users" :key="user.user_id">
+                        <tr class="hover:bg-slate-50 transition-colors">
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-500" x-text="'#' + user.user_id">
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <div class="flex items-center">
+                                    <div>
+                                        <div class="text-sm font-medium text-slate-900"
+                                            x-text="user.nickname || user.username"></div>
+                                        <div class="text-xs text-slate-500" x-text="user.email"></div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-500" x-text="user.created_at">
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-center">
+                                <span x-show="user.is_banned"
+                                    class="px-2 py-1 text-xs font-bold rounded-full bg-red-100 text-red-800">BANNED</span>
+                                <span x-show="!user.is_banned"
+                                    class="px-2 py-1 text-xs font-bold rounded-full bg-green-100 text-green-800">ACTIVE</span>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
+                                <!-- 상세보기 버튼 (분석 결과가 있을 경우에만 표시) -->
+                                <a x-show="user.representative_result_id"
+                                    :href="'/result/' + user.representative_result_id" target="_blank"
+                                    class="text-indigo-600 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 px-3 py-1 rounded-full text-xs font-bold transition-colors mr-1">
+                                    상세보기
+                                </a>
+                                <!-- 정지 버튼 -->
+                                <button @click="toggleBan(user.user_id)"
+                                    class="px-3 py-1 rounded-full text-xs font-bold transition-colors border"
+                                    :class="user.is_banned ? 'bg-white text-green-600 border-green-600 hover:bg-green-50' : 'bg-white text-red-600 border-red-600 hover:bg-red-50'"
+                                    x-text="user.is_banned ? '해제' : '정지'">
+                                </button>
+                                <form :action="'/admin/users/delete/' + user.user_id" method="POST"
+                                    onsubmit="return confirm('정말 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.');" class="inline">
+                                    <button type="submit"
+                                        class="text-red-600 hover:text-red-900 bg-red-50 hover:bg-red-100 px-3 py-1 rounded-full transition-colors hidden sm:inline-block">
+                                        삭제
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                    </template>
+                    <tr x-show="users.length === 0 && !loading">
+                        <td colspan="4" class="px-6 py-8 text-center text-slate-500">검색 결과가 없습니다.</td>
+                    </tr>
+                    <tr x-show="loading">
+                        <td colspan="4" class="px-6 py-8 text-center text-indigo-600 font-bold">데이터 로딩 중...
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
