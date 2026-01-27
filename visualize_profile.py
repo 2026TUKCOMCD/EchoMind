@@ -35,17 +35,17 @@ from datetime import datetime
 # -------------------------------------------------------------------------
 
 SCORE_MAP = [
-    (20, "매우 낮음", "bg-gray-200 text-gray-700"),
-    (40, "낮음", "bg-blue-100 text-blue-700"),
-    (60, "보통", "bg-green-100 text-green-700"),
-    (80, "높음", "bg-yellow-100 text-yellow-800"),
-    (101, "매우 높음", "bg-red-100 text-red-800"),
+    (20, "매우 낮음", "bg-gray-200 text-gray-700 dark:bg-slate-700 dark:text-slate-300"),
+    (40, "낮음", "bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-200"),
+    (60, "보통", "bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-200"),
+    (80, "높음", "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-200"),
+    (101, "매우 높음", "bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-200"),
 ]
 
 CONFIDENCE_MAP = [
-    (0.4, "추정 (신뢰도 낮음)", "text-gray-500"),
-    (0.7, "보통 (신뢰도 중간)", "text-gray-700"),
-    (1.1, "확실 (신뢰도 높음)", "text-blue-700 font-bold"),
+    (0.4, "추정 (신뢰도 낮음)", "text-gray-500 dark:text-slate-500"),
+    (0.7, "보통 (신뢰도 중간)", "text-gray-700 dark:text-slate-300"),
+    (1.1, "확실 (신뢰도 높음)", "text-blue-700 font-bold dark:text-blue-300"),
 ]
 
 # (Limit, Label, Description) - COMMENTARY_DB로 대체되었지만 구조 유지
@@ -235,7 +235,7 @@ def get_trait_content(trait_key, score):
     # 2. 라벨, 설명 가져오기 (TRAIT_LEVEL_DESCRIPTIONS - 정보성)
     label = ""
     description = ""
-    start_css = "bg-gray-100 text-gray-800"
+    start_css = "bg-gray-100 text-gray-800 dark:bg-slate-700 dark:text-slate-200"
     
     # Fallback to SCORE_MAP for CSS
     for limit, l, c in SCORE_MAP:
@@ -327,16 +327,19 @@ def get_combo_comment(scores):
     
     # 콤보 HTML 생성
     html_parts = []
-    html_parts.append('<section class="glass-panel rounded-2xl p-8 border-2 border-indigo-100 relative overflow-hidden">')
-    html_parts.append('<div class="absolute top-0 right-0 p-4 opacity-5 text-8xl">🌟</div>')
-    html_parts.append('<h2 class="text-xl font-bold text-indigo-900 mb-6 flex items-center">✨ 특수 조합 분석 <span class="ml-2 text-xs font-normal text-indigo-500 bg-indigo-50 px-2 py-1 rounded-full">Hidden Achievement!</span></h2>')
-    html_parts.append('<div class="grid grid-cols-1 gap-4">')
+    html_parts.append('<section class="glass-panel rounded-2xl p-8 border-2 border-violet-200 dark:border-violet-900 shadow-xl relative overflow-hidden bg-gradient-to-br from-white to-violet-50/30 dark:from-slate-900 dark:to-violet-950/20">')
+    html_parts.append('<div class="absolute top-0 right-0 p-4 opacity-5 text-8xl">🏆</div>')
+    html_parts.append('<h2 class="text-xl font-bold text-violet-900 dark:text-violet-300 mb-6 flex items-center">✨ 특수 조합 분석 <span class="ml-2 text-[10px] font-bold text-white bg-violet-500 dark:bg-violet-600 px-2 py-0.5 rounded-full uppercase tracking-widest animate-pulse">Hidden Achievement!</span></h2>')
+    html_parts.append('<div class="grid grid-cols-1 gap-5">')
     
     for c in combos:
         html_parts.append(f'''
-        <div class="bg-gradient-to-r from-indigo-50 to-purple-50 p-5 rounded-xl border border-indigo-100 hover:shadow-md transition-shadow">
-            <h3 class="font-bold text-indigo-700 text-lg mb-2">{c['title']}</h3>
-            <p class="text-slate-700 text-sm leading-relaxed">{c['desc']}</p>
+        <div class="bg-white/80 dark:bg-slate-950/60 p-5 rounded-xl border border-violet-100 dark:border-violet-800 shadow-sm hover:shadow-md hover:border-violet-300 transition-all group">
+            <h3 class="font-bold text-violet-700 dark:text-violet-400 text-lg mb-2 flex items-center gap-2">
+                <span class="opacity-0 group-hover:opacity-100 transition-opacity">✨</span>
+                {c['title']}
+            </h3>
+            <p class="text-slate-700 dark:text-slate-300 text-sm leading-relaxed">{c['desc']}</p>
         </div>
         ''')
     
@@ -374,16 +377,41 @@ HTML_HEAD_TEMPLATE = """<!DOCTYPE html>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap');
-        body {{ font-family: 'Noto Sans KR', sans-serif; }}
-        .glass-panel {{
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-        }}
+        body { font-family: 'Noto Sans KR', sans-serif; transition: background-color 0.3s, color 0.3s; }
+        
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.98);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(0, 0, 0, 0.05);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -2px rgba(0, 0, 0, 0.04);
+        }
+
+        /* Dark Mode Overrides for Standalone */
+        html.dark body {
+            background-color: #09090b !important;
+            color: #e4e4e7 !important;
+        }
+        html.dark .glass-panel {
+            background: rgba(24, 24, 27, 0.8) !important;
+            border: 1px solid rgba(255, 255, 255, 0.1) !important;
+        }
+        html.dark .text-slate-900 { color: #ffffff !important; }
+        html.dark .text-slate-800 { color: #f4f4f5 !important; }
+        html.dark .text-slate-700 { color: #e4e4e7 !important; }
+        html.dark .text-slate-600 { color: #d4d4d8 !important; }
+        html.dark .text-indigo-900 { color: #a5b4fc !important; }
+        html.dark .border-slate-100 { border-color: #27272a !important; }
     </style>
+    <script>
+        // Init theme from storage or system
+        if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            document.documentElement.classList.add('dark')
+        } else {
+            document.documentElement.classList.remove('dark')
+        }
+    </script>
 </head>
-<body class="bg-slate-50 text-slate-800 min-h-screen p-6 md:p-12">
+<body class="bg-white text-slate-800 dark:bg-slate-900 dark:text-slate-200 min-h-screen p-6 md:p-12">
 """
 
 HTML_BODY_TEMPLATE = """
@@ -391,20 +419,20 @@ HTML_BODY_TEMPLATE = """
         
         <!-- 헤더 -->
         <header class="text-center py-10">
-            <h1 class="text-4xl font-extrabold text-slate-900 tracking-tight mb-2">EchoMind Insight</h1>
-            <div class="text-slate-500 text-sm">
-                분석 대상: <span class="font-medium text-slate-900">{speaker_name}</span> | 
+            <h1 class="text-4xl font-extrabold text-slate-900 dark:text-white tracking-tight mb-2">EchoMind Insight</h1>
+            <div class="text-slate-500 dark:text-slate-400 text-sm">
+                분석 대상: <span class="font-medium text-slate-900 dark:text-white">{speaker_name}</span> | 
                 생성일: {date_str}
             </div>
         </header>
 
         <!-- 요약 (Executive Summary) -->
-        <section class="glass-panel rounded-2xl p-8">
-            <h2 class="text-xl font-bold text-slate-900 mb-4 border-b pb-2 border-slate-100">💡 핵심 요약</h2>
-            <p class="text-lg leading-relaxed text-slate-700">
+        <section class="glass-panel rounded-2xl p-8 transition-colors">
+            <h2 class="text-xl font-bold text-slate-900 dark:text-white mb-4 border-b pb-2 border-slate-100 dark:border-slate-800">💡 핵심 요약</h2>
+            <p class="text-lg leading-relaxed text-slate-700 dark:text-slate-300">
                 {summary_text}
             </p>
-            <div class="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4 text-slate-600 dark:text-slate-400">
                 {comm_bullets}
             </div>
         </section>
@@ -413,11 +441,11 @@ HTML_BODY_TEMPLATE = """
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
             <!-- MBTI -->
             <section class="glass-panel rounded-2xl p-6 relative overflow-hidden group hover:shadow-lg transition-all duration-300">
-                <div class="absolute top-0 right-0 p-4 opacity-10 text-6xl font-black text-indigo-900 select-none group-hover:scale-110 transition-transform">MBTI</div>
-                <h3 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-1">성격 유형 (MBTI)</h3>
+                <div class="absolute top-0 right-0 p-4 opacity-10 text-6xl font-black text-indigo-900 dark:text-indigo-400 select-none group-hover:scale-110 transition-transform">MBTI</div>
+                <h3 class="text-sm font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1">성격 유형 (MBTI)</h3>
                 <div class="flex flex-col mb-4">
-                    <span class="text-4xl font-bold text-indigo-600">{mbti_type}</span>
-                    <span class="text-sm text-indigo-800 bg-indigo-50 px-2 py-1 rounded mt-1 inline-block self-start font-medium">{mbti_desc_str}</span>
+                    <span class="text-4xl font-bold text-indigo-600 dark:text-indigo-400">{mbti_type}</span>
+                    <span class="text-sm text-indigo-800 dark:text-indigo-200 bg-indigo-50 dark:bg-indigo-900/50 px-2 py-1 rounded mt-1 inline-block self-start font-medium">{mbti_desc_str}</span>
                 </div>
                  <div class="text-xs {mbti_conf_css} mb-2">신뢰도: {mbti_conf_text}</div>
                 <ul class="space-y-2">
@@ -427,11 +455,11 @@ HTML_BODY_TEMPLATE = """
 
             <!-- 소시오닉스 -->
             <section class="glass-panel rounded-2xl p-6 relative overflow-hidden group hover:shadow-lg transition-all duration-300">
-                <div class="absolute top-0 right-0 p-4 opacity-10 text-6xl font-black text-rose-900 select-none group-hover:scale-110 transition-transform">SOC</div>
-                <h3 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-1">소시오닉스 유형</h3>
+                <div class="absolute top-0 right-0 p-4 opacity-10 text-6xl font-black text-rose-900 dark:text-rose-400 select-none group-hover:scale-110 transition-transform">SOC</div>
+                <h3 class="text-sm font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1">소시오닉스 유형</h3>
                 <div class="flex flex-col mb-4">
-                     <span class="text-4xl font-bold text-rose-600">{soc_type}</span>
-                     <span class="text-sm text-rose-800 bg-rose-50 px-2 py-1 rounded mt-1 inline-block self-start font-medium">{soc_desc_str}</span>
+                     <span class="text-4xl font-bold text-rose-600 dark:text-rose-400">{soc_type}</span>
+                     <span class="text-sm text-rose-800 dark:text-rose-200 bg-rose-50 dark:bg-rose-900/50 px-2 py-1 rounded mt-1 inline-block self-start font-medium">{soc_desc_str}</span>
                 </div>
                  <div class="text-xs {soc_conf_css} mb-2">신뢰도: {soc_conf_text}</div>
                 <ul class="space-y-2">
@@ -442,11 +470,11 @@ HTML_BODY_TEMPLATE = """
 
         <!-- Big 5 특성 -->
         <section class="glass-panel rounded-2xl p-8">
-            <h2 class="text-xl font-bold text-slate-900 mb-6 border-b pb-2 border-slate-100">🌊 Big 5 성격 요인</h2>
+            <h2 class="text-xl font-bold text-slate-900 dark:text-white mb-6 border-b pb-2 border-slate-100 dark:border-slate-800">🌊 Big 5 성격 요인</h2>
             <div class="space-y-6">
                 {big5_rows}
             </div>
-             <div class="mt-4 text-right text-xs text-slate-400">
+             <div class="mt-4 text-right text-xs text-slate-400 dark:text-slate-500">
                 * 전체 신뢰도: <span class="{big5_conf_css}">{big5_conf_text}</span>
             </div>
         </section>
@@ -455,8 +483,8 @@ HTML_BODY_TEMPLATE = """
         {special_analysis_section}
 
         <!-- 주의사항 -->
-        <section class="rounded-xl border border-slate-200 bg-slate-50 p-6 text-slate-500 text-sm">
-            <h3 class="font-semibold text-slate-700 mb-2">⚠️ 주의사항 및 한계</h3>
+        <section class="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 p-6 text-slate-500 dark:text-slate-400 text-sm">
+            <h3 class="font-semibold text-slate-700 dark:text-slate-300 mb-2">⚠️ 주의사항 및 한계</h3>
             <ul class="list-disc pl-5 space-y-1">
                 {caveats}
             </ul>
@@ -471,14 +499,14 @@ HTML_FOOTER_TEMPLATE = """
 """
 
 BIG5_ROW_TEMPLATE = """
-<div class="grid grid-cols-1 md:grid-cols-12 gap-4 items-start py-4 border-b border-slate-50 last:border-0 hover:bg-slate-50/50 transition-colors rounded-lg px-2">
+<div class="grid grid-cols-1 md:grid-cols-12 gap-4 items-start py-4 border-b border-slate-50 dark:border-slate-700/50 last:border-0 hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors rounded-lg px-2">
     <div class="md:col-span-3">
-        <h4 class="font-medium text-slate-900">{trait_name}</h4>
+        <h4 class="font-medium text-slate-900 dark:text-white">{trait_name}</h4>
         <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {badge_css}">
             {badge_text}
         </span>
     </div>
-    <div class="md:col-span-9 text-slate-600 text-sm leading-relaxed">
+    <div class="md:col-span-9 text-slate-600 dark:text-slate-300 text-sm leading-relaxed">
         {trait_desc}
     </div>
 </div>
@@ -528,7 +556,7 @@ def generate_report_html(data: dict, return_body_only=False) -> str:
     mbti_desc_str = MBTI_DESC_MAP.get(mbti_type.upper(), "")
 
     mConf, mCss = get_confidence_text(mbti.get("confidence"))
-    mbti_reasons = "\n".join([f'<li class="text-sm text-slate-600 list-disc list-inside">{html.escape(r)}</li>' for r in mbti.get("reasons", [])])
+    mbti_reasons = "\n".join([f'<li class="text-sm text-slate-600 dark:text-slate-400 list-disc list-inside">{html.escape(r)}</li>' for r in mbti.get("reasons", [])])
 
     # 4. 소시오닉스
     soc = profile.get("socionics", {})
@@ -543,7 +571,7 @@ def generate_report_html(data: dict, return_body_only=False) -> str:
     soc_desc_str = SOCIONICS_DESC_MAP.get(soc_key, "Unknown Type")
     
     sConf, sCss = get_confidence_text(soc.get("confidence"))
-    soc_reasons = "\n".join([f'<li class="text-sm text-slate-600 list-disc list-inside">{html.escape(r)}</li>' for r in soc.get("reasons", [])])
+    soc_reasons = "\n".join([f'<li class="text-sm text-slate-600 dark:text-slate-400 list-disc list-inside">{html.escape(r)}</li>' for r in soc.get("reasons", [])])
 
     # 소시오닉스 전체 유형 리스트 생성 (정렬)
     socionics_all_types_html = ""
@@ -551,7 +579,7 @@ def generate_report_html(data: dict, return_body_only=False) -> str:
     for k in sorted_soc_keys:
          desc = SOCIONICS_DESC_MAP[k]
          # 현재 유형 강조
-         bg_class = "bg-rose-100 font-bold text-rose-800" if k == soc_key else ""
+         bg_class = "bg-rose-100 dark:bg-rose-900/60 font-bold text-rose-800 dark:text-rose-200" if k == soc_key else ""
          socionics_all_types_html += f'<div class="p-1 {bg_class}"><span class="font-bold">{k}</span>: {desc}</div>'
 
     # 소시오닉스 일반 설명 추가 (접기/펼치기)
@@ -562,9 +590,9 @@ def generate_report_html(data: dict, return_body_only=False) -> str:
                 <span class="mr-1">❓ 소시오닉스란?</span>
                 <span class="group-open:rotate-180 transition-transform">▼</span>
             </summary>
-            <div class="text-xs text-slate-500 mt-2 bg-rose-50 p-4 rounded leading-relaxed">
+            <div class="text-xs text-slate-500 dark:text-slate-300 mt-2 bg-rose-50 dark:bg-rose-900/30 p-4 rounded leading-relaxed">
                 <p class="mb-3">{SOCIONICS_GENERAL_EXPLANATION.strip()}</p>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-2 mt-3 border-t border-rose-200 pt-3">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-2 mt-3 border-t border-rose-200 dark:border-rose-800 pt-3">
                     {socionics_all_types_html}
                 </div>
             </div>
@@ -586,7 +614,7 @@ def generate_report_html(data: dict, return_body_only=False) -> str:
     }
     
     display_names = {
-        "openness": "개방성 (Openness)",
+        "openness": "심미안 (Openness)",
         "conscientiousness": "성실성 (Conscientiousness)",
         "extraversion": "외향성 (Extraversion)",
         "agreeableness": "우호성 (Agreeableness)",
@@ -637,20 +665,20 @@ def generate_report_html(data: dict, return_body_only=False) -> str:
         
         # HTML 설명 블록 구성
         # 1. 정보성 설명 (Bold or Primary)
-        desc_html = f"<div class='font-medium text-slate-800 mb-2'>{description}</div>"
+        desc_html = f"<div class='font-medium text-slate-800 dark:text-slate-200 mb-2'>{description}</div>"
         
         # 2. 위트 코멘트 (강조 박스)
-        desc_html += f"<div class='text-sm text-indigo-600 bg-indigo-50/30 px-3 py-2 rounded-lg border border-indigo-50 mb-2'>💬 \"{witty_comment}\"</div>"
+        desc_html += f"<div class='text-sm text-indigo-600 dark:text-indigo-300 bg-indigo-50/30 dark:bg-indigo-950 px-3 py-2 rounded-lg border border-indigo-50 dark:border-indigo-800 mb-2'>💬 \"{witty_comment}\"</div>"
 
         # 3. AI Note (접기/펼치기)
         if raw_reason:
             desc_html += f"""
             <details class="group">
-                <summary class="list-none cursor-pointer text-xs text-slate-400 hover:text-slate-600 flex items-center transition-colors select-none">
+                <summary class="list-none cursor-pointer text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 flex items-center transition-colors select-none">
                     <span class="mr-1">🤖 AI 분석 노트</span>
                     <span class="group-open:rotate-180 transition-transform">▼</span>
                 </summary>
-                <div class="text-xs text-slate-500 mt-2 pl-2 border-l-2 border-slate-200 bg-slate-50/50 p-2 rounded">
+                <div class="text-xs text-slate-500 dark:text-slate-300 mt-2 pl-2 border-l-2 border-slate-200 dark:border-slate-600 bg-slate-50/50 dark:bg-slate-800/50 p-2 rounded">
                     {html.escape(raw_reason)}
                 </div>
             </details>

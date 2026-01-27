@@ -7,57 +7,140 @@
         <!-- 통합 시뮬레이션 섹션 -->
         <div class="mt-4 pt-4">
             <div class="flex items-center gap-2 mb-4">
-                <h3 class="font-bold text-lg text-slate-800">🧪 사용자 매칭 시뮬레이션</h3>
-                <span class="text-sm text-slate-500 font-normal">선택된 사용자(2명)의 매칭 점수를 실시간으로 계산합니다.</span>
+                <h3 class="font-bold text-lg text-slate-800 dark:text-white">🧪 사용자 매칭 시뮬레이션</h3>
+                <span class="text-sm text-slate-500 dark:text-slate-400 font-normal">선택된 사용자(2명)의 매칭 점수를 실시간으로
+                    계산합니다.</span>
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <!-- 왼쪽: 시뮬레이션 컨트롤 패널 (Unified) -->
-                <div class="bg-indigo-50 p-6 rounded-2xl border border-indigo-100">
+                <div class="bg-white p-6 rounded-2xl border border-slate-200 dark:bg-slate-800 dark:border-slate-700">
                     <h4 class="font-bold text-base text-indigo-700 mb-4 flex items-center gap-2">
                         <span>🎲 시뮬레이션 설정</span>
                         <span
-                            class="text-xs bg-white text-indigo-600 px-2 py-0.5 rounded-full font-bold border border-indigo-200">Real-time</span>
+                            class="text-xs bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-300 px-2 py-0.5 rounded-full font-bold border border-indigo-200 dark:border-indigo-800">Real-time</span>
                     </h4>
 
                     <!-- 선택된 사용자 표시 -->
-                    <div class="bg-white p-4 rounded-xl shadow-sm mb-6 border border-indigo-50">
+                    <div
+                        class="bg-white dark:bg-slate-900/50 p-4 rounded-xl shadow-sm mb-6 border border-indigo-50 dark:border-slate-700">
                         <div class="flex items-center justify-between mb-2">
-                            <span class="text-xs font-bold text-slate-500 uppercase tracking-wider">Selected
+                            <span
+                                class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Selected
                                 Users</span>
                             <span class="text-xs text-indigo-500 font-bold"
                                 x-show="selectedIds.length === 2">Ready</span>
                         </div>
                         <div class="space-y-2">
-                            <!-- User A -->
-                            <div class="flex items-center gap-2 p-2 bg-slate-50 rounded-lg border border-slate-100">
+                            <!-- User A - Enhanced -->
+                            <div class="flex items-start gap-2 p-2 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-100 dark:border-slate-700 transition-all"
+                                :class="selectedIds.length > 0 ? 'bg-indigo-50/50 dark:bg-indigo-900/20 border-indigo-100 dark:border-indigo-800' : ''">
                                 <div
-                                    class="w-6 h-6 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center text-xs font-bold">
+                                    class="w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center text-sm font-bold flex-shrink-0">
                                     A</div>
-                                <input type="text" :value="getSelectedName(0)" readonly placeholder="사용자 A 선택 (목록에서 클릭)"
-                                    class="bg-transparent border-none text-sm font-bold text-slate-700 w-full focus:ring-0 p-0">
-                                <button @click="removeFromSimulation(selectedIds[0])" x-show="selectedIds.length > 0"
-                                    class="text-slate-400 hover:text-red-500">&times;</button>
+                                <div class="flex-1 min-w-0">
+                                    <div class="flex items-center justify-between mb-1">
+                                        <input type="text" :value="getSelectedName(0)" readonly placeholder="사용자 A 선택"
+                                            class="bg-transparent border-none text-sm font-bold text-slate-800 dark:text-white w-full focus:ring-0 p-0 cursor-default placeholder:font-normal placeholder:text-slate-400">
+                                        <button @click="removeFromSimulation(selectedIds[0])"
+                                            x-show="selectedIds.length > 0"
+                                            class="text-slate-400 hover:text-red-500 hover:bg-red-50 rounded p-0.5 ml-1 transition-colors">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                    d="M6 18L18 6M6 6l12 12"></path>
+                                            </svg>
+                                        </button>
+                                    </div>
+                                    <!-- Stats Preview -->
+                                    <template x-if="getSelectedInfo(0)">
+                                        <div class="mt-1">
+                                            <div class="flex gap-1.5 flex-wrap mb-1.5">
+                                                <span
+                                                    class="px-1.5 py-0.5 rounded bg-white dark:bg-slate-700 border border-indigo-200 dark:border-indigo-800 text-[10px] font-bold text-indigo-700 dark:text-indigo-300 tracking-wide"
+                                                    x-text="getSelectedInfo(0).mbti || 'N/A'"></span>
+                                                <span
+                                                    class="px-1.5 py-0.5 rounded bg-white dark:bg-slate-700 border border-rose-200 dark:border-rose-800 text-[10px] font-bold text-rose-700 dark:text-rose-300 tracking-wide"
+                                                    x-text="getSelectedInfo(0).socionics || 'N/A'"></span>
+                                            </div>
+                                            <!-- Big 5 Mini Bars (OCEAN) -->
+                                            <div class="grid grid-cols-5 gap-0.5 w-full h-8"
+                                                x-show="getSelectedInfo(0).big5">
+                                                <template x-for="(val, key) in getSelectedInfo(0).big5">
+                                                    <div class="flex flex-col items-center justify-end h-full bg-slate-100/50 dark:bg-slate-950 rounded-sm hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors"
+                                                        :title="getBig5Tooltip(key, val)">
+                                                        <div class="w-full bg-indigo-400/80 dark:bg-indigo-500/80 rounded-t-sm"
+                                                            :style="'height: ' + val + '%'"></div>
+                                                        <span class="text-[8px] font-bold text-slate-400 mt-px"
+                                                            x-text="getBig5Label(key)"></span>
+                                                    </div>
+                                                </template>
+                                            </div>
+                                        </div>
+                                    </template>
+                                    <template x-if="!getSelectedInfo(0)">
+                                        <div class="text-[10px] text-slate-400 italic">목록에서 선택하세요</div>
+                                    </template>
+                                </div>
                             </div>
-                            <!-- User B -->
-                            <div class="flex items-center gap-2 p-2 bg-slate-50 rounded-lg border border-slate-100">
+                            <!-- User B - Enhanced -->
+                            <div class="flex items-start gap-2 p-2 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-100 dark:border-slate-700 transition-all"
+                                :class="selectedIds.length > 1 ? 'bg-indigo-50/50 dark:bg-indigo-900/20 border-indigo-100 dark:border-indigo-800' : ''">
                                 <div
-                                    class="w-6 h-6 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center text-xs font-bold">
+                                    class="w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center text-sm font-bold flex-shrink-0">
                                     B</div>
-                                <input type="text" :value="getSelectedName(1)" readonly placeholder="사용자 B 선택 (목록에서 클릭)"
-                                    class="bg-transparent border-none text-sm font-bold text-slate-700 w-full focus:ring-0 p-0">
-                                <button @click="removeFromSimulation(selectedIds[1])" x-show="selectedIds.length > 1"
-                                    class="text-slate-400 hover:text-red-500">&times;</button>
+                                <div class="flex-1 min-w-0">
+                                    <div class="flex items-center justify-between mb-1">
+                                        <input type="text" :value="getSelectedName(1)" readonly placeholder="사용자 B 선택"
+                                            class="bg-transparent border-none text-sm font-bold text-slate-800 dark:text-white w-full focus:ring-0 p-0 cursor-default placeholder:font-normal placeholder:text-slate-400">
+                                        <button @click="removeFromSimulation(selectedIds[1])"
+                                            x-show="selectedIds.length > 1"
+                                            class="text-slate-400 hover:text-red-500 hover:bg-red-50 rounded p-0.5 ml-1 transition-colors">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                    d="M6 18L18 6M6 6l12 12"></path>
+                                            </svg>
+                                        </button>
+                                    </div>
+                                    <!-- Stats Preview -->
+                                    <template x-if="getSelectedInfo(1)">
+                                        <div class="mt-1">
+                                            <div class="flex gap-1.5 flex-wrap mb-1.5">
+                                                <span
+                                                    class="px-1.5 py-0.5 rounded bg-white dark:bg-slate-700 border border-indigo-200 dark:border-indigo-800 text-[10px] font-bold text-indigo-700 dark:text-indigo-300 tracking-wide"
+                                                    x-text="getSelectedInfo(1).mbti || 'N/A'"></span>
+                                                <span
+                                                    class="px-1.5 py-0.5 rounded bg-white dark:bg-slate-700 border border-rose-200 dark:border-rose-800 text-[10px] font-bold text-rose-700 dark:text-rose-300 tracking-wide"
+                                                    x-text="getSelectedInfo(1).socionics || 'N/A'"></span>
+                                            </div>
+                                            <!-- Big 5 Mini Bars (OCEAN) -->
+                                            <div class="grid grid-cols-5 gap-0.5 w-full h-8"
+                                                x-show="getSelectedInfo(1).big5">
+                                                <template x-for="(val, key) in getSelectedInfo(1).big5">
+                                                    <div class="flex flex-col items-center justify-end h-full bg-slate-100/50 dark:bg-black rounded-sm hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors"
+                                                        :title="getBig5Tooltip(key, val)">
+                                                        <div class="w-full bg-indigo-400/80 rounded-t-sm"
+                                                            :style="'height: ' + val + '%'"></div>
+                                                        <span class="text-[8px] font-bold text-slate-400 mt-px"
+                                                            x-text="getBig5Label(key)"></span>
+                                                    </div>
+                                                </template>
+                                            </div>
+                                        </div>
+                                    </template>
+                                    <template x-if="!getSelectedInfo(1)">
+                                        <div class="text-[10px] text-slate-400 italic">목록에서 선택하세요</div>
+                                    </template>
+                                </div>
                             </div>
                         </div>
 
                         <!-- 직접 입력 (옵션) -->
                         <div class="mt-3 flex gap-2">
                             <input type="number" placeholder="ID 직접 입력"
-                                class="w-full text-xs px-2 py-1 rounded border-slate-200 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500">
+                                class="w-full text-xs px-2 py-1 rounded border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500">
                             <button
                                 @click="addToSimulation($event.target.previousElementSibling.value); $event.target.previousElementSibling.value = ''"
-                                class="px-3 py-1 bg-slate-200 hover:bg-slate-300 text-slate-600 rounded-lg text-xs font-bold transition-colors">
+                                class="px-3 py-1 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 rounded-lg text-xs font-bold transition-colors">
                                 추가
                             </button>
                         </div>
@@ -65,11 +148,11 @@
 
                     <!-- 가중치 조절 슬라이더 -->
                     <div class="space-y-4 mb-6">
-                        <div class="border-b pb-3 mb-4 space-y-3">
-                            <label class="font-bold text-base text-slate-800 block">매칭 가중치 설정 (합계
+                        <div class="border-b dark:border-slate-700 pb-3 mb-4 space-y-3">
+                            <label class="font-bold text-base text-slate-800 dark:text-slate-200 block">매칭 가중치 설정 (합계
                                 1.0)</label>
                             <button @click="resetWeights()"
-                                class="w-full py-3 bg-white border-2 border-slate-200 text-slate-700 font-bold rounded-xl hover:bg-slate-50 hover:border-slate-300 hover:text-indigo-600 transition-all shadow-sm flex items-center justify-center gap-2 text-sm">
+                                class="w-full py-3 bg-white dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 hover:border-slate-300 dark:hover:border-slate-600 hover:text-indigo-600 dark:hover:text-indigo-400 transition-all shadow-sm flex items-center justify-center gap-2 text-sm">
                                 <span class="text-lg">🔄</span> 가중치 초기화
                             </button>
                         </div>
@@ -142,265 +225,312 @@
                 </div>
 
                 <!-- 오른쪽: 결과 표시 패널 -->
-                <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm h-fit">
-                    <h4 class="font-bold text-base text-slate-800 mb-4">📊 시뮬레이션 결과</h4>
+                <div
+                    class="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm h-fit">
+                    <h4 class="font-bold text-base text-slate-800 dark:text-slate-200 mb-4">📊 시뮬레이션 결과</h4>
 
-                    <template x-if="dummyResult">
-                        <div class="animate-fade-in-up">
-                            <div class="text-center mb-6">
-                                <div class="text-xs text-slate-500 font-bold uppercase tracking-wider mb-2">
-                                    Total Match Score</div>
-                                <div class="text-6xl font-black text-indigo-600 mb-4" x-text="dummyResult.match_score">
-                                </div>
-                                <p class="text-sm text-slate-500" x-show="dummyResult.match_score >= 80">✨
-                                    아주 좋은 궁합입니다!</p>
-                                <p class="text-sm text-slate-500"
-                                    x-show="dummyResult.match_score < 80 && dummyResult.match_score >= 50">
-                                    👌 무난한 관계입니다.</p>
-                                <p class="text-sm text-slate-500" x-show="dummyResult.match_score < 50">⚠️
-                                    노력이 필요한 관계입니다.</p>
+                    <div x-show="dummyResult" class="animate-fade-in-up" x-cloak>
+                        <div class="text-center mb-6">
+                            <div class="text-xs text-slate-500 font-bold uppercase tracking-wider mb-2">
+                                Total Match Score</div>
+                            <div class="text-6xl font-black text-indigo-600 mb-4" x-text="dummyResult.match_score">
                             </div>
-
-                            <div class="grid grid-cols-3 gap-3 text-center mb-6">
-                                <div class="bg-indigo-50 p-3 rounded-xl border border-indigo-100">
-                                    <div class="font-bold text-indigo-600 text-xl"
-                                        x-text="dummyResult.details ? (dummyResult.details.similarity_score * 100).toFixed(0) : '-'">
-                                    </div>
-                                    <div class="text-[10px] text-slate-500 font-bold uppercase mt-1">
-                                        Similarity</div>
-                                </div>
-                                <div class="bg-rose-50 p-3 rounded-xl border border-rose-100">
-                                    <div class="font-bold text-rose-600 text-xl"
-                                        x-text="dummyResult.details ? (dummyResult.details.chemistry_score * 100).toFixed(0) : '-'">
-                                    </div>
-                                    <div class="text-[10px] text-slate-500 font-bold uppercase mt-1">
-                                        Chemistry</div>
-                                </div>
-                                <div class="bg-amber-50 p-3 rounded-xl border border-amber-100">
-                                    <div class="font-bold text-amber-600 text-xl"
-                                        x-text="dummyResult.details ? (dummyResult.details.activity_score * 100).toFixed(0) : '-'">
-                                    </div>
-                                    <div class="text-[10px] text-slate-500 font-bold uppercase mt-1">
-                                        Activity</div>
-                                </div>
-                            </div>
-
-                            <div class="text-xs text-slate-400 text-center">
-                                * 가중치 조정 시 실시간으로 업데이트됩니다.
-                            </div>
+                            <p class="text-sm text-slate-500" x-show="dummyResult.match_score >= 80">✨
+                                아주 좋은 궁합입니다!</p>
+                            <p class="text-sm text-slate-500"
+                                x-show="dummyResult.match_score < 80 && dummyResult.match_score >= 50">
+                                👌 무난한 관계입니다.</p>
+                            <p class="text-sm text-slate-500" x-show="dummyResult.match_score < 50">⚠️
+                                노력이 필요한 관계입니다.</p>
                         </div>
-                    </template>
-                    <template x-if="!dummyResult && !loading">
-                        <div class="flex flex-col items-center justify-center py-12 text-slate-400">
-                            <div class="text-4xl mb-2">⌛</div>
-                            <p class="text-sm">사용자 2명을 선택하면 결과가 표시됩니다.</p>
-                        </div>
-                    </template>
-                    <template x-if="loading">
-                        <div class="flex flex-col items-center justify-center py-12 text-indigo-500">
-                            <div class="text-4xl mb-2 animate-spin">🌀</div>
-                            <p class="text-sm font-bold">계산 중...</p>
-                        </div>
-                    </template>
-                </div>
-            </div>
-        </div>
 
-
-        <!-- 2. 사용자 목록 (Middle) -->
-        <div class="glass-panel p-6 rounded-2xl border border-slate-100">
-            <div class="flex flex-col h-[500px]">
-                <div class="flex justify-between items-center mb-4">
-                    <h3 class="font-bold text-lg text-slate-800">📋 사용자 목록 (선택)</h3>
-                    <div class="flex items-center gap-2">
-                        <input type="text" x-model="searchQuery" @input="onSearchInput" placeholder="이름/ID 검색..."
-                            class="text-sm px-3 py-1.5 rounded-lg border border-slate-300 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 w-64">
-                        <span class="text-xs text-slate-500" x-text="candidates.length + '명'"></span>
-                    </div>
-                </div>
-
-                <div class="bg-slate-900 rounded-xl p-3 flex-1 overflow-y-auto custom-scrollbar">
-                    <template x-if="candidates.length === 0">
-                        <div class="text-center text-slate-500 py-20">
-                            <span class="text-4xl block mb-2">🔍</span>
-                            <span x-text="loading ? '로딩 중...' : '검색 결과가 없습니다'"></span>
-                        </div>
-                    </template>
-                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                        <template x-for="user in candidates" :key="user.user_id">
-                            <div class="bg-slate-800 rounded-lg hover:bg-slate-700 transition-colors border border-transparent cursor-pointer group relative overflow-hidden"
-                                :class="selectedIds.includes(user.user_id) ? 'border-indigo-500 ring-1 ring-indigo-500 bg-slate-700' : ''"
-                                @click="toggleSelect(user.user_id)">
-
-                                <!-- 선택 표시 배지 -->
-                                <div class="absolute top-0 right-0 p-2" x-show="selectedIds.includes(user.user_id)">
+                        <div
+                            class="grid grid-cols-1 divide-y divide-slate-100 dark:divide-slate-700 bg-slate-50 dark:bg-slate-900/30 rounded-2xl border border-slate-100 dark:border-slate-700 mb-6 overflow-hidden">
+                            <div
+                                class="p-4 flex items-center justify-between group hover:bg-white dark:hover:bg-slate-800 transition-colors">
+                                <div class="flex flex-col">
                                     <span
-                                        class="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shadow-sm"
-                                        :class="selectedIds.indexOf(user.user_id) === 0 ? 'bg-indigo-600 text-white' : 'bg-indigo-600 text-white'">
-                                        <span x-text="selectedIds.indexOf(user.user_id) === 0 ? 'A' : 'B'"></span>
-                                    </span>
+                                        class="text-[10px] font-black text-indigo-500 uppercase tracking-widest leading-none mb-1">Similarity</span>
+                                    <span class="text-sm font-bold text-slate-700 dark:text-slate-200">성향 유사도</span>
+                                    <span class="text-[10px] text-slate-400">Big 5(기질) 기반 유사성 분석</span>
                                 </div>
-
-                                <div class="p-3 flex items-center gap-3">
-                                    <div
-                                        class="flex-shrink-0 w-10 h-10 rounded-full bg-slate-600 flex items-center justify-center text-sm font-bold text-slate-300 group-hover:bg-slate-500 transition-colors">
-                                        <span x-text="user.username.charAt(0).toUpperCase()"></span>
-                                    </div>
-                                    <div class="min-w-0 flex-1">
-                                        <div class="flex items-center gap-2">
-                                            <span class="text-white font-medium text-sm truncate"
-                                                x-text="user.nickname || user.username"></span>
-                                            <span x-show="user.is_dummy"
-                                                class="px-1.5 py-0.5 rounded text-[10px] bg-indigo-900 text-indigo-200 border border-indigo-700">Dummy</span>
-                                        </div>
-                                        <div class="text-slate-400 text-xs truncate" x-text="user.email">
-                                        </div>
-                                        <div class="text-slate-500 text-[10px] mt-1">ID: <span
-                                                x-text="user.user_id"></span></div>
-                                    </div>
-
-                                    <!-- 더미 삭제 버튼 -->
-                                    <button x-show="user.is_dummy" @click.stop="deleteDummy(user.user_id)"
-                                        class="text-slate-600 hover:text-red-400 p-2 rounded transition-colors z-10"
-                                        title="더미 삭제">
-                                        🗑️
-                                    </button>
+                                <div class="text-right">
+                                    <span class="text-2xl font-black text-indigo-600 dark:text-indigo-400"
+                                        x-text="dummyResult.details ? (dummyResult.details.similarity_score * dummyWeights.sim * 300).toFixed(0) : '-'"></span>
+                                    <span class="text-[10px] font-bold text-slate-400 block -mt-1">Impact pts</span>
                                 </div>
                             </div>
-                        </template>
+                            <div
+                                class="p-4 flex items-center justify-between group hover:bg-white dark:hover:bg-slate-800 transition-colors">
+                                <div class="flex flex-col">
+                                    <span
+                                        class="text-[10px] font-black text-rose-500 uppercase tracking-widest leading-none mb-1">Chemistry</span>
+                                    <span class="text-sm font-bold text-slate-700 dark:text-slate-200">케미스트리</span>
+                                    <span class="text-[10px] text-slate-400">MBTI/소시오닉스 관계 상성</span>
+                                </div>
+                                <div class="text-right">
+                                    <span class="text-2xl font-black text-rose-600 dark:text-rose-400"
+                                        x-text="dummyResult.details ? (dummyResult.details.chemistry_score * dummyWeights.chem * 300).toFixed(0) : '-'"></span>
+                                    <span class="text-[10px] font-bold text-slate-400 block -mt-1">Impact pts</span>
+                                </div>
+                            </div>
+                            <div
+                                class="p-4 flex items-center justify-between group hover:bg-white dark:hover:bg-slate-800 transition-colors">
+                                <div class="flex flex-col">
+                                    <span
+                                        class="text-[10px] font-black text-amber-500 uppercase tracking-widest leading-none mb-1">Activity</span>
+                                    <span class="text-sm font-bold text-slate-700 dark:text-slate-200">대화 스타일</span>
+                                    <span class="text-[10px] text-slate-400">대화량 및 소통 에너지 레벨</span>
+                                </div>
+                                <div class="text-right">
+                                    <span class="text-2xl font-black text-amber-600 dark:text-amber-400"
+                                        x-text="dummyResult.details ? (dummyResult.details.activity_score * dummyWeights.act * 300).toFixed(0) : '-'"></span>
+                                    <span class="text-[10px] font-bold text-slate-400 block -mt-1">Impact pts</span>
+                                </div>
+                            </div>
+                        </div>
+
                     </div>
+
+                    <!-- [NEW] Radar Chart Container - Force Block Display -->
+                    <div class="mt-8 relative w-full h-72">
+                        <canvas id="matchRadarChart"></canvas>
+                    </div>
+
+                    <div class="text-xs text-slate-400 text-center mt-4">
+                        * 가중치 조정 시 실시간으로 업데이트됩니다.
+                    </div>
+                </div>
+                <template x-if="!dummyResult && !loading">
+                    <div class="flex flex-col items-center justify-center py-12 text-slate-400">
+                        <div class="text-4xl mb-2">⌛</div>
+                        <p class="text-sm">사용자 2명을 선택하면 결과가 표시됩니다.</p>
+                    </div>
+                </template>
+                <template x-if="loading">
+                    <div class="flex flex-col items-center justify-center py-12 text-indigo-500">
+                        <div class="text-4xl mb-2 animate-spin">🌀</div>
+                        <p class="text-sm font-bold">계산 중...</p>
+                    </div>
+                </template>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- 2. 사용자 목록 (Middle) -->
+    <div class="glass-panel p-6 rounded-2xl border border-slate-100">
+        <div class="flex flex-col h-[500px]">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="font-bold text-lg text-slate-800 dark:text-white">📋 사용자 목록 (선택)</h3>
+                <div class="flex items-center gap-2">
+                    <input type="text" x-model="searchQuery" @input="onSearchInput" placeholder="이름/ID 검색..."
+                        class="text-sm px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 w-64">
+                    <span class="text-xs text-slate-500 dark:text-slate-400" x-text="candidates.length + '명'"></span>
+                </div>
+            </div>
+
+            <div
+                class="bg-indigo-50/50 dark:bg-slate-800/40 rounded-xl p-3 flex-1 overflow-y-auto custom-scrollbar border border-indigo-100 dark:border-slate-700/50 transition-colors">
+                <template x-if="candidates.length === 0">
+                    <div class="text-center text-slate-500 py-20">
+                        <span class="text-4xl block mb-2">🔍</span>
+                        <span x-text="loading ? '로딩 중...' : '검색 결과가 없습니다'"></span>
+                    </div>
+                </template>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                    <template x-for="user in candidates" :key="user.user_id">
+                        <div class="bg-white dark:bg-slate-800 rounded-lg hover:shadow-md hover:border-indigo-200 dark:hover:border-indigo-800 dark:hover:bg-slate-700 transition-all border border-slate-200 dark:border-slate-700/50 cursor-pointer group relative overflow-hidden"
+                            :class="selectedIds.includes(user.user_id) ? 'border-indigo-500 dark:border-indigo-400 ring-1 ring-indigo-500 dark:ring-indigo-400 bg-indigo-50 dark:bg-slate-700' : ''"
+                            @click="toggleSelect(user.user_id)">
+
+                            <!-- 선택 표시 배지 -->
+                            <div class="absolute top-0 right-0 p-2" x-show="selectedIds.includes(user.user_id)">
+                                <span
+                                    class="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shadow-sm"
+                                    :class="selectedIds.indexOf(user.user_id) === 0 ? 'bg-indigo-600 text-white' : 'bg-indigo-600 text-white'">
+                                    <span x-text="selectedIds.indexOf(user.user_id) === 0 ? 'A' : 'B'"></span>
+                                </span>
+                            </div>
+
+                            <div class="p-3 flex items-center gap-3">
+                                <div
+                                    class="flex-shrink-0 w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-600 flex items-center justify-center text-sm font-bold text-slate-500 dark:text-slate-300 group-hover:bg-indigo-100 dark:group-hover:bg-slate-500 group-hover:text-indigo-600 dark:group-hover:text-white transition-colors">
+                                    <span x-text="user.username.charAt(0).toUpperCase()"></span>
+                                </div>
+                                <div class="min-w-0 flex-1">
+                                    <div class="flex items-center gap-2">
+                                        <span class="text-slate-900 dark:text-white font-medium text-sm truncate"
+                                            x-text="user.nickname || user.username"></span>
+                                        <span x-show="user.is_dummy"
+                                            class="px-1.5 py-0.5 rounded text-[10px] bg-indigo-50 dark:bg-indigo-900 text-indigo-600 dark:text-indigo-200 border border-indigo-100 dark:border-indigo-700">Dummy</span>
+                                    </div>
+                                    <div class="text-slate-500 dark:text-slate-400 text-xs truncate"
+                                        x-text="user.email"></div>
+                                    <!-- Personality Badges in List -->
+                                    <div class="flex gap-1 mt-1.5" x-show="user.mbti || user.socionics">
+                                        <span x-show="user.mbti" x-text="user.mbti"
+                                            class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-100 dark:bg-slate-700 text-indigo-600 dark:text-indigo-300 border border-slate-200 dark:border-slate-600"></span>
+                                        <span x-show="user.socionics" x-text="user.socionics"
+                                            class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-100 dark:bg-slate-700 text-rose-600 dark:text-rose-300 border border-slate-200 dark:border-slate-600"></span>
+                                    </div>
+                                    <div class="text-slate-500 text-[10px] mt-1">ID: <span x-text="user.user_id"></span>
+                                    </div>
+                                </div>
+
+                                <!-- 더미 삭제 버튼 -->
+                                <button x-show="user.is_dummy" @click.stop="deleteDummy(user.user_id)"
+                                    class="text-slate-600 hover:text-red-400 p-2 rounded transition-colors z-10"
+                                    title="더미 삭제">
+                                    🗑️
+                                </button>
+                            </div>
+                        </div>
+                    </template>
                 </div>
             </div>
         </div>
+    </div>
 
 
-        <!-- 3. 더미 생성 (Bottom) -->
-        <div class="glass-panel p-6 rounded-2xl border border-indigo-100">
-            <h2 class="text-xl font-bold text-slate-800 mb-6 flex items-center gap-2">
-                📝 더미 사용자 생성
-                <span class="text-xs font-normal text-slate-500">(테스트용 가상 데이터)</span>
-            </h2>
+    <!-- 3. 더미 생성 (Bottom) -->
+    <div class="glass-panel p-6 rounded-2xl border border-indigo-100">
+        <h2 class="text-xl font-bold text-slate-800 mb-6 flex items-center gap-2">
+            📝 더미 사용자 생성
+            <span class="text-xs font-normal text-slate-500">(테스트용 가상 데이터)</span>
+        </h2>
 
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                <!-- Left Column: Manual Creation -->
-                <div class="space-y-4">
-                    <div class="flex items-center gap-2 mb-2">
-                        <span class="bg-indigo-100 text-indigo-700 p-1.5 rounded-lg text-lg">✍️</span>
-                        <h4 class="font-bold text-slate-700">직접 생성 (Manual)</h4>
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <!-- Left Column: Manual Creation -->
+            <div class="space-y-4">
+                <div class="flex items-center gap-2 mb-2">
+                    <span
+                        class="bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 p-1.5 rounded-lg text-lg">✍️</span>
+                    <h4 class="font-bold text-slate-700 dark:text-slate-200">직접 생성 (Manual)</h4>
+                </div>
+
+                <div
+                    class="bg-white dark:bg-slate-800 p-5 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm space-y-4">
+                    <div>
+                        <label class="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1">이름</label>
+                        <input type="text" x-model="formData.name"
+                            class="w-full rounded-lg border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500 font-bold"
+                            placeholder="생성할 이름 입력">
                     </div>
 
-                    <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4">
+                    <div class="grid grid-cols-2 gap-3">
                         <div>
-                            <label class="block text-sm font-bold text-slate-700 mb-1">이름</label>
-                            <input type="text" x-model="formData.name"
-                                class="w-full rounded-lg border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 font-bold"
-                                placeholder="생성할 이름 입력">
-                        </div>
-
-                        <div class="grid grid-cols-2 gap-3">
-                            <div>
-                                <label class="block text-xs font-bold text-slate-500 mb-1">MBTI</label>
-                                <select x-model="formData.mbti"
-                                    class="w-full text-sm rounded-lg border-slate-300 focus:ring-indigo-500">
-                                    <template x-for="type in mbtiTypes" :key="type">
-                                        <option :value="type" x-text="type"></option>
-                                    </template>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-xs font-bold text-slate-500 mb-1">Socionics</label>
-                                <select x-model="formData.socionics"
-                                    class="w-full text-sm rounded-lg border-slate-300 focus:ring-indigo-500">
-                                    <template x-for="type in socionicsTypes" :key="type">
-                                        <option :value="type" x-text="type"></option>
-                                    </template>
-                                </select>
-                            </div>
-                        </div>
-
-                        <div>
-                            <label class="block text-xs font-bold text-slate-500 mb-2">Big5 성격 (0-100)</label>
-                            <div class="space-y-3 bg-slate-50 p-3 rounded-lg border border-slate-100">
-                                <template x-for="(val, key) in formData.big5">
-                                    <div class="flex items-center gap-3">
-                                        <span class="text-[10px] font-bold text-slate-400 uppercase w-12"
-                                            x-text="key.substring(0,4)"></span>
-                                        <input type="range" min="0" max="100" x-model.number="formData.big5[key]"
-                                            class="flex-1 h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer">
-                                        <span class="text-xs w-6 text-right font-mono" x-text="val"></span>
-                                    </div>
+                            <label class="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1">MBTI</label>
+                            <select x-model="formData.mbti"
+                                class="w-full text-sm rounded-lg border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-indigo-500">
+                                <template x-for="type in mbtiTypes" :key="type">
+                                    <option :value="type" x-text="type" class="dark:bg-slate-900"></option>
                                 </template>
-                            </div>
+                            </select>
                         </div>
-
                         <div>
-                            <div class="flex justify-between text-xs font-bold text-slate-500 mb-1">
-                                <span>활동성 (Line Count)</span>
-                                <span class="text-indigo-600" x-text="formData.activity"></span>
-                            </div>
-                            <input type="range" min="50" max="3000" step="50" x-model.number="formData.activity"
-                                class="w-full h-2 bg-indigo-100 rounded-lg appearance-none cursor-pointer">
+                            <label
+                                class="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1">Socionics</label>
+                            <select x-model="formData.socionics"
+                                class="w-full text-sm rounded-lg border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-indigo-500">
+                                <template x-for="type in socionicsTypes" :key="type">
+                                    <option :value="type" x-text="type" class="dark:bg-slate-900"></option>
+                                </template>
+                            </select>
                         </div>
+                    </div>
 
-                        <button @click="createDummy" :disabled="loading || !formData.name"
-                            class="w-full py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-colors disabled:opacity-50 shadow-md flex items-center justify-center gap-2 mt-2">
-                            <span>💾</span> 생성하기
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-2">Big5 성격
+                            (0-100)</label>
+                        <div
+                            class="space-y-3 bg-slate-50 dark:bg-slate-900/50 p-3 rounded-lg border border-slate-100 dark:border-slate-700">
+                            <template x-for="(val, key) in formData.big5">
+                                <div class="flex items-center gap-3">
+                                    <span class="text-[10px] font-bold text-slate-600 dark:text-slate-400 w-12"
+                                        x-text="getBig5Label(key)"></span>
+                                    <input type="range" min="0" max="100" x-model.number="formData.big5[key]"
+                                        class="flex-1 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer"
+                                        :title="getBig5Tooltip(key, val)">
+                                    <span class="text-xs w-6 text-right font-mono dark:text-slate-300"
+                                        x-text="val"></span>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+
+                    <div>
+                        <div class="flex justify-between text-xs font-bold text-slate-500 dark:text-slate-400 mb-1">
+                            <span>활동성 (Line Count)</span>
+                            <span class="text-indigo-600 dark:text-indigo-400" x-text="formData.activity"></span>
+                        </div>
+                        <input type="range" min="50" max="3000" step="50" x-model.number="formData.activity"
+                            class="w-full h-2 bg-indigo-100 dark:bg-indigo-900/30 rounded-lg appearance-none cursor-pointer hover:bg-indigo-200 dark:hover:bg-indigo-800 transition-colors">
+                    </div>
+
+                    <button @click="createDummy" :disabled="loading || !formData.name"
+                        class="w-full py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-colors disabled:opacity-50 shadow-md flex items-center justify-center gap-2 mt-2">
+                        <span>💾</span> 생성하기
+                    </button>
+                </div>
+            </div>
+
+            <!-- Right Column: Quick Actions -->
+            <div class="space-y-6">
+
+                <!-- Random Creation -->
+                <div>
+                    <div class="flex items-center gap-2 mb-2">
+                        <span
+                            class="bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 p-1.5 rounded-lg text-lg">🎲</span>
+                        <h4 class="font-bold text-slate-700 dark:text-slate-200">랜덤 생성 (Random)</h4>
+                    </div>
+                    <div
+                        class="bg-purple-50 dark:bg-purple-900/20 p-5 rounded-xl border border-purple-100 dark:border-purple-800/30 space-y-4">
+                        <p class="text-xs text-purple-800 dark:text-purple-300/80 leading-relaxed">
+                            무작위 성격과 프로필을 가진 더미 사용자를 빠르게 생성합니다.
+                        </p>
+                        <div class="flex gap-2">
+                            <input type="number" x-model.number="randomCount" min="1" max="50"
+                                class="w-20 rounded-xl border-purple-200 dark:border-purple-900 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:border-purple-500 focus:ring-purple-500 text-center text-lg font-bold"
+                                placeholder="Qty">
+                            <button @click="createRandomDummy" :disabled="loading"
+                                class="flex-1 py-3 bg-purple-600 text-white font-bold rounded-xl hover:bg-purple-700 transition-all shadow-md flex items-center justify-center gap-2">
+                                <span>✨</span> 랜덤 일괄 생성
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Bulk Delete -->
+                <div>
+                    <div class="flex items-center gap-2 mb-2">
+                        <span
+                            class="bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 p-1.5 rounded-lg text-lg">🗑️</span>
+                        <h4 class="font-bold text-slate-700 dark:text-slate-200">일괄 삭제 (Bulk Delete)</h4>
+                    </div>
+                    <div
+                        class="bg-red-50 dark:bg-red-900/20 p-5 rounded-xl border border-red-100 dark:border-red-900/30 space-y-4">
+                        <div class="flex gap-2">
+                            <select x-model="bulkDeleteOrder"
+                                class="flex-1 text-sm font-bold text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-900 border border-red-200 dark:border-red-900/50 rounded-xl focus:ring-red-500 py-3 pl-3">
+                                <option value="recent">최근 생성순</option>
+                                <option value="oldest">오래된 순</option>
+                            </select>
+                            <input type="number" x-model.number="bulkDeleteCount" min="1" max="100"
+                                class="w-20 rounded-xl border-red-200 dark:border-red-900/50 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-red-500 text-center text-lg font-bold py-2"
+                                placeholder="Qty">
+                        </div>
+                        <button @click="deleteBulkDummies" :disabled="loading"
+                            class="w-full py-3 bg-white dark:bg-slate-900 border-2 border-red-200 dark:border-red-900/30 text-red-600 dark:text-red-400 font-bold rounded-xl hover:bg-red-500 dark:hover:bg-red-600 hover:text-white hover:border-red-500 dark:hover:border-red-600 transition-all shadow-sm flex items-center justify-center gap-2">
+                            <span>🔥</span> 삭제 실행
                         </button>
                     </div>
                 </div>
 
-                <!-- Right Column: Quick Actions -->
-                <div class="space-y-6">
-
-                    <!-- Random Creation -->
-                    <div>
-                        <div class="flex items-center gap-2 mb-2">
-                            <span class="bg-purple-100 text-purple-700 p-1.5 rounded-lg text-lg">🎲</span>
-                            <h4 class="font-bold text-slate-700">랜덤 생성 (Random)</h4>
-                        </div>
-                        <div class="bg-purple-50 p-5 rounded-xl border border-purple-100 space-y-4">
-                            <p class="text-xs text-purple-800 leading-relaxed">
-                                무작위 성격과 프로필을 가진 더미 사용자를 빠르게 생성합니다.
-                            </p>
-                            <div class="flex gap-2">
-                                <input type="number" x-model.number="randomCount" min="1" max="50"
-                                    class="w-20 rounded-xl border-purple-200 shadow-sm focus:border-purple-500 focus:ring-purple-500 text-center text-lg font-bold"
-                                    placeholder="Qty">
-                                <button @click="createRandomDummy" :disabled="loading"
-                                    class="flex-1 py-3 bg-purple-600 text-white font-bold rounded-xl hover:bg-purple-700 transition-all shadow-md flex items-center justify-center gap-2">
-                                    <span>✨</span> 랜덤 일괄 생성
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Bulk Delete -->
-                    <div>
-                        <div class="flex items-center gap-2 mb-2">
-                            <span class="bg-red-100 text-red-700 p-1.5 rounded-lg text-lg">🗑️</span>
-                            <h4 class="font-bold text-slate-700">일괄 삭제 (Bulk Delete)</h4>
-                        </div>
-                        <div class="bg-red-50 p-5 rounded-xl border border-red-100 space-y-4">
-                            <div class="flex gap-2">
-                                <select x-model="bulkDeleteOrder"
-                                    class="flex-1 text-sm font-bold text-slate-700 bg-white border border-red-200 rounded-xl focus:ring-red-500 py-3 pl-3">
-                                    <option value="recent">최근 생성순</option>
-                                    <option value="oldest">오래된 순</option>
-                                </select>
-                                <input type="number" x-model.number="bulkDeleteCount" min="1" max="100"
-                                    class="w-20 rounded-xl border border-red-200 shadow-sm focus:ring-red-500 text-center text-lg font-bold py-2"
-                                    placeholder="Qty">
-                            </div>
-                            <button @click="deleteBulkDummies" :disabled="loading"
-                                class="w-full py-3 bg-white border-2 border-red-200 text-red-600 font-bold rounded-xl hover:bg-red-500 hover:text-white hover:border-red-500 transition-all shadow-sm flex items-center justify-center gap-2">
-                                <span>🔥</span> 삭제 실행
-                            </button>
-                        </div>
-                    </div>
-
-                </div>
             </div>
         </div>
+    </div>
 
-    </div> <!-- End Matching Tab Inner -->
+</div> <!-- End Matching Tab Inner -->
 </div>

@@ -3,10 +3,20 @@ document.addEventListener('alpine:init', () => {
         query: '',
         users: [],
         loading: false,
+        sortBy: 'created_at',
+        sortOrder: 'desc',
+
         async fetchUsers() {
             this.loading = true;
             try {
-                const res = await fetch(`/admin/api/users?q=${encodeURIComponent(this.query)}`);
+                // Sorting Params
+                const params = new URLSearchParams({
+                    q: this.query,
+                    sort_by: this.sortBy,
+                    order: this.sortOrder
+                });
+
+                const res = await fetch(`/admin/api/users?${params.toString()}`);
                 const data = await res.json();
                 if (data.success) {
                     this.users = data.users;
@@ -17,6 +27,19 @@ document.addEventListener('alpine:init', () => {
                 this.loading = false;
             }
         },
+
+        sortTable(column) {
+            if (this.sortBy === column) {
+                // Toggle order
+                this.sortOrder = this.sortOrder === 'asc' ? 'desc' : 'asc';
+            } else {
+                // New column, default to desc for dates/ids, asc for others if needed, but simple toggle is fine
+                this.sortBy = column;
+                this.sortOrder = 'desc';
+            }
+            this.fetchUsers();
+        },
+
         async toggleBan(userId) {
             if (!confirm('사용자의 계정 상태를 변경하시겠습니까?')) return;
             try {

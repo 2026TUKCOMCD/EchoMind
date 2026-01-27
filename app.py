@@ -116,8 +116,6 @@ def _parse_json_safe(data):
             return {} # 파싱 실패 시 빈 딕셔너리 안전 반환 (상황에 따라 원본 반환 가능)
     return data if data is not None else {}
 
-    os.makedirs(app.config['UPLOAD_FOLDER']) 
-
 # SQLAlchemy 인스턴스를 extensions에서 임포트 (순환 참조 방지)
 from extensions import db, User, ChatLog, PersonalityResult, MatchRequest, Notification
 db.init_app(app)
@@ -169,17 +167,17 @@ def check_and_update_db_schema():
             with db.engine.connect() as conn:
                 # 1. is_banned 컬럼 추가
                 if 'is_banned' not in user_columns:
-                    print("Adding 'is_banned' column to users table...")
+                    app.logger.info("Adding 'is_banned' column to users table...")
                     conn.execute(sqlalchemy.text("ALTER TABLE users ADD COLUMN is_banned BOOLEAN DEFAULT FALSE"))
                     conn.commit()
-                    print("'is_banned' column added successfully.")
+                    app.logger.info("'is_banned' column added successfully.")
                 
                 # 2. is_dummy 컬럼 추가 (더미 사용자 지원)
                 if 'is_dummy' not in user_columns:
-                    print("Adding 'is_dummy' column to users table...")
+                    app.logger.info("Adding 'is_dummy' column to users table...")
                     conn.execute(sqlalchemy.text("ALTER TABLE users ADD COLUMN is_dummy BOOLEAN DEFAULT FALSE"))
                     conn.commit()
-                    print("'is_dummy' column added successfully.")
+                    app.logger.info("'is_dummy' column added successfully.")
                 
                 # 3. log_id nullable 변경 (ALTER COLUMN은 DB마다 문법이 다름 - MySQL 기준)
                 # 이미 nullable이면 무시됨
@@ -189,13 +187,13 @@ def check_and_update_db_schema():
                         MODIFY COLUMN log_id INT NULL
                     """))
                     conn.commit()
-                    print("'log_id' column modified to nullable.")
+                    app.logger.info("'log_id' column modified to nullable.")
                 except Exception as e:
                     # 이미 nullable이거나 다른 DB 엔진인 경우 무시
-                    print(f"log_id modification skipped or already nullable: {e}")
+                    app.logger.warning(f"log_id modification skipped or already nullable: {e}")
                     
         except Exception as e:
-            print(f"Schema update failed: {e}")
+            app.logger.error(f"Schema update failed: {e}")
 
 # -------------------------------------------------------------------
 # Routes
@@ -572,7 +570,7 @@ def upload_chat():
                     if os.path.exists(save_path):
                         os.remove(save_path)
                 except Exception as cleanup_error:
-                    print(f"Warning: 임시 파일 삭제 실패: {cleanup_error}")
+                    app.logger.warning(f"Warning: 임시 파일 삭제 실패: {cleanup_error}")
                     
     return render_template('upload.html')
 
@@ -582,7 +580,7 @@ def upload_chat():
 @login_required
 def start_matching():
     """매칭 후보 리스트 보기 - 현재 사용자의 최신 분석 결과 기반"""
-    print(f"[DEBUG] Entered start_matching route for user {g.user.user_id}", flush=True)
+    app.logger.debug(f"[DEBUG] Entered start_matching route for user {g.user.user_id}")
     try:
         # [FIX] 대표 프로필 우선 조회 -> 없으면 최신순 Fallback
         latest_result = PersonalityResult.query.filter_by(
@@ -614,9 +612,9 @@ def start_matching():
         )
         return render_template('match.html', candidates=candidates)
     except Exception as e:
-        print(f"Error in start_matching: {e}")
+        app.logger.error(f"Error in start_matching: {e}")
         import traceback
-        traceback.print_exc()
+        app.logger.error(traceback.format_exc())
         flash('매칭 중 오류가 발생했습니다.', 'error')
         return redirect(url_for('upload_page'))
 
@@ -977,24 +975,10 @@ def admin_dashboard():
     stats['big5_labels'] = ['Openness', 'Conscientiousness', 'Extraversion', 'Agreeableness', 'Neuroticism']
     stats['big5_scores'] = [avg_openness, avg_conscientiousness, avg_extraversion, avg_agreeableness, avg_neuroticism]
 
-    # 2-3. 후보군 파일 목록 (with metadata)
-    candidates_dir = os.path.join(os.path.dirname(__file__), 'candidates_db')
-    candidate_files = []
-    if os.path.exists(candidates_dir):
-        raw_files = sorted([f for f in os.listdir(candidates_dir) if f.endswith('.json')])
-        for filename in raw_files:
-            filepath = os.path.join(candidates_dir, filename)
-            file_info = {'filename': filename, 'speaker_name': '', 'mbti': ''}
-            try:
-                with open(filepath, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-                    if isinstance(data, dict):
-                        file_info['speaker_name'] = data.get('meta', {}).get('speaker_name', '')
-                        file_info['mbti'] = data.get('llm_profile', {}).get('mbti', {}).get('type', '')
-            except:
-                pass
-            candidate_files.append(file_info)
-        stats['candidate_files'] = len(candidate_files)
+    # [Modified] 2-3. 후보군 통계 (DB 기반)
+    # File System Scanning Logic Removed
+    candidate_files = [] # Legacy compatibility
+    stats['candidate_files'] = PersonalityResult.query.filter_by(is_representative=True).count()
         
     # [NEW] 3. 매칭 로그 조회 (최신 100건)
     Sender = aliased(User)
@@ -1044,7 +1028,7 @@ def admin_api_users():
     
     # User와 Representative Result ID를 함께 조회 (Outer Join)
     # PersonalityResult가 중복될 수 있으므로, 대표 결과(is_representative=True)만 조인
-    q = db.session.query(User, PersonalityResult.result_id)\
+    q = db.session.query(User, PersonalityResult)\
         .outerjoin(PersonalityResult, (User.user_id == PersonalityResult.user_id) & (PersonalityResult.is_representative == True))
 
     if query:
@@ -1057,10 +1041,43 @@ def admin_api_users():
             (cast(User.user_id, String).ilike(f'%{query}%'))
         )
     
-    results = q.order_by(User.created_at.desc()).all()
+    sort_by = request.args.get('sort_by', 'created_at')
+    order = request.args.get('order', 'desc')
+
+    # Sorting mapping
+    sort_column = User.created_at
+    if sort_by == 'user_id':
+        sort_column = User.user_id
+    elif sort_by == 'nickname':
+        sort_column = User.nickname
+    elif sort_by == 'email':
+        sort_column = User.email
+    elif sort_by == 'status': # Assuming status check logic or is_banned
+         sort_column = User.is_banned
+    
+    # Apply ordering
+    if order == 'asc':
+        ordering = sort_column.asc()
+    else:
+        ordering = sort_column.desc()
+
+    results = q.order_by(ordering).all()
         
     users_data = []
-    for u, result_id in results:
+    for u, presult in results:
+        # [NEW] 성격 상세 정보 추가
+        mbti = presult.mbti_prediction if presult else None
+        socio = presult.socionics_prediction if presult else None
+        big5 = None
+        if presult:
+            big5 = {
+                'O': presult.openness,
+                'C': presult.conscientiousness,
+                'E': presult.extraversion,
+                'A': presult.agreeableness,
+                'N': presult.neuroticism
+            }
+        
         users_data.append({
             'user_id': u.user_id,
             'username': u.username,
@@ -1069,7 +1086,10 @@ def admin_api_users():
             'created_at': u.created_at.strftime('%Y-%m-%d'),
             'is_banned': u.is_banned,
             'is_dummy': getattr(u, 'is_dummy', False),
-            'representative_result_id': result_id # 프론트엔드에서 상세보기 링크용
+            'representative_result_id': presult.result_id if presult else None,
+            'mbti': mbti,
+            'socionics': socio,
+            'big5': big5
         })
         
     return {'success': True, 'users': users_data}

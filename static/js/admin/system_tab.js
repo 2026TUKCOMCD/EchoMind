@@ -37,11 +37,31 @@ document.addEventListener('alpine:init', () => {
                 const res = await fetch('/admin/api/system/logs');
                 const data = await res.json();
                 if (data.success) {
-                    this.logs = data.logs;
+                    // [Modified] Log Colorization
+                    this.logs = data.logs.map(line => {
+                        // Simple parser for layout
+                        // Expected format: Date Time Level: Message
+                        let className = 'text-slate-600 dark:text-slate-400'; // Default
+                        if (line.includes('INFO')) className = 'text-blue-600 dark:text-blue-400';
+                        else if (line.includes('WARNING')) className = 'text-amber-600 dark:text-amber-400';
+                        else if (line.includes('ERROR') || line.includes('CRITICAL')) className = 'text-red-600 dark:text-red-500 font-bold';
+                        else if (line.includes('DEBUG')) className = 'text-slate-500 dark:text-slate-500';
+
+                        // We return an object or HTML string? Alpine x-html might be risky, 
+                        // but let's assume we use a structured object or just handle styling via binding if possible.
+                        // Ideally: return { text: line, class: className }
+                        // But existing template uses `x-text="line"`. 
+                        // To allow styling, we need to change template to use x-html or bind class.
+                        // Let's change the template logic too. But wait, I can only edit JS here.
+                        // Actually, I should change the template to iterate objects.
+                        return { text: line, class: className };
+                    });
                     this.logPath = data.path;
+
+                    // Auto scroll to bottom
                     this.$nextTick(() => {
-                        const el = this.$refs.logBox;
-                        if (el) el.scrollTop = el.scrollHeight;
+                        const box = this.$refs.logBox;
+                        if (box) box.scrollTop = box.scrollHeight;
                     });
                 }
             } catch (e) { console.error("Log Fetch Error:", e); }

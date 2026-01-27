@@ -6,13 +6,19 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Account Suspended - EchoMind</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            document.documentElement.classList.add('dark')
+        }
+    </script>
 </head>
 
-<body class="bg-gray-100 h-screen flex flex-col items-center justify-center">
-    <div class="bg-white p-8 rounded-xl shadow-lg max-w-md w-full text-center">
+<body class="bg-slate-50 dark:bg-slate-900 h-screen flex flex-col items-center justify-center transition-colors">
+    <div
+        class="bg-white dark:bg-slate-800 p-8 rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 max-w-md w-full text-center">
         <div class="mb-6 text-6xl">🚫</div>
-        <h1 class="text-2xl font-bold text-gray-800 mb-4">계정이 정지되었습니다</h1>
-        <p class="text-gray-600 mb-6">
+        <h1 class="text-2xl font-bold text-slate-800 dark:text-white mb-4">계정이 정지되었습니다</h1>
+        <p class="text-slate-600 dark:text-slate-300 mb-6">
             운영 정책 위반 등의 사유로 인해 사용자의 계정이 정지되었습니다.<br>
             자세한 내용은 관리자에게 문의해주시기 바랍니다.
         </p>
@@ -21,7 +27,8 @@
                 class="bg-indigo-600 text-white py-2 px-4 rounded-lg hover:bg-indigo-700 transition-colors">
                 관리자에게 문의하기
             </a>
-            <a href="/logout" class="text-gray-500 hover:text-gray-700 text-sm">
+            <a href="/logout"
+                class="text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 text-sm">
                 로그아웃
             </a>
         </div>

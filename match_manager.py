@@ -89,9 +89,6 @@ class MatchManager:
         except Exception as e:
             logger.exception("Error fetching excluded users")
 
-        # [REMOVED] File System (candidates_db) 로드 로직 삭제됨
-        # 더미 사용자도 이제 DB에 저장되므로, JSON 파일 로드 불필요
-        # 아래 DB 조회만으로 모든 후보(더미 포함) 조회 가능
 
         # 2. Database (personality_results) - SQLAlchemy ORM
         try:

@@ -4,32 +4,36 @@
 
 {% block content %}
 <div class="max-w-md mx-auto py-20">
-    <div class="glass-panel p-8 rounded-2xl shadow-xl border border-indigo-100">
+    <div
+        class="w-full bg-white dark:bg-slate-700 p-8 rounded-2xl shadow-xl border border-indigo-100 dark:border-slate-600 relative z-10">
         <div class="text-center mb-8">
             <span class="text-4xl">🛡️</span>
-            <h1 class="text-2xl font-bold text-slate-900 mt-4">관리자 로그인</h1>
-            <p class="text-slate-500 text-sm mt-2">시스템 관리자 권한으로 접속합니다.</p>
+            <h1 class="text-2xl font-bold text-slate-900 dark:text-white mt-4">관리자 로그인</h1>
+            <p class="text-slate-500 dark:text-slate-300 text-sm mt-2">시스템 관리자 권한으로 접속합니다.</p>
         </div>
 
         <form method="POST" action="{{ url_for('admin_login') }}" class="space-y-6">
             <div>
-                <label for="password" class="block text-sm font-medium text-slate-700">관리자 비밀번호</label>
+                <label for="password" class="block text-sm font-medium text-slate-700 dark:text-slate-200">관리자
+                    비밀번호</label>
                 <div class="mt-1">
                     <input type="password" name="password" id="password" required
-                        class="appearance-none block w-full px-3 py-3 border border-slate-300 rounded-xl shadow-sm placeholder-slate-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                        class="appearance-none block w-full px-3 py-3 border border-slate-300 dark:border-slate-600 rounded-xl shadow-sm placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm bg-white dark:bg-slate-950 text-slate-900 dark:text-white"
                         placeholder="비밀번호를 입력하세요">
                 </div>
             </div>
 
             <div>
                 <button type="submit"
-                    class="w-full flex justify-center py-3 px-4 border border-transparent rounded-xl shadow-sm text-sm font-bold text-white bg-slate-900 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-slate-900 transition-colors">
+                    class="w-full flex justify-center py-3 px-4 border border-transparent rounded-xl shadow-sm text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors">
                     접속하기
                 </button>
             </div>
 
             <div class="text-center">
-                <a href="{{ url_for('home') }}" class="text-xs text-slate-400 hover:text-slate-600">메인으로 돌아가기</a>
+                <a href="{{ url_for('home') }}"
+                    class="text-xs text-slate-400 dark:text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">메인으로
+                    돌아가기</a>
             </div>
         </form>
     </div>

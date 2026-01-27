@@ -12,20 +12,22 @@
 
             <!-- Target Name Input -->
             <div>
-                <label for="target_name" class="block text-sm font-medium text-slate-700">분석할 상대방 대화명</label>
+                <label for="target_name" class="block text-sm font-medium text-slate-700 dark:text-slate-300">분석할 상대방
+                    대화명</label>
                 <div class="mt-1">
                     <input type="text" name="target_name" id="target_name" required
                         placeholder="예: 홍길동 (상대방의 카톡 이름 정확히 입력)"
-                        class="block w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                        class="block w-full px-3 py-3 border border-slate-300 dark:border-slate-600 rounded-xl shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm bg-white dark:bg-slate-950 text-slate-900 dark:text-white dark:placeholder-slate-500">
                     <p class="mt-1 text-xs text-slate-400">파일 내에서 이 이름으로 된 메시지만 추출하여 분석합니다.</p>
                 </div>
             </div>
 
             <!-- File Input -->
             <div>
-                <label class="block text-sm font-medium text-slate-700 mb-2">대화 파일 (.txt) 또는 결과 파일 (.json)</label>
+                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">대화 파일 (.txt) 또는 결과 파일
+                    (.json)</label>
                 <div id="drop-zone"
-                    class="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-slate-300 border-dashed rounded-md hover:border-indigo-400 transition-colors bg-slate-50 cursor-pointer">
+                    class="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-slate-300 dark:border-slate-600 border-dashed rounded-xl hover:border-indigo-400 dark:hover:border-indigo-500 transition-colors bg-slate-50 dark:bg-slate-800 cursor-pointer">
                     <div class="space-y-1 text-center pointer-events-none">
                         <svg class="mx-auto h-12 w-12 text-slate-400" stroke="currentColor" fill="none"
                             viewBox="0 0 48 48" aria-hidden="true">
@@ -33,9 +35,9 @@
                                 d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02"
                                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
                         </svg>
-                        <div class="flex text-sm text-slate-600 justify-center">
+                        <div class="flex text-sm text-slate-600 dark:text-slate-400 justify-center">
                             <label for="file"
-                                class="relative cursor-pointer bg-white rounded-md font-medium text-indigo-600 hover:text-indigo-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-indigo-500 pointer-events-auto">
+                                class="relative cursor-pointer bg-white dark:bg-slate-700 rounded-md font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 dark:hover:text-indigo-300 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-indigo-500 pointer-events-auto px-1">
                                 <span>파일 선택</span>
                                 <input id="file" name="file" type="file" class="sr-only" accept=".txt, .json" required>
                             </label>
@@ -60,8 +62,8 @@
     </div>
     <!-- Progress Overlay (Hidden by default) -->
     <div id="progress-overlay"
-        class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 hidden flex items-center justify-center">
-        <div class="bg-white rounded-2xl shadow-2xl p-8 max-w-sm w-full text-center space-y-6">
+        class="fixed inset-0 bg-gray-900/50 dark:bg-slate-900/70 backdrop-blur-sm z-50 hidden flex items-center justify-center">
+        <div class="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl p-8 max-w-sm w-full text-center space-y-6">
 
             <!-- Spinner / Icon -->
             <div class="relative">
@@ -75,26 +77,28 @@
 
             <!-- Titles -->
             <div>
-                <h3 class="text-xl font-bold text-slate-900">분석 진행 중...</h3>
-                <p id="progress-status" class="text-indigo-600 font-medium text-sm mt-1 animate-pulse">대화 내용을 읽고 있습니다...
+                <h3 class="text-xl font-bold text-slate-900 dark:text-white">분석 진행 중...</h3>
+                <p id="progress-status"
+                    class="text-indigo-600 dark:text-indigo-400 font-medium text-sm mt-1 animate-pulse">대화 내용을 읽고
+                    있습니다...
                 </p>
             </div>
 
             <!-- Timer -->
-            <div class="text-4xl font-mono font-bold text-slate-700 tabular-nums">
+            <div class="text-4xl font-mono font-bold text-slate-700 dark:text-slate-300 tabular-nums">
                 <span id="timer-min">00</span>:<span id="timer-sec">00</span>
             </div>
 
             <!-- Progress Bar -->
             <div class="relative pt-1">
-                <div class="overflow-hidden h-2 mb-4 text-xs flex rounded bg-indigo-100">
+                <div class="overflow-hidden h-2 mb-4 text-xs flex rounded bg-indigo-100 dark:bg-slate-700">
                     <div id="progress-bar" style="width: 0%"
-                        class="shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center bg-indigo-600 transition-all duration-300 ease-out">
+                        class="shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center bg-indigo-600 dark:bg-indigo-500 transition-all duration-300 ease-out">
                     </div>
                 </div>
             </div>
 
-            <p class="text-xs text-slate-400">
+            <p class="text-xs text-slate-400 dark:text-slate-500">
                 대화 양에 따라 1~3분 정도 소요될 수 있습니다.<br>
                 화면을 닫지 말고 기다려주세요.
             </p>

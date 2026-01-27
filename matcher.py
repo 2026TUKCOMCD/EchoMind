@@ -41,6 +41,9 @@ import numpy as np
 from dataclasses import dataclass
 from typing import List, Dict, Optional
 from scipy.spatial.distance import cosine
+import logging
+
+logger = logging.getLogger(__name__)
 
 # ----------------------------
 # 1. 데이터 구조 (Data Structures)
@@ -229,6 +232,9 @@ class HybridMatcher:
         - 파싱된 라인 수(parsed_lines)가 비슷할수록 높은 점수.
         - 데이터가 너무 적을 경우(10줄 미만) 중립 점수(0.5) 반환.
         """
+        if count_a is None: count_a = 0
+        if count_b is None: count_b = 0
+        
         if count_a < 10 or count_b < 10:
             return 0.5
 
@@ -327,7 +333,7 @@ def load_profile(filepath: str) -> Optional[UserVector]:
             line_count=parse_q.get('parsed_lines', 0)
         )
     except Exception as e:
-        print(f"[Warn] Load failed ({filepath}): {e}")
+        logger.warning(f"[Warn] Load failed ({filepath}): {e}")
         return None
 
 def main():
@@ -338,6 +344,7 @@ def main():
     args = parser.parse_args()
 
     # 1. 로드
+    logging.basicConfig(level=logging.INFO)
     target_user = load_profile(args.target)
     if not target_user:
         print("타겟 프로필 로드 실패")

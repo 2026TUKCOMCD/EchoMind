@@ -16,10 +16,11 @@
     </div>
 
     <!-- Match Header & Score Dashboard -->
-    <div class="bg-white rounded-3xl shadow-xl shadow-indigo-100/50 border border-slate-100 overflow-hidden mb-10">
+    <div
+        class="bg-white dark:bg-slate-800 rounded-3xl shadow-xl shadow-indigo-100/30 dark:shadow-none border border-slate-100 dark:border-slate-700 overflow-hidden mb-10">
         <!-- Header -->
-        <div class="bg-slate-900 text-white p-8 relative overflow-hidden">
-            <div class="absolute top-0 right-0 p-8 opacity-10 text-9xl">🤝</div>
+        <div
+            class="bg-white dark:bg-slate-800 text-slate-900 dark:text-white p-8 relative overflow-hidden transition-colors">
             <div class="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
                 <div>
                     <div class="flex items-center gap-3 mb-2">
@@ -34,56 +35,70 @@
                         <span
                             class="px-2.5 py-1 rounded-full text-[10px] font-black bg-slate-600 text-slate-300 uppercase tracking-widest">거절됨</span>
                         {% endif %}
-                        <span class="text-xs font-medium text-slate-400 opacity-70">{{
+                        <span class="text-xs font-medium text-slate-500 dark:text-slate-400 opacity-70">{{
                             request_info.created_at.strftime('%Y년 %m월 %d일') }}</span>
                     </div>
                     <h1 class="text-3xl md:text-4xl font-black tracking-tight">
-                        <span class="text-indigo-300">{{ request_info.counterpart_nickname }}</span> 님과의 분석
+                        <span class="text-indigo-600 dark:text-indigo-300">{{ request_info.counterpart_nickname
+                            }}</span> 님과의 분석
                     </h1>
                 </div>
-                <div class="text-center bg-white/10 backdrop-blur-sm rounded-2xl p-4 border border-white/20">
-                    <span class="block text-xs font-bold text-indigo-200 uppercase tracking-widest mb-1">Total
+                <div
+                    class="text-center bg-indigo-50/50 dark:bg-slate-700/50 backdrop-blur-sm rounded-2xl p-4 border border-indigo-100 dark:border-indigo-800/50 shadow-sm">
+                    <span
+                        class="block text-xs font-bold text-indigo-500 dark:text-indigo-300 uppercase tracking-widest mb-1">Total
                         Match</span>
-                    <span class="block text-4xl font-black text-white">{{ request_info.match_score }}%</span>
+                    <span class="block text-4xl font-black text-indigo-600 dark:text-white">{{ request_info.match_score
+                        }}%</span>
                 </div>
             </div>
         </div>
 
         <!-- Score Breakdown Cards -->
-        <div class="grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-slate-100">
+        <div
+            class="grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-slate-100 dark:divide-slate-700">
             <!-- Similarity -->
-            <div class="p-6 text-center hover:bg-slate-50 transition-colors">
-                <div class="text-3xl mb-2">🧩</div>
-                <div class="text-2xl font-black text-slate-900">{{ (match_details.similarity_score * 100) | int }}%
+            <div class="p-6 text-center hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
+                <span
+                    class="inline-block px-3 py-1 bg-indigo-50 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-300 text-[10px] font-black uppercase tracking-widest rounded-full mb-4 border border-indigo-100 dark:border-indigo-800">Similarity</span>
+                <div class="text-4xl font-black text-slate-900 dark:text-white mb-1">{{ (match_details.similarity_score
+                    *
+                    100) | int }}%
                 </div>
-                <div class="text-xs font-bold text-slate-500 uppercase tracking-wider">성향 유사도</div>
-                <p class="text-[10px] text-slate-400 mt-2">Big5 기반 성격 일치도</p>
+                <div class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">성향 유사도</div>
+                <p class="text-[10px] text-slate-400 dark:text-slate-500 mt-2">Big5 기반 성격 일치도</p>
             </div>
             <!-- Chemistry -->
-            <div class="p-6 text-center hover:bg-slate-50 transition-colors">
-                <div class="text-3xl mb-2">⚡</div>
-                <div class="text-2xl font-black text-slate-900">{{ (match_details.chemistry_score * 100) | int }}%</div>
-                <div class="text-xs font-bold text-slate-500 uppercase tracking-wider">케미스트리</div>
-                <p class="text-[10px] text-slate-400 mt-2">MBTI/Socionics 궁합</p>
+            <div class="p-6 text-center hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                <span
+                    class="inline-block px-3 py-1 bg-rose-50 dark:bg-rose-900/40 text-rose-600 dark:text-rose-300 text-[10px] font-black uppercase tracking-widest rounded-full mb-4 border border-rose-100 dark:border-rose-800">Chemistry</span>
+                <div class="text-4xl font-black text-slate-900 dark:text-white mb-1">{{ (match_details.chemistry_score *
+                    100)
+                    | int }}%</div>
+                <div class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">케미스트리</div>
+                <p class="text-[10px] text-slate-400 dark:text-slate-500 mt-2">MBTI/Socionics 궁합</p>
             </div>
             <!-- Activity -->
-            <div class="p-6 text-center hover:bg-slate-50 transition-colors">
-                <div class="text-3xl mb-2">💬</div>
-                <div class="text-2xl font-black text-slate-900">{{ (match_details.activity_score * 100) | int }}점</div>
-                <div class="text-xs font-bold text-slate-500 uppercase tracking-wider">대화 스타일</div>
-                <p class="text-[10px] text-slate-400 mt-2">대화량 및 패턴 분석</p>
+            <div class="p-6 text-center hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                <span
+                    class="inline-block px-3 py-1 bg-amber-50 dark:bg-amber-900/40 text-amber-600 dark:text-amber-300 text-[10px] font-black uppercase tracking-widest rounded-full mb-4 border border-amber-100 dark:border-amber-800">Activity</span>
+                <div class="text-4xl font-black text-slate-900 dark:text-white mb-1">{{ (match_details.activity_score *
+                    100)
+                    | int }}점</div>
+                <div class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">대화 스타일</div>
+                <p class="text-[10px] text-slate-400 dark:text-slate-500 mt-2">대화량 및 패턴 분석</p>
             </div>
         </div>
 
         <!-- Detailed Text -->
-        <div class="bg-slate-50 p-6 border-t border-slate-100">
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-slate-600">
+        <div class="bg-slate-50 dark:bg-slate-700/30 p-6 border-t border-slate-100 dark:border-slate-700">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-slate-600 dark:text-slate-300">
                 <div class="flex items-start gap-3">
-                    <span class="font-bold text-indigo-600 min-w-[40px]">MBTI</span>
+                    <span class="font-bold text-indigo-600 dark:text-indigo-400 min-w-[40px]">MBTI</span>
                     <span>{{ match_details.mbti_detail }}</span>
                 </div>
                 <div class="flex items-start gap-3">
-                    <span class="font-bold text-rose-600 min-w-[40px]">SOC</span>
+                    <span class="font-bold text-rose-600 dark:text-rose-400 min-w-[40px]">SOC</span>
                     <span>{{ match_details.socio_detail }}</span>
                 </div>
             </div>
@@ -93,7 +108,7 @@
     <!-- Embedded Profile Report -->
     <div class="my-12">
         <div class="flex items-center mb-6">
-            <h2 class="text-2xl font-black text-slate-900">📑 상대방 상세 리포트</h2>
+            <h2 class="text-2xl font-black text-slate-900 dark:text-white">📑 상대방 상세 리포트</h2>
             <div class="h-px bg-slate-200 flex-grow ml-4"></div>
         </div>
 
@@ -107,22 +122,23 @@
 
 <!-- Sticky Action Bar -->
 <div
-    class="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-md border-t border-slate-200 p-4 shadow-[0_-10px_40px_rgba(0,0,0,0.1)] z-50">
+    class="fixed bottom-0 left-0 right-0 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-t border-slate-200 dark:border-slate-700 p-4 shadow-[0_-10px_40px_rgba(0,0,0,0.1)] dark:shadow-none z-50 transition-colors">
     <div class="max-w-4xl mx-auto flex items-center justify-between gap-4">
         <div class="hidden sm:block">
-            <span class="text-sm font-bold text-slate-900">{{ request_info.counterpart_nickname }}</span>
-            <span class="text-xs text-slate-400">님과의 매칭</span>
+            <span class="text-sm font-bold text-slate-900 dark:text-white">{{ request_info.counterpart_nickname
+                }}</span>
+            <span class="text-xs text-slate-400 dark:text-slate-500">님과의 매칭</span>
         </div>
 
         <div class="flex gap-3 flex-grow sm:flex-grow-0 justify-end">
             <!-- Case 1: PENDING & I am Receiver -->
             {% if request_info.status == 'PENDING' and not is_sender %}
             <a href="{{ url_for('respond_match', request_id=request_info.request_id, action='rejected') }}"
-                class="px-6 py-3 rounded-xl font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors">
+                class="px-6 py-3 rounded-xl font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">
                 거절하기
             </a>
             <a href="{{ url_for('respond_match', request_id=request_info.request_id, action='accepted') }}"
-                class="px-8 py-3 rounded-xl font-black text-white bg-indigo-600 hover:bg-indigo-700 shadow-lg shadow-indigo-200 transition-transform active:scale-95">
+                class="px-8 py-3 rounded-xl font-black text-white bg-indigo-600 hover:bg-indigo-700 shadow-lg shadow-indigo-200 dark:shadow-none transition-transform active:scale-95">
                 매칭 수락 ✨
             </a>
 
@@ -131,12 +147,12 @@
             <form action="{{ url_for('cancel_match_request_route', request_id=request_info.request_id) }}"
                 method="POST">
                 <button type="submit" onclick="return confirm('매칭 신청을 취소하시겠습니까?')"
-                    class="px-6 py-3 rounded-xl font-bold text-slate-500 bg-slate-100 hover:text-red-600 hover:bg-red-50 transition-colors">
+                    class="px-6 py-3 rounded-xl font-bold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors">
                     신청 취소
                 </button>
             </form>
             <div
-                class="px-6 py-3 rounded-xl font-bold text-indigo-600 bg-indigo-50 border border-indigo-100 flex items-center gap-2">
+                class="px-6 py-3 rounded-xl font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-800 flex items-center gap-2">
                 <span class="block w-2 h-2 bg-indigo-500 rounded-full animate-pulse"></span>
                 상대방 응답 대기중
             </div>
@@ -146,18 +162,19 @@
             <form action="{{ url_for('request_unmatch', request_id=request_info.request_id) }}" method="POST"
                 onsubmit="return confirm('정말 매칭을 취소하시겠습니까?');">
                 <button type="submit"
-                    class="px-6 py-3 rounded-xl font-bold text-slate-400 bg-slate-50 hover:bg-red-50 hover:text-red-500 transition-colors">
+                    class="px-6 py-3 rounded-xl font-bold text-slate-400 dark:text-slate-400 bg-slate-50 dark:bg-slate-800 hover:bg-red-50 dark:hover:bg-red-900/30 hover:text-red-500 dark:hover:text-red-400 transition-colors">
                     매칭 해제 요청
                 </button>
             </form>
             <a href="#"
-                class="px-8 py-3 rounded-xl font-black text-white bg-green-500 cursor-default shadow-lg shadow-green-100">
+                class="px-8 py-3 rounded-xl font-black text-white bg-green-500 cursor-default shadow-lg shadow-green-100 dark:shadow-none">
                 현재 매칭 중 💖
             </a>
 
             <!-- Case 4: Others (Cancelled/Rejected) -->
             {% else %}
-            <span class="px-6 py-3 rounded-xl font-bold text-slate-400 bg-slate-100">
+            <span
+                class="px-6 py-3 rounded-xl font-bold text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-800">
                 종료된 매칭
             </span>
             {% endif %}
