@@ -348,12 +348,12 @@ def call_llm_profile(client: OpenAI, model: str, llm_input: Dict[str, object]) -
     }
 
     # IMPORTANT: response_format 제거 (SDK 호환)
-    resp = client.responses.create(
+    resp = client.chat.completions.create(
         model=model,
-        input=[
+        messages=[
             {"role": "system", "content": system},
             {"role": "user", "content": json.dumps(user, ensure_ascii=False)}
-        ],
+        ]
     )
 
     raw = _extract_responses_text(resp)
