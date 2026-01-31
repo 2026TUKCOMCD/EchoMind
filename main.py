@@ -223,32 +223,35 @@ def sample_texts_for_llm(rows: List[Dict[str, str]], max_msgs: int, max_chars: i
 # ----------------------------
 def _extract_responses_text(resp) -> str:
     """
-    Responses API 응답에서 텍스트를 최대한 안전하게 추출합니다.
-    SDK 버전에 따라 resp.output_text가 없거나 resp.output 구조가 다를 수 있어 방어적으로 처리합니다.
+    OpenAI 응답 객체에서 텍스트를 안전하게 추출합니다.
+    (ChatCompletion의 'choices'와 Responses API의 'output_text'를 모두 지원)
     """
+    # 1. 표준 ChatCompletion (gpt-4o, gpt-3.5 등) 구조 처리
+    if hasattr(resp, "choices") and resp.choices:
+        return resp.choices[0].message.content or ""
+    
+    # 2. Responses API (gpt-5-mini 등 커스텀/구형) 구조 처리
     if hasattr(resp, "output_text") and resp.output_text:
         return resp.output_text
 
-    texts: List[str] = []
+    texts = []
+    
+    # 객체의 속성이나 딕셔너리 키로 'output'이 있는지 확인
+    out = getattr(resp, "output", []) or []
+    if not out and isinstance(resp, dict):
+        out = resp.get("output", [])
 
-    for item in getattr(resp, "output", []) or []:
-        for c in getattr(item, "content", []) or []:
-            t = None
+    for item in out:
+        # item이 객체인지 딕셔너리인지 확인하여 content 추출
+        content_list = getattr(item, "content", []) if not isinstance(item, dict) else item.get("content", [])
+        if not content_list: continue
+
+        for c in content_list:
             if hasattr(c, "text"):
-                t = c.text
+                texts.append(c.text)
             elif isinstance(c, dict):
                 t = c.get("text")
-            if t:
-                texts.append(t)
-
-    if not texts and isinstance(resp, dict):
-        if resp.get("output_text"):
-            return resp["output_text"]
-        out = resp.get("output", [])
-        for item in out:
-            for c in item.get("content", []) or []:
-                if isinstance(c, dict) and c.get("text"):
-                    texts.append(c["text"])
+                if t: texts.append(t)
 
     return "\n".join(texts).strip()
 
