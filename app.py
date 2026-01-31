@@ -120,6 +120,16 @@ def _parse_json_safe(data):
 from extensions import db, User, ChatLog, PersonalityResult, MatchRequest, Notification
 db.init_app(app)
 
+# [NEW] 채팅 메시지 모델 (extensions.py에 정의하는 것이 좋으나 편의상 여기에 추가)
+class Message(db.Model):
+    __tablename__ = 'messages'
+    id = db.Column(db.Integer, primary_key=True)
+    request_id = db.Column(db.Integer, db.ForeignKey('match_requests.request_id', ondelete='CASCADE'), nullable=False)
+    sender_id = db.Column(db.Integer, db.ForeignKey('users.user_id', ondelete='CASCADE'), nullable=False)
+    content = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    is_read = db.Column(db.Boolean, default=False)
+
 # --- 보안 및 세션 관리 (Security & Session) ---
 def login_required(f):
     from functools import wraps
@@ -717,6 +727,19 @@ def match_inbox():
     
     # 4. 성사된 매칭 목록
     successful_matches = MatchManager.get_successful_matches(g.user.user_id)
+    
+    # [NEW] 각 매칭별 안 읽은 메시지 개수 계산
+    for match in successful_matches:
+        match['unread_count'] = Message.query.filter_by(
+            request_id=match['request_id'],
+            sender_id=match['user_id'], # 상대방 ID
+            is_read=False
+        ).count()
+        
+        # [NEW] 마지막 메시지 조회 (대화 미리보기용)
+        last_msg = Message.query.filter_by(request_id=match['request_id'])\
+            .order_by(Message.created_at.desc()).first()
+        match['last_message'] = last_msg.content if last_msg else "대화를 시작해보세요."
     
     # 5. 시스템 알림
     alerts = MatchManager.get_unread_notifications(g.user.user_id)
@@ -1733,6 +1756,74 @@ def admin_reset_dummies():
         app.logger.error(f"더미 초기화 오류: {e}")
         return {'success': False, 'message': str(e)}, 500
 
+# -------------------------------------------------------------------------
+# [Chat System]
+# -------------------------------------------------------------------------
+@app.route('/chat/<int:request_id>')
+@login_required
+def chat_room(request_id):
+    """1:1 채팅방 화면"""
+    req = MatchRequest.query.get_or_404(request_id)
+    
+    # 권한 확인 (당사자만 접근 가능)
+    if req.sender_id != g.user.user_id and req.receiver_id != g.user.user_id:
+        flash("접근 권한이 없습니다.", "danger")
+        return redirect(url_for('match_inbox'))
+    
+    # 매칭 성사 여부 확인
+    if req.status not in ['ACCEPTED', 'CANCEL_REQ_SENDER', 'CANCEL_REQ_RECEIVER']:
+        flash("성사된 매칭만 채팅할 수 있습니다.", "warning")
+        return redirect(url_for('match_inbox'))
+
+    # 상대방 정보 조회
+    partner_id = req.receiver_id if req.sender_id == g.user.user_id else req.sender_id
+    partner = User.query.get(partner_id)
+    
+    return render_template('chat.html', request_id=request_id, partner=partner)
+
+@app.route('/api/chat/<int:request_id>/messages')
+@login_required
+def get_chat_messages(request_id):
+    """메시지 목록 조회 (Polling용)"""
+    req = MatchRequest.query.get_or_404(request_id)
+    if req.sender_id != g.user.user_id and req.receiver_id != g.user.user_id:
+        return jsonify({'error': 'Unauthorized'}), 403
+        
+    messages = Message.query.filter_by(request_id=request_id).order_by(Message.created_at.asc()).all()
+    
+    # 읽음 처리 (상대방이 보낸 메시지)
+    unread_exist = False
+    for m in messages:
+        if m.sender_id != g.user.user_id and not m.is_read:
+            m.is_read = True
+            unread_exist = True
+    if unread_exist:
+        db.session.commit()
+        
+    return jsonify({
+        'messages': [{
+            'id': m.id,
+            'sender_id': m.sender_id,
+            'content': m.content,
+            'created_at': m.created_at.strftime('%H:%M'),
+            'is_me': m.sender_id == g.user.user_id,
+            'is_read': m.is_read
+        } for m in messages]
+    })
+
+@app.route('/api/chat/<int:request_id>/send', methods=['POST'])
+@login_required
+def send_chat_message(request_id):
+    """메시지 전송"""
+    data = request.get_json()
+    content = data.get('content', '').strip()
+    
+    if not content: return jsonify({'error': 'Empty message'}), 400
+        
+    msg = Message(request_id=request_id, sender_id=g.user.user_id, content=content)
+    db.session.add(msg)
+    db.session.commit()
+    return jsonify({'success': True})
 
 if __name__ == '__main__':
     import sys
@@ -1742,4 +1833,3 @@ if __name__ == '__main__':
         db.create_all() 
         check_and_update_db_schema()
     app.run(host=config_class.RUN_HOST, port=config_class.RUN_PORT)
-

@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+
+{% block content %}
+<!-- x-data에 request_id를 인자로 전달하여 JS 문법 오류 방지 -->
+<div class="max-w-2xl mx-auto" x-data="chatRoom({{ request_id }})">
+    <!-- Header -->
+    <div class="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 p-4 flex items-center justify-between sticky top-0 z-10">
+        <div class="flex items-center gap-3">
+            <a href="{{ url_for('match_inbox') }}" class="text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
+            </a>
+            <div>
+                <h1 class="font-bold text-lg text-slate-900 dark:text-white">{{ partner.nickname or partner.username }}</h1>
+                <span class="text-xs text-slate-500 dark:text-slate-400">EchoMind Chat</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Chat Area -->
+    <div class="bg-slate-100 dark:bg-slate-900 min-h-[calc(100vh-180px)] p-4 flex flex-col gap-3 pb-24" id="chat-container">
+        <template x-for="msg in messages" :key="msg.id">
+            <div class="flex w-full" :class="msg.is_me ? 'justify-end' : 'justify-start'">
+                <div class="max-w-[70%] flex gap-1" :class="msg.is_me ? 'flex-row-reverse' : 'flex-row'">
+                    <!-- Message Bubble -->
+                    <div class="flex flex-col" :class="msg.is_me ? 'items-end' : 'items-start'">
+                        <div class="px-4 py-2 rounded-2xl text-sm shadow-sm break-words whitespace-pre-wrap"
+                             :class="msg.is_me ? 'bg-indigo-500 text-white rounded-tr-none' : 'bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 rounded-tl-none border border-slate-200 dark:border-slate-700'">
+                            <span x-text="msg.content"></span>
+                        </div>
+                    </div>
+                    <!-- Time & Read Indicator -->
+                    <div class="flex flex-col justify-end gap-0.5 pb-0.5 min-w-[30px]" :class="msg.is_me ? 'items-end' : 'items-start'">
+                        <span x-show="msg.is_me && !msg.is_read" class="text-[10px] text-yellow-500 font-bold leading-none">1</span>
+                        <span class="text-[10px] text-slate-400 whitespace-nowrap" x-text="msg.created_at"></span>
+                    </div>
+                </div>
+            </div>
+        </template>
+        <div x-show="messages.length === 0" class="text-center text-slate-400 text-sm py-10">
+            대화를 시작해보세요!
+        </div>
+    </div>
+
+    <!-- Input Area -->
+    <div class="fixed bottom-0 left-0 right-0 bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 p-4">
+        <div class="max-w-2xl mx-auto flex gap-2">
+            <input type="text" 
+                   x-model="newMessage" 
+                   @keydown.enter.prevent="sendMessage()"
+                   class="flex-1 bg-slate-100 dark:bg-slate-700 border-0 rounded-full px-4 py-3 focus:ring-2 focus:ring-indigo-500 dark:text-white"
+                   placeholder="메시지를 입력하세요..."
+                   autocomplete="off">
+            <button @click="sendMessage()" 
+                    :disabled="!newMessage.trim()"
+                    class="bg-indigo-600 hover:bg-indigo-700 text-white rounded-full p-3 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path></svg>
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('alpine:init', () => {
+    // reqId를 인자로 받아 초기화 (Jinja2 템플릿 변수 충돌 방지)
+    Alpine.data('chatRoom', (reqId) => ({
+        messages: [],
+        newMessage: '',
+        requestId: reqId,
+        polling: null,
+
+        init() {
+            this.fetchMessages(true);
+            // 2초마다 메시지 갱신
+            this.polling = setInterval(() => this.fetchMessages(false), 2000);
+            
+            // 화면 떠날 때 폴링 중지
+            window.addEventListener('beforeunload', () => clearInterval(this.polling));
+        },
+
+        async fetchMessages(scroll = false) {
+            try {
+                const res = await fetch(`/api/chat/${this.requestId}/messages`);
+                const data = await res.json();
+                
+                // 새 메시지가 있거나 첫 로드일 때만 스크롤
+                const shouldScroll = scroll || (data.messages.length > this.messages.length);
+                this.messages = data.messages;
+
+                if (shouldScroll) {
+                    this.$nextTick(() => this.scrollToBottom());
+                }
+            } catch (e) { console.error(e); }
+        },
+
+        async sendMessage() {
+            if (!this.newMessage.trim()) return;
+            
+            const content = this.newMessage;
+            this.newMessage = ''; // 즉시 비우기
+
+            try {
+                await fetch(`/api/chat/${this.requestId}/send`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ content: content })
+                });
+                this.fetchMessages(true);
+            } catch (e) { alert('전송 실패'); }
+        },
+
+        scrollToBottom() {
+            window.scrollTo(0, document.body.scrollHeight);
+        }
+    }));
+});
+</script>
+{% endblock %}

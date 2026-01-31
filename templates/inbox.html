@@ -145,13 +145,23 @@
                                     {{ match.nickname[0] or match.username[0] }}
                                 </div>
                                 <div class="min-w-0">
-                                    <div class="flex items-center gap-2">
+                                    <div class="flex items-center gap-2 mb-1">
                                         <h4 class="font-bold text-slate-900 dark:text-white leading-tight truncate">
                                             {{ match.nickname }}
                                         </h4>
                                         <a href="{{ url_for('match_detail', request_id=match.request_id) }}"
                                             class="flex-shrink-0 text-[10px] px-2 py-0.5 bg-indigo-50 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-800/50 rounded-md hover:bg-indigo-100 dark:hover:bg-indigo-900/60 transition-colors">보기</a>
+                                        <a href="{{ url_for('chat_room', request_id=match.request_id) }}"
+                                            class="flex-shrink-0 text-[10px] px-2 py-0.5 bg-indigo-600 text-white border border-indigo-600 rounded-md hover:bg-indigo-700 transition-colors shadow-sm ml-1 flex items-center gap-1">
+                                            채팅
+                                            {% if match.unread_count > 0 %}
+                                            <span class="inline-flex items-center justify-center px-1.5 py-0.5 text-[9px] font-bold leading-none text-red-100 bg-red-600 rounded-full">{{ match.unread_count }}</span>
+                                            {% endif %}
+                                        </a>
                                     </div>
+                                    <p class="text-xs text-slate-600 dark:text-slate-400 truncate mb-1">
+                                        {{ match.last_message }}
+                                    </p>
                                     <span class="text-[10px] text-slate-400 dark:text-slate-500 font-medium">{{
                                         match.matched_at.strftime('%Y-%m-%d') if match.matched_at else '-' }}</span>
                                 </div>
