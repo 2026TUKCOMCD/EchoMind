@@ -117,18 +117,8 @@ def _parse_json_safe(data):
     return data if data is not None else {}
 
 # SQLAlchemy 인스턴스를 extensions에서 임포트 (순환 참조 방지)
-from extensions import db, User, ChatLog, PersonalityResult, MatchRequest, Notification
+from extensions import db, User, ChatLog, PersonalityResult, MatchRequest, Notification, Message
 db.init_app(app)
-
-# [NEW] 채팅 메시지 모델 (extensions.py에 정의하는 것이 좋으나 편의상 여기에 추가)
-class Message(db.Model):
-    __tablename__ = 'messages'
-    id = db.Column(db.Integer, primary_key=True)
-    request_id = db.Column(db.Integer, db.ForeignKey('match_requests.request_id', ondelete='CASCADE'), nullable=False)
-    sender_id = db.Column(db.Integer, db.ForeignKey('users.user_id', ondelete='CASCADE'), nullable=False)
-    content = db.Column(db.Text, nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    is_read = db.Column(db.Boolean, default=False)
 
 # --- 보안 및 세션 관리 (Security & Session) ---
 def login_required(f):
