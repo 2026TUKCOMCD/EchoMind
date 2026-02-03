@@ -166,9 +166,9 @@
                     매칭 해제 요청
                 </button>
             </form>
-            <a href="#"
-                class="px-8 py-3 rounded-xl font-black text-white bg-green-500 cursor-default shadow-lg shadow-green-100 dark:shadow-none">
-                현재 매칭 중 💖
+            <a href="{{ url_for('chat_room', request_id=request_info.request_id) }}"
+                class="px-8 py-3 rounded-xl font-black text-white bg-indigo-600 hover:bg-indigo-700 shadow-lg shadow-indigo-200 dark:shadow-none transition-transform active:scale-95">
+                채팅 시작하기 💬
             </a>
 
             <!-- Case 4: Others (Cancelled/Rejected) -->
