@@ -112,3 +112,28 @@ html.dark thead.bg-slate-50 {
 html.dark tbody tr:hover {
     background-color: rgba(255, 255, 255, 0.02);
 }
+
+/* Date Picker Icon Styling */
+input[type="date"]::-webkit-calendar-picker-indicator {
+    cursor: pointer;
+    width: 20px;
+    height: 20px;
+    padding: 4px;
+    border-radius: 4px;
+    opacity: 0.8;
+    transition: 0.2s;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator:hover {
+    background-color: rgba(0, 0, 0, 0.05);
+    opacity: 1;
+}
+
+/* Dark Mode Date Picker */
+html.dark input[type="date"]::-webkit-calendar-picker-indicator {
+    filter: invert(100%);
+}
+
+html.dark input[type="date"]::-webkit-calendar-picker-indicator:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}

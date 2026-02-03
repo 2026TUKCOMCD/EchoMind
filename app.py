@@ -14,7 +14,7 @@ import re
 import json
 import sqlalchemy
 from sqlalchemy import text
-from datetime import datetime
+from datetime import datetime, timedelta
 from flask import Flask, render_template, request, redirect, url_for, flash, session, g, jsonify
 from sqlalchemy.orm import aliased
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -1795,7 +1795,7 @@ def get_chat_messages(request_id):
             'id': m.id,
             'sender_id': m.sender_id,
             'content': m.content,
-            'created_at': m.created_at.strftime('%H:%M'),
+            'created_at': (m.created_at + timedelta(hours=9)).strftime('%H:%M'),
             'is_me': m.sender_id == g.user.user_id,
             'is_read': m.is_read
         } for m in messages]
