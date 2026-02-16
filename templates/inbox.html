@@ -200,6 +200,16 @@
                             </div>
                         </div>
                         {% endif %}
+
+                        {% if (match.status == 'CANCEL_REQ_SENDER' and match.sender_id == g.user.user_id) or
+                        (match.status == 'CANCEL_REQ_RECEIVER' and match.receiver_id == g.user.user_id) %}
+                        <div class="mt-4 p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-xl border border-yellow-100 dark:border-yellow-900/30">
+                            <p class="text-[10px] font-bold text-yellow-700 dark:text-yellow-400 mb-2">상대방의 매칭 취소 수락을 기다리고 있습니다.</p>
+                            <form action="{{ url_for('withdraw_unmatch', request_id=match.request_id) }}" method="POST" onsubmit="return confirm('매칭 취소 요청을 철회하시겠습니까?');">
+                                <button type="submit" class="w-full py-1.5 text-center bg-white dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-[9px] font-bold rounded-lg border border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-600 transition-colors">요청 철회</button>
+                            </form>
+                        </div>
+                        {% endif %}
                     </div>
                     {% endfor %}
                 </div>

@@ -879,6 +879,13 @@ def respond_unmatch(request_id, action):
     flash(result['message'], 'success' if result['success'] else 'danger')
     return redirect(url_for('match_inbox'))
 
+@app.route('/unmatch/withdraw/<int:request_id>', methods=['POST'])
+@login_required
+def withdraw_unmatch(request_id):
+    result = MatchManager.withdraw_unmatch_request(g.user.user_id, request_id)
+    flash(result['message'], 'success' if result['success'] else 'danger')
+    return redirect(url_for('match_inbox'))
+
 # --- 관리자 (Admin) ---
 @app.route('/admin/login', methods=['GET', 'POST'])
 def admin_login():

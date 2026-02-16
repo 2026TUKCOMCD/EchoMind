@@ -298,6 +298,36 @@ class MatchManager:
             return {"success": False, "message": str(e)}
 
     @classmethod
+    def withdraw_unmatch_request(cls, user_id, request_id):
+        """
+        [매칭 취소 요청 철회] (본인이 요청한 매칭 취소를 취소하여 ACCEPTED 상태로 복구)
+        """
+        from extensions import db, MatchRequest
+
+        try:
+            req = MatchRequest.query.get(request_id)
+            if not req:
+                return {"success": False, "message": "존재하지 않는 매칭입니다."}
+
+            # 본인이 요청한 상태인지 확인
+            if req.sender_id == int(user_id) and req.status == 'CANCEL_REQ_SENDER':
+                pass
+            elif req.receiver_id == int(user_id) and req.status == 'CANCEL_REQ_RECEIVER':
+                pass
+            else:
+                return {"success": False, "message": "철회할 수 있는 요청이 없거나 권한이 없습니다."}
+
+            req.status = 'ACCEPTED'
+            req.updated_at = db.func.now()
+            db.session.commit()
+            
+            return {"success": True, "message": "매칭 취소 요청이 철회되었습니다."}
+        
+        except Exception as e:
+            db.session.rollback()
+            return {"success": False, "message": str(e)}
+
+    @classmethod
     def reload_candidates(cls):
         """
         [관리자] 후보군 데이터 새로고침
