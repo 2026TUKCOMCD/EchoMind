@@ -154,12 +154,10 @@
                                         <a href="{{ url_for('chat_room', request_id=match.request_id) }}"
                                             class="flex-shrink-0 text-[10px] px-2 py-0.5 bg-indigo-600 text-white border border-indigo-600 rounded-md hover:bg-indigo-700 transition-colors shadow-sm ml-1 flex items-center gap-1">
                                             채팅
-                                            {% if match.unread_count > 0 %}
-                                            <span class="inline-flex items-center justify-center px-1.5 py-0.5 text-[9px] font-bold leading-none text-red-100 bg-red-600 rounded-full">{{ match.unread_count }}</span>
-                                            {% endif %}
+                                            <span id="unread-badge-{{ match.request_id }}" class="inline-flex items-center justify-center px-1.5 py-0.5 text-[9px] font-bold leading-none text-red-100 bg-red-600 rounded-full {% if match.unread_count == 0 %}hidden{% endif %}">{{ match.unread_count }}</span>
                                         </a>
                                     </div>
-                                    <p class="text-xs text-slate-600 dark:text-slate-400 truncate mb-1">
+                                    <p id="last-msg-{{ match.request_id }}" class="text-xs text-slate-600 dark:text-slate-400 truncate mb-1">
                                         {{ match.last_message }}
                                     </p>
                                     <span class="text-[10px] text-slate-400 dark:text-slate-500 font-medium">{{
@@ -361,6 +359,38 @@
         const tipElement = document.getElementById('random-tip');
         const randomTip = tips[Math.floor(Math.random() * tips.length)];
         tipElement.textContent = randomTip;
+
+        // 실시간 인박스 업데이트 (2초 주기)
+        setInterval(async () => {
+            try {
+                const response = await fetch('/api/inbox/updates');
+                if (!response.ok) return;
+                const data = await response.json();
+                
+                data.updates.forEach(update => {
+                    const reqId = update.request_id;
+                    
+                    // 1. 뱃지 업데이트
+                    const badge = document.getElementById(`unread-badge-${reqId}`);
+                    if (badge) {
+                        if (update.unread_count > 0) {
+                            badge.textContent = update.unread_count;
+                            badge.classList.remove('hidden');
+                        } else {
+                            badge.classList.add('hidden');
+                        }
+                    }
+                    
+                    // 2. 마지막 메시지 업데이트
+                    const msgElem = document.getElementById(`last-msg-${reqId}`);
+                    if (msgElem) {
+                        msgElem.textContent = update.last_message;
+                    }
+                });
+            } catch (e) {
+                console.error("Inbox update failed", e);
+            }
+        }, 2000);
     });
 </script>
 

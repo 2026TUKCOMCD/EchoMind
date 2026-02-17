@@ -743,6 +743,34 @@ def match_inbox():
                            matches=successful_matches, 
                            alerts=alerts)
 
+@app.route('/api/inbox/updates')
+@login_required
+def inbox_updates():
+    """인박스 실시간 업데이트를 위한 API (Polling용)"""
+    successful_matches = MatchManager.get_successful_matches(g.user.user_id)
+    
+    updates = []
+    for match in successful_matches:
+        # 안 읽은 메시지 개수
+        unread_count = Message.query.filter_by(
+            request_id=match['request_id'],
+            sender_id=match['user_id'], # 상대방 ID
+            is_read=False
+        ).count()
+        
+        # 마지막 메시지
+        last_msg = Message.query.filter_by(request_id=match['request_id'])\
+            .order_by(Message.created_at.desc()).first()
+        last_message_content = last_msg.content if last_msg else "대화를 시작해보세요."
+        
+        updates.append({
+            'request_id': match['request_id'],
+            'unread_count': unread_count,
+            'last_message': last_message_content
+        })
+        
+    return jsonify({'updates': updates})
+
 @app.route('/match/detail/<int:request_id>')
 @login_required
 def match_detail(request_id):
