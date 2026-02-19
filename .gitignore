@@ -1,3 +1,5 @@
+gitignore
+# --- Existing Web/Server Specific ---
 .env
 .venv/
 .vscode/
@@ -9,3 +11,34 @@ profile/
 static/reports/
 debug.log
 dummy_*.json
+
+# --- Android Project (EchoMind_app) Specific ---
+
+# 1. 빌드 결과물 및 임시 파일
+.gradle/
+build/
+**/build/
+.kotlin/           
+captures/
+.externalNativeBuild/
+.cxx/
+
+# 2. 개인 환경 설정 및 보안 파일 (절대 업로드 금지)
+local.properties
+*.jks
+*.keystore
+google-services.json
+
+# 3. 안드로이드 스튜디오 / IntelliJ 설정 파일
+*.iml
+*.ipr
+*.iws
+.navigation/
+
+# 4. 빌드된 실행 파일 (APK, App Bundle)
+*.apk
+*.aab
+
+# 5. OS 및 시스템 임시 파일
+.DS_Store
+Thumbs.db
