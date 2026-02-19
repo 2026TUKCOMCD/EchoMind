@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Basic Colors -->
+    <color name="white">#FFFFFFFF</color>
+    <color name="black">#FF000000</color>
+
+    <!-- Brand Colors (Indigo) -->
+    <color name="indigo_50">#EEF2FF</color>
+    <color name="indigo_100">#E0E7FF</color>
+    <color name="indigo_500">#6366F1</color>
+    <color name="indigo_600">#4F46E5</color>
+    <color name="indigo_700">#4338CA</color>
+
+    <!-- Semantic Colors (Light Mode Default) -->
+    <color name="primary">@color/indigo_600</color>
+    <color name="primary_variant">@color/indigo_700</color>
+    <color name="background">#F8FAFC</color> <!-- slate-50 -->
+    <color name="surface">#FFFFFF</color>
+    <color name="text_primary">#0F172A</color> <!-- slate-900 -->
+    <color name="text_secondary">#64748B</color> <!-- slate-500 -->
+    <color name="border">#E2E8F0</color> <!-- slate-200 -->
+    <color name="card_bg">#FFFFFF</color>
+
+    <!-- Big5 Colors -->
+    <color name="trait_high">#3B82F6</color>
+    <color name="trait_neutral">#94A3B8</color>
+</resources>

@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:padding="8dp">
+
+    <!-- 상대방 메시지 (왼쪽) -->
+    <LinearLayout
+        android:id="@+id/layoutPartner"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="bottom"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent">
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+            <TextView
+                android:id="@+id/tvPartnerMessage"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_message_partner"
+                android:padding="12dp"
+                android:text="상대방 메시지"
+                android:textColor="@color/text_primary"
+                android:maxWidth="260dp" />
+            <TextView
+                android:id="@+id/tvPartnerTime"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="10sp"
+                android:textColor="@color/text_secondary"
+                android:layout_marginTop="2dp" />
+        </LinearLayout>
+
+        <!-- 상대방 메시지의 경우 읽음 표시는 보통 안 보이지만 대칭을 위해 구성 (숨김처리 가능) -->
+        <TextView
+            android:id="@+id/tvPartnerUnread"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="1"
+            android:textColor="#FACC15"
+            android:textSize="10sp"
+            android:textStyle="bold"
+            android:layout_marginStart="4dp"
+            android:layout_marginBottom="14dp"
+            android:visibility="gone" />
+    </LinearLayout>
+
+    <!-- 내 메시지 (오른쪽) -->
+    <LinearLayout
+        android:id="@+id/layoutMe"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="bottom"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="parent">
+
+        <!-- 내 메시지 왼쪽 옆에 '1' 표시 (카카오톡 스타일) -->
+        <TextView
+            android:id="@+id/tvMeUnread"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="1"
+            android:textColor="#FACC15"
+            android:textSize="10sp"
+            android:textStyle="bold"
+            android:layout_marginEnd="4dp"
+            android:layout_marginBottom="14dp" />
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:gravity="end">
+            <TextView
+                android:id="@+id/tvMeMessage"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_message_me"
+                android:padding="12dp"
+                android:text="내 메시지"
+                android:textColor="@color/white"
+                android:maxWidth="260dp" />
+            <TextView
+                android:id="@+id/tvMeTime"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="10sp"
+                android:textColor="@color/text_secondary"
+                android:layout_marginTop="2dp" />
+        </LinearLayout>
+    </LinearLayout>
+
+</androidx.constraintlayout.widget.ConstraintLayout>

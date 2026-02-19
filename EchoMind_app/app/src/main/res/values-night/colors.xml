@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Semantic Colors (Dark Mode) -->
+    <color name="primary">@color/indigo_500</color>
+    <color name="primary_variant">@color/indigo_600</color>
+    <color name="background">#0F172A</color> <!-- slate-900 -->
+    <color name="surface">#1E293B</color> <!-- slate-800 -->
+    <color name="text_primary">#F8FAFC</color> <!-- slate-50 -->
+    <color name="text_secondary">#94A3B8</color> <!-- slate-400 -->
+    <color name="border">#334155</color> <!-- slate-700 -->
+    <color name="card_bg">#1E293B</color>
+
+    <!-- Big5 Colors (slightly adjusted for dark) -->
+    <color name="trait_high">#60A5FA</color>
+    <color name="trait_neutral">#475569</color>
+</resources>
