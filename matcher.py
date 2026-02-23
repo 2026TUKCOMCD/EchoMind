@@ -273,9 +273,20 @@ class HybridMatcher:
         # --- [B] Chemistry Score (40%) ---
         # B-1. MBTI 궁합
         mbti_chem = RelationshipBrain.get_chemistry_score(target.mbti_type, candidate.mbti_type)
+        mbti_label = RelationshipBrain.get_label(target.mbti_type, candidate.mbti_type)
         # B-2. 소시오닉스 쿼드라 궁합
         socio_chem = RelationshipBrain.get_socionics_score(target.socionics_type, candidate.socionics_type)
         
+        # 소시오닉스 쿼드라 정보 추출
+        target_quadra = None
+        candidate_quadra = None
+        for q_name, types in RelationshipBrain.QUADRAS.items():
+            if target.socionics_type in types:
+                target_quadra = q_name
+            if candidate.socionics_type in types:
+                candidate_quadra = q_name
+        socio_quadra_same = (target_quadra is not None and target_quadra == candidate_quadra)
+
         # 신뢰도 가중 평균
         w_m = (target.mbti_conf * candidate.mbti_conf) ** 0.5
         w_s = (target.socionics_conf * candidate.socionics_conf) ** 0.5
@@ -295,7 +306,19 @@ class HybridMatcher:
             "chemistry_score": chemistry_score,
             "activity_score": activity_score,
             "mbti_detail": mbti_chem,
-            "socio_detail": socio_chem
+            "socio_detail": socio_chem,
+            # 확장 패널용 추가 데이터
+            "mbti_label": mbti_label,
+            "target_mbti": target.mbti_type,
+            "candidate_mbti": candidate.mbti_type,
+            "socio_quadra_same": socio_quadra_same,
+            "target_quadra": target_quadra,
+            "candidate_quadra": candidate_quadra,
+            "target_socio": target.socionics_type,
+            "candidate_socio": candidate.socionics_type,
+            "mbti_weight": float(w_m),
+            "socio_weight": float(w_s),
+            "cos_sim_raw": float(cos_sim),
         }
 
 # ----------------------------

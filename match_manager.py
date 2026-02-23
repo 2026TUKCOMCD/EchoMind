@@ -418,6 +418,12 @@ class MatchManager:
                     candidates[idx]['match_score'] = int(max(0, min(100, new_total * 100)))
                     candidates[idx]['match_details'] = scores
                     
+                    # 확장 패널용 추가 데이터 (Big5, 대화량)
+                    candidates[idx]['my_big5'] = target_user.big5_raw.tolist() if target_user.big5_raw is not None else [50,50,50,50,50]
+                    candidates[idx]['cand_big5'] = candidate_user.big5_raw.tolist() if candidate_user.big5_raw is not None else [50,50,50,50,50]
+                    candidates[idx]['my_line_count'] = target_user.line_count or 0
+                    candidates[idx]['cand_line_count'] = candidate_user.line_count or 0
+
                     # 상대적 성향 분석 (Relative Traits)
                     trait_names_kr = ["개방성", "성실성", "외향성", "우호성", "신경성"]
                     distinctive = []
