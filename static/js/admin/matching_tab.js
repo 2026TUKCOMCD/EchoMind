@@ -271,8 +271,22 @@ document.addEventListener('alpine:init', () => {
             // 2-2. Unlocked가 있으면 비례 배분
             const currentSumUnlocked = unlockedOthers.reduce((sum, key) => sum + parseFloat(this.dummyWeights[key]), 0);
 
+            let sumLockedOthers = 0;
+            const lockedOthers = others.filter(k => this.locked[k]);
+            lockedOthers.forEach(k => sumLockedOthers += parseFloat(this.dummyWeights[k]));
+
+            // 핵심 수정: trigger 값이 (1.0 - locked)를 초과하지 못하도록 즉시 제한
+            const maxAllowed = 1.0 - sumLockedOthers;
+            if (val > maxAllowed) {
+                val = parseFloat(maxAllowed.toFixed(2));
+                this.dummyWeights[trigger] = val;
+            }
+
+            let availableForUnlocked = 1.0 - val - sumLockedOthers;
+            if (availableForUnlocked < 0) availableForUnlocked = 0;
+
             if (currentSumUnlocked === 0) {
-                const share = remaining / unlockedOthers.length;
+                const share = availableForUnlocked / unlockedOthers.length;
                 unlockedOthers.forEach(k => {
                     this.dummyWeights[k] = parseFloat(share.toFixed(2));
                 });

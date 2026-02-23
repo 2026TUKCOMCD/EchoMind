@@ -614,7 +614,7 @@ def generate_report_html(data: dict, return_body_only=False) -> str:
     }
     
     display_names = {
-        "openness": "심미안 (Openness)",
+        "openness": "개방성 (Openness)",
         "conscientiousness": "성실성 (Conscientiousness)",
         "extraversion": "외향성 (Extraversion)",
         "agreeableness": "우호성 (Agreeableness)",

@@ -16,7 +16,29 @@
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {% for cand in candidates %}
         <div
-            class="glass-panel p-8 rounded-3xl hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
+            class="glass-panel p-8 rounded-3xl hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 mt-4">
+
+            <!-- [NEW] Ranking Badge (Inside Card) -->
+            <div class="mb-5">
+                {% if loop.index == 1 %}
+                <span
+                    class="bg-gradient-to-r from-yellow-300 to-yellow-500 text-yellow-900 shadow-sm text-lg font-black px-5 py-2 rounded-xl inline-flex items-center gap-2">🥇
+                    1st</span>
+                {% elif loop.index == 2 %}
+                <span
+                    class="bg-gradient-to-r from-slate-200 to-slate-400 text-slate-800 shadow-sm text-lg font-black px-5 py-2 rounded-xl inline-flex items-center gap-2">🥈
+                    2nd</span>
+                {% elif loop.index == 3 %}
+                <span
+                    class="bg-gradient-to-r from-amber-600 to-amber-800 text-white shadow-sm text-lg font-black px-5 py-2 rounded-xl inline-flex items-center gap-2">🥉
+                    3rd</span>
+                {% else %}
+                <span
+                    class="bg-indigo-50 dark:bg-slate-700 text-slate-600 dark:text-slate-300 shadow-sm text-lg font-black px-5 py-2 rounded-xl inline-flex items-center">{{
+                    loop.index }}th</span>
+                {% endif %}
+            </div>
+
             <!-- Header Section -->
             <div class="flex justify-between items-start mb-6 pb-6 border-b border-gray-100 dark:border-slate-700">
                 <div>
