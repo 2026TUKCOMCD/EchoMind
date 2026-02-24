@@ -132,8 +132,8 @@
                 'candLineCount': cand.cand_line_count |default(0),
                 'mbtiScore': cand.match_details.mbti_detail |default(0.5),
                 'socioScore': cand.match_details.socio_detail |default(0.5),
-                'mbtiWeight': cand.match_details.mbti_weight |default(0.5),
-                'socioWeight': cand.match_details.socio_weight |default(0.5),
+                'mbtiWeight': cand.match_details.mbti_weight |default(1.0),
+                'socioWeight': cand.match_details.socio_weight |default(1.0),
                 'candName': cand.nickname or cand.username
                 } %}
                 <div class="text-center">
@@ -194,7 +194,7 @@
 
                                 <!-- 케미스트리 버튼 -->
                                 <button type="button" onclick="toggleAccordion({{ loop.index }}, 'chemistry')"
-                                    class="w-full text-left group flex justify-between items-center p-3 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md hover:rose-300 dark:hover:border-rose-700 transition-all duration-200">
+                                    class="w-full text-left group flex justify-between items-center p-3 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md hover:border-rose-300 dark:hover:border-rose-700 transition-all duration-200">
                                     <div>
                                         <div
                                             class="font-bold text-rose-600 dark:text-rose-400 mb-0.5 flex items-center gap-2">
@@ -218,7 +218,7 @@
 
                                 <!-- 활동성 버튼 -->
                                 <button type="button" onclick="toggleAccordion({{ loop.index }}, 'activity')"
-                                    class="w-full text-left group flex justify-between items-center p-3 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md hover:amber-300 dark:hover:border-amber-700 transition-all duration-200">
+                                    class="w-full text-left group flex justify-between items-center p-3 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md hover:border-amber-300 dark:hover:border-amber-700 transition-all duration-200">
                                     <div>
                                         <div
                                             class="font-bold text-amber-600 dark:text-amber-400 mb-0.5 flex items-center gap-2">

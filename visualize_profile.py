@@ -222,6 +222,17 @@ MBTI_DESC_MAP = {
     "ENTJ": "대담한 통솔자 (지도자형)"
 }
 
+MBTI_GROUPS = {
+    "분석가형 (NT)": ["INTJ", "INTP", "ENTJ", "ENTP"],
+    "외교관형 (NF)": ["INFJ", "INFP", "ENFJ", "ENFP"],
+    "관리자형 (SJ)": ["ISTJ", "ISFJ", "ESTJ", "ESFJ"],
+    "탐험가형 (SP)": ["ISTP", "ISFP", "ESTP", "ESFP"]
+}
+
+MBTI_GENERAL_EXPLANATION = """
+MBTI(Myers-Briggs Type Indicator)는 개인이 쉽게 응답할 수 있는 자기보고서 문항을 통해 사람들이 세상을 인식하고 결정을 내릴 때 각자 선호하는 경향을 찾고, 이러한 선호 경향들이 인간의 행동에 어떠한 영향을 미치는가를 파악하여 실생활에 응용할 수 있도록 제작된 성격 유형 지표 검사입니다.
+"""
+
 def get_trait_content(trait_key, score):
     """
     점수에 따른 트레잇의 모든 텍스트 컴포넌트 반환
@@ -565,6 +576,34 @@ def generate_report_html(data: dict, return_body_only=False) -> str:
     mConf, mCss = get_confidence_text(mbti.get("confidence"))
     mbti_reasons = "\n".join([f'<li class="text-sm text-slate-600 dark:text-slate-400 list-disc list-inside">{html.escape(r)}</li>' for r in mbti.get("reasons", [])])
 
+    # MBTI 전체 유형 리스트 생성 (기질별 그룹핑)
+    mbti_all_types_html = ""
+    for group_name, types in MBTI_GROUPS.items():
+        mbti_all_types_html += f'<div class="col-span-full mt-3 font-bold text-indigo-600 dark:text-indigo-400 border-b border-indigo-200 dark:border-indigo-800/50 pb-1 mb-1">{group_name}</div>'
+        for k in types:
+             desc = MBTI_DESC_MAP.get(k, "알 수 없는 유형")
+             bg_class = "bg-indigo-100 dark:bg-indigo-900/60 text-indigo-800 dark:text-indigo-200" if k == mbti_type else "text-slate-600 dark:text-slate-300"
+             font_class = "font-bold" if k == mbti_type else "font-medium"
+             mbti_all_types_html += f'<div class="p-2 rounded-md transition-colors {bg_class}"><span class="{font_class} text-indigo-700 dark:text-indigo-300">{k}</span>: {desc}</div>'
+
+    # MBTI 일반 설명 추가 (접기/펼치기)
+    mbti_reasons += f"""
+    <div class="mt-4 pt-4 border-t border-slate-100 dark:border-slate-700/50">
+        <details class="group">
+            <summary class="list-none cursor-pointer text-xs font-semibold text-indigo-500 hover:text-indigo-700 flex items-center transition-colors select-none">
+                <span class="mr-1">❔ MBTI란?</span>
+                <span class="group-open:rotate-180 transition-transform">▼</span>
+            </summary>
+            <div class="text-xs mt-3 bg-indigo-50/50 dark:bg-indigo-900/10 border border-indigo-100 dark:border-indigo-900/30 p-4 rounded-xl leading-relaxed">
+                <p class="mb-2 text-slate-600 dark:text-slate-300">{MBTI_GENERAL_EXPLANATION.strip()}</p>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-2 mt-4 pt-1">
+                    {mbti_all_types_html}
+                </div>
+            </div>
+        </details>
+    </div>
+    """
+
     # 4. 소시오닉스
     soc = profile.get("socionics", {})
     soc_type = html.escape(soc.get("type", "Unknown"))
@@ -600,7 +639,7 @@ def generate_report_html(data: dict, return_body_only=False) -> str:
     <div class="mt-4 pt-4 border-t border-slate-100 dark:border-slate-700/50">
         <details class="group">
             <summary class="list-none cursor-pointer text-xs font-semibold text-rose-500 hover:text-rose-700 flex items-center transition-colors select-none">
-                <span class="mr-1">❓ 소시오닉스란?</span>
+                <span class="mr-1">❔ 소시오닉스란?</span>
                 <span class="group-open:rotate-180 transition-transform">▼</span>
             </summary>
             <div class="text-xs mt-3 bg-rose-50/50 dark:bg-rose-900/10 border border-rose-100 dark:border-rose-900/30 p-4 rounded-xl leading-relaxed">

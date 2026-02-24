@@ -446,6 +446,9 @@ class MatchManager:
         """
         JSON 데이터를 UserVector 객체로 변환 (기존 유지)
         """
+        if not isinstance(json_data, dict):
+            json_data = {}
+            
         try:
             meta = json_data.get('meta', {})
             llm_profile = json_data.get('llm_profile', {})
@@ -543,7 +546,8 @@ class MatchManager:
             # 알림 생성
             receiver = User.query.get(req.receiver_id)
             res_msg = "수락" if action == 'ACCEPTED' else "거절"
-            msg = f"{receiver.username}님이 매칭 신청을 {res_msg}하셨습니다."
+            display_name = receiver.nickname or receiver.username
+            msg = f"{display_name}님이 매칭 신청을 {res_msg}하셨습니다."
             
             noti = Notification(user_id=req.sender_id, message=msg)
             db.session.add(noti)

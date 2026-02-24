@@ -845,6 +845,14 @@ def match_detail(request_id):
         match_score = match_data.get('match_score', 0)
         match_details = match_data.get('match_details', {})
         
+        # [FIX] Jinja 템플릿의 (match_details.similarity_score) 구문 등호 오류 방지
+        if not match_details:
+            match_details = {
+                'similarity_score': 0.0,
+                'chemistry_score': 0.0,
+                'activity_score': 0.0
+            }
+        
         # 6. 상대방 리포트 HTML 생성
         report_html = ""
         if target_profile:

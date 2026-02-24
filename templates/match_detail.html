@@ -17,10 +17,10 @@
 
     <!-- Match Header & Score Dashboard -->
     <div
-        class="bg-white dark:bg-slate-800 rounded-3xl shadow-xl shadow-indigo-100/30 dark:shadow-none border border-slate-100 dark:border-slate-700 overflow-hidden mb-10">
+        class="bg-white dark:bg-slate-800 rounded-3xl shadow-xl shadow-indigo-100/30 dark:shadow-none border border-slate-100 dark:border-slate-700 mb-10">
         <!-- Header -->
         <div
-            class="bg-white dark:bg-slate-800 text-slate-900 dark:text-white p-8 relative overflow-hidden transition-colors">
+            class="bg-white dark:bg-slate-800 rounded-t-3xl text-slate-900 dark:text-white p-8 relative transition-colors">
             <div class="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
                 <div>
                     <div class="flex items-center gap-3 mb-2">
@@ -43,49 +43,110 @@
                             }}</span> 님과의 분석
                     </h1>
                 </div>
-                <div
-                    class="text-center bg-indigo-50/50 dark:bg-slate-700/50 backdrop-blur-sm rounded-2xl p-4 border border-indigo-100 dark:border-indigo-800/50 shadow-sm">
-                    <span
-                        class="block text-xs font-bold text-indigo-500 dark:text-indigo-300 uppercase tracking-widest mb-1">Total
-                        Match</span>
-                    <span class="block text-4xl font-black text-indigo-600 dark:text-white">{{ request_info.match_score
-                        }}%</span>
+                <div class="flex flex-col sm:flex-row items-center gap-6">
+                    <div class="w-32 h-32 sm:w-40 sm:h-40 flex-shrink-0 relative">
+                        <canvas id="score-donut-1" class="absolute inset-0 w-full h-full overflow-visible"></canvas>
+                    </div>
+                    <div
+                        class="bg-indigo-50/50 dark:bg-slate-700/50 backdrop-blur-sm rounded-2xl p-4 border border-indigo-100 dark:border-indigo-800/50 shadow-sm flex flex-col justify-center min-w-[260px]">
+                        <div
+                            class="flex justify-between items-baseline border-b border-indigo-100 dark:border-indigo-600/30 pb-2 mb-2">
+                            <span
+                                class="text-xs font-bold text-indigo-500 dark:text-indigo-300 uppercase tracking-widest">Total
+                                Match</span>
+                            <span class="text-3xl font-black text-indigo-600 dark:text-white">{{
+                                request_info.match_score }}점</span>
+                        </div>
+                        <div
+                            class="flex justify-between items-center text-xs font-medium text-indigo-800/80 dark:text-indigo-200/80 px-1 pt-1">
+                            <div class="flex flex-col items-center border-b-2 border-transparent hover:border-blue-400 transition-colors pb-1 cursor-help"
+                                title="유사도 점수: {{ match_details.similarity_score * 100 }}점 × 0.5">
+                                <span class="text-[9px] opacity-70 mb-0.5 whitespace-nowrap">유사도</span>
+                                <span class="text-sm font-bold text-blue-600 dark:text-blue-400">{{
+                                    (match_details.similarity_score * 50) | round(1) }}</span>
+                            </div>
+                            <span class="text-indigo-300 dark:text-indigo-500 font-bold px-1 mb-1">+</span>
+                            <div class="flex flex-col items-center border-b-2 border-transparent hover:border-rose-400 transition-colors pb-1 cursor-help"
+                                title="케미 점수: {{ match_details.chemistry_score * 100 }}점 × 0.4">
+                                <span class="text-[9px] opacity-70 mb-0.5 whitespace-nowrap">케미</span>
+                                <span class="text-sm font-bold text-rose-600 dark:text-rose-400">{{
+                                    (match_details.chemistry_score * 40) | round(1) }}</span>
+                            </div>
+                            <span class="text-indigo-300 dark:text-indigo-500 font-bold px-1 mb-1">+</span>
+                            <div class="flex flex-col items-center border-b-2 border-transparent hover:border-amber-400 transition-colors pb-1 cursor-help"
+                                title="활동성 점수: {{ match_details.activity_score * 100 }}점 × 0.1">
+                                <span class="text-[9px] opacity-70 mb-0.5 whitespace-nowrap">활동성</span>
+                                <span class="text-sm font-bold text-amber-600 dark:text-amber-400">{{
+                                    (match_details.activity_score * 10) | round(1) }}</span>
+                            </div>
+                            <span class="text-indigo-300 dark:text-indigo-500 font-black px-1 mx-1 mb-1">=</span>
+                            <div
+                                class="flex flex-col items-center font-black text-indigo-600 dark:text-indigo-300 pb-1">
+                                <span class="text-[9px] uppercase opacity-70 mb-0.5">Total</span>
+                                <span class="text-sm">{{ request_info.match_score }}</span>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
 
-        <!-- Score Breakdown Cards (기존 대형 3분할 UI 롤백) -->
+        <!-- Score Breakdown Cards (독립된 카드형 UI 리뉴얼) -->
         <div
-            class="grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-slate-100 dark:divide-slate-700 border-t border-slate-100 dark:border-slate-700">
+            class="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-slate-50/50 dark:bg-slate-900/20 border-t border-slate-100 dark:border-slate-700 rounded-b-3xl">
             <!-- Similarity -->
             <div onclick="scrollToPanel('panel-similarity-1')"
-                class="p-6 text-center hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors cursor-pointer">
+                class="relative z-10 p-6 text-center rounded-2xl bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 shadow-sm hover:shadow-md hover:ring-2 hover:ring-inset hover:ring-blue-400 dark:hover:ring-blue-600 hover:z-20 transition-all duration-200 cursor-pointer">
                 <span
-                    class="inline-block px-3 py-1 bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300 text-[10px] font-black uppercase tracking-widest rounded-full mb-4 border border-blue-100 dark:border-blue-800">Similarity</span>
-                <div class="text-4xl font-black text-slate-900 dark:text-white mb-1">{{ (match_details.similarity_score
+                    class="inline-block px-3 py-1 bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300 text-xs font-black uppercase tracking-widest rounded-full mb-4 border border-blue-100 dark:border-blue-800">Similarity</span>
+                <div class="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">성향 유사도
+                </div>
+                <div class="text-4xl font-black text-slate-900 dark:text-white mb-3">{{ (match_details.similarity_score
                     * 100) | int }}%</div>
-                <div class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">성향 유사도</div>
-                <p class="text-[10px] text-slate-400 dark:text-slate-500 mt-2">Big5 기반 성격 일치율</p>
+                <div
+                    class="text-sm text-slate-500 dark:text-slate-400 font-medium bg-slate-100 dark:bg-slate-700/50 inline-block px-3 py-1 rounded">
+                    환산: {{
+                    (match_details.similarity_score * 50) | round(1) }}점 <span class="opacity-70 text-xs ml-1">(가중치
+                        0.5)</span></div>
+                <p
+                    class="text-sm font-medium text-slate-500 dark:text-slate-400 mt-4 border-t border-slate-100 dark:border-slate-700/50 pt-3">
+                    Big5 기반 성격 일치율</p>
             </div>
             <!-- Chemistry -->
             <div onclick="scrollToPanel(['panel-chemistry-socio-1', 'panel-chemistry-mbti-1', 'panel-chemistry-detail-1'])"
-                class="p-6 text-center hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer">
+                class="relative z-10 p-6 text-center rounded-2xl bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 shadow-sm hover:shadow-md hover:ring-2 hover:ring-inset hover:ring-rose-400 dark:hover:ring-rose-600 hover:z-20 transition-all duration-200 cursor-pointer">
                 <span
-                    class="inline-block px-3 py-1 bg-rose-50 dark:bg-rose-900/40 text-rose-600 dark:text-rose-300 text-[10px] font-black uppercase tracking-widest rounded-full mb-4 border border-rose-100 dark:border-rose-800">Chemistry</span>
-                <div class="text-4xl font-black text-slate-900 dark:text-white mb-1">{{ (match_details.chemistry_score *
+                    class="inline-block px-3 py-1 bg-rose-50 dark:bg-rose-900/40 text-rose-600 dark:text-rose-300 text-xs font-black uppercase tracking-widest rounded-full mb-4 border border-rose-100 dark:border-rose-800">Chemistry</span>
+                <div class="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">케미스트리
+                </div>
+                <div class="text-4xl font-black text-slate-900 dark:text-white mb-3">{{ (match_details.chemistry_score *
                     100) | int }}%</div>
-                <div class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">케미스트리</div>
-                <p class="text-[10px] text-slate-400 dark:text-slate-500 mt-2">MBTI/Socionics 궁합</p>
+                <div
+                    class="text-sm text-slate-500 dark:text-slate-400 font-medium bg-slate-100 dark:bg-slate-700/50 inline-block px-3 py-1 rounded">
+                    환산: {{
+                    (match_details.chemistry_score * 40) | round(1) }}점 <span class="opacity-70 text-xs ml-1">(가중치
+                        0.4)</span></div>
+                <p
+                    class="text-sm font-medium text-slate-500 dark:text-slate-400 mt-4 border-t border-slate-100 dark:border-slate-700/50 pt-3">
+                    MBTI/Socionics 궁합</p>
             </div>
             <!-- Activity -->
             <div onclick="scrollToPanel('panel-activity-1')"
-                class="p-6 text-center hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer">
+                class="relative z-10 p-6 text-center rounded-2xl bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 shadow-sm hover:shadow-md hover:ring-2 hover:ring-inset hover:ring-amber-400 dark:hover:ring-amber-600 hover:z-20 transition-all duration-200 cursor-pointer">
                 <span
-                    class="inline-block px-3 py-1 bg-amber-50 dark:bg-amber-900/40 text-amber-600 dark:text-amber-300 text-[10px] font-black uppercase tracking-widest rounded-full mb-4 border border-amber-100 dark:border-amber-800">Activity</span>
-                <div class="text-4xl font-black text-slate-900 dark:text-white mb-1">{{ (match_details.activity_score *
+                    class="inline-block px-3 py-1 bg-amber-50 dark:bg-amber-900/40 text-amber-600 dark:text-amber-300 text-xs font-black uppercase tracking-widest rounded-full mb-4 border border-amber-100 dark:border-amber-800">Activity</span>
+                <div class="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">대화 활동성
+                </div>
+                <div class="text-4xl font-black text-slate-900 dark:text-white mb-3">{{ (match_details.activity_score *
                     100) | int }}점</div>
-                <div class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">대화 활동성</div>
-                <p class="text-[10px] text-slate-400 dark:text-slate-500 mt-2">대화량 및 패턴 분석</p>
+                <div
+                    class="text-sm text-slate-500 dark:text-slate-400 font-medium bg-slate-100 dark:bg-slate-700/50 inline-block px-3 py-1 rounded">
+                    환산: {{
+                    (match_details.activity_score * 10) | round(1) }}점 <span class="opacity-70 text-xs ml-1">(가중치
+                        0.1)</span></div>
+                <p
+                    class="text-sm font-medium text-slate-500 dark:text-slate-400 mt-4 border-t border-slate-100 dark:border-slate-700/50 pt-3">
+                    대화량 및 패턴 분석</p>
             </div>
         </div>
     </div> <!-- /Match Header & Score Dashboard End -->
@@ -98,70 +159,6 @@
         </div>
         <div class="space-y-6">
 
-            <!-- 1. 점수 산출 시각화 (도넛 차트 및 아코디언 탭) -->
-            <div
-                class="bg-slate-50/80 dark:bg-slate-900/40 rounded-xl p-6 border border-slate-100 dark:border-slate-700/30 shadow-sm">
-                <h4
-                    class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4 border-b border-slate-200 dark:border-slate-700 pb-2">
-                    📊 점수 산출 공식 및 상세 분석</h4>
-                <div class="flex flex-col md:flex-row items-center gap-8">
-                    <!-- 좌측: 도넛 차트 -->
-                    <div class="w-40 h-40 flex-shrink-0">
-                        <canvas id="score-donut-1"></canvas>
-                    </div>
-
-                    <!-- 우측: 아코디언 토글 버튼 그룹 -->
-                    <div class="space-y-3 flex-grow w-full">
-                        <!-- 유사도 파트 -->
-                        <div
-                            class="w-full text-left flex justify-between items-center p-3 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm transition-all duration-200">
-                            <div>
-                                <div class="font-bold text-blue-600 dark:text-blue-400 mb-0.5 flex items-center gap-2">
-                                    <span class="w-2 h-2 rounded-full bg-blue-500"></span> 유사도 (50%)
-                                </div>
-                                <div class="text-xs text-slate-500 dark:text-slate-400">{{
-                                    (match_details.similarity_score * 100) | int }}점 × 0.5 = <span
-                                        class="font-semibold text-slate-700 dark:text-slate-300">{{
-                                        (match_details.similarity_score * 50) | round(1) }}</span>점</div>
-                            </div>
-                        </div>
-
-                        <!-- 케미스트리 파트 -->
-                        <div
-                            class="w-full text-left flex justify-between items-center p-3 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm transition-all duration-200">
-                            <div>
-                                <div class="font-bold text-rose-600 dark:text-rose-400 mb-0.5 flex items-center gap-2">
-                                    <span class="w-2 h-2 rounded-full bg-rose-500"></span> 케미스트리 (40%)
-                                </div>
-                                <div class="text-xs text-slate-500 dark:text-slate-400">{{
-                                    (match_details.chemistry_score * 100) | int }}점 × 0.4 = <span
-                                        class="font-semibold text-slate-700 dark:text-slate-300">{{
-                                        (match_details.chemistry_score * 40) | round(1) }}</span>점</div>
-                            </div>
-                        </div>
-
-                        <!-- 활동성 파트 -->
-                        <div
-                            class="w-full text-left flex justify-between items-center p-3 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm transition-all duration-200">
-                            <div>
-                                <div
-                                    class="font-bold text-amber-600 dark:text-amber-400 mb-0.5 flex items-center gap-2">
-                                    <span class="w-2 h-2 rounded-full bg-amber-500"></span> 활동성 (10%)
-                                </div>
-                                <div class="text-xs text-slate-500 dark:text-slate-400">{{
-                                    (match_details.activity_score * 100) | int }}점 × 0.1 = <span
-                                        class="font-semibold text-slate-700 dark:text-slate-300">{{
-                                        (match_details.activity_score * 10) | round(1) }}</span>점</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="px-2 pt-4 mt-2 border-t border-slate-200/50 dark:border-slate-700/50 text-right">
-                    <span class="text-sm font-medium text-slate-500 dark:text-slate-400 mr-2">총합 매칭 점수</span>
-                    <span class="text-xl font-black text-indigo-600 dark:text-indigo-400">{{ request_info.match_score
-                        }}<span class="text-sm font-bold">점</span></span>
-                </div>
-            </div>
 
             <!-- 2. Big5 레이더 차트 -->
             <div id="panel-similarity-1"
@@ -571,7 +568,7 @@
             chartInstances['donut-' + idx] = new Chart(donutCtx, {
                 type: 'doughnut',
                 data: {
-                    labels: ['유사도 (50%)', '케미스트리 (40%)', '활동성 (10%)'],
+                    labels: ['similarity', 'chemistry', 'activity'],
                     datasets: [{
                         data: [
                             (d.similarity * 50).toFixed(1),
@@ -589,11 +586,16 @@
                 },
                 options: {
                     responsive: true,
-                    maintainAspectRatio: true,
-                    cutout: '55%',
+                    maintainAspectRatio: false,
+                    layout: {
+                        padding: 10
+                    },
+                    cutout: '60%',
                     plugins: {
                         legend: { display: false },
-                        tooltip: { callbacks: { label: function (ctx) { return ctx.label + ': ' + ctx.parsed + '점'; } } }
+                        tooltip: {
+                            callbacks: { label: function (ctx) { return ctx.label + ': ' + ctx.parsed + '점'; } }
+                        }
                     }
                 }
             });
