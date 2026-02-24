@@ -861,9 +861,18 @@ def match_detail(request_id):
             'match_score': match_score
         }
         
+        # 8. 차트 및 확장 패널용 부가 데이터 구성
+        cand_data = {
+            'my_big5': match_data.get('my_big5', [50]*5),
+            'cand_big5': match_data.get('cand_big5', [50]*5),
+            'my_line_count': match_data.get('my_line_count', 0),
+            'cand_line_count': match_data.get('cand_line_count', 0)
+        }
+        
         return render_template('match_detail.html',
                                request_info=request_info,
                                match_details=match_details,
+                               cand_data=cand_data,
                                report_html=report_html,
                                is_sender=is_sender)
         

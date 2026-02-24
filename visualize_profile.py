@@ -196,6 +196,13 @@ SOCIONICS_DESC_MAP = {
     "SLI": "감각-논리 내향 (장인) - 감각적 만족과 기술을 즐기는 마에스트로"
 }
 
+QUADRA_GROUPS = {
+    "알파 (Alpha) 쿼드라": ["ILE", "SEI", "ESE", "LII"],
+    "베타 (Beta) 쿼드라": ["EIE", "LSI", "SLE", "IEI"],
+    "감마 (Gamma) 쿼드라": ["SEE", "ILI", "LIE", "ESI"],
+    "델타 (Delta) 쿼드라": ["LSE", "EII", "IEE", "SLI"]
+}
+
 MBTI_DESC_MAP = {
     "ISTJ": "청렴결백한 논리주의자 (현실주의자)",
     "ISFJ": "용감한 수호자 (실용적인 조력가)",
@@ -573,26 +580,33 @@ def generate_report_html(data: dict, return_body_only=False) -> str:
     sConf, sCss = get_confidence_text(soc.get("confidence"))
     soc_reasons = "\n".join([f'<li class="text-sm text-slate-600 dark:text-slate-400 list-disc list-inside">{html.escape(r)}</li>' for r in soc.get("reasons", [])])
 
-    # 소시오닉스 전체 유형 리스트 생성 (정렬)
+    # 소시오닉스 전체 유형 리스트 생성 (쿼드라 그룹핑)
     socionics_all_types_html = ""
-    sorted_soc_keys = sorted(SOCIONICS_DESC_MAP.keys())
-    for k in sorted_soc_keys:
-         desc = SOCIONICS_DESC_MAP[k]
-         # 현재 유형 강조
-         bg_class = "bg-rose-100 dark:bg-rose-900/60 font-bold text-rose-800 dark:text-rose-200" if k == soc_key else ""
-         socionics_all_types_html += f'<div class="p-1 {bg_class}"><span class="font-bold">{k}</span>: {desc}</div>'
+    for quadra_name, types in QUADRA_GROUPS.items():
+        # 각 쿼드라 제목 영역 (grid 레이아웃을 깰 수 있으므로 col-span-full 사용)
+        socionics_all_types_html += f'<div class="col-span-full mt-3 font-bold text-rose-600 dark:text-rose-400 border-b border-rose-200 dark:border-rose-800/50 pb-1 mb-1">{quadra_name}</div>'
+        
+        for k in types:
+             # 万一 매핑이 없는 희귀 코드인 경우 방어 로직
+             desc = SOCIONICS_DESC_MAP.get(k, "알 수 없는 유형")
+             # 현재 사용자의 유형과 일치하면 하이라이트 배경
+             bg_class = "bg-rose-100 dark:bg-rose-900/60 text-rose-800 dark:text-rose-200" if k == soc_key else "text-slate-600 dark:text-slate-300"
+             font_class = "font-bold" if k == soc_key else "font-medium"
+             
+             socionics_all_types_html += f'<div class="p-2 rounded-md transition-colors {bg_class}"><span class="{font_class} text-rose-700 dark:text-rose-300">{k}</span>: {desc}</div>'
 
     # 소시오닉스 일반 설명 추가 (접기/펼치기)
     soc_reasons += f"""
-    <div class="mt-4 pt-4 border-t border-slate-100">
+    <div class="mt-4 pt-4 border-t border-slate-100 dark:border-slate-700/50">
         <details class="group">
             <summary class="list-none cursor-pointer text-xs font-semibold text-rose-500 hover:text-rose-700 flex items-center transition-colors select-none">
                 <span class="mr-1">❓ 소시오닉스란?</span>
                 <span class="group-open:rotate-180 transition-transform">▼</span>
             </summary>
-            <div class="text-xs text-slate-500 dark:text-slate-300 mt-2 bg-rose-50 dark:bg-rose-900/30 p-4 rounded leading-relaxed">
-                <p class="mb-3">{SOCIONICS_GENERAL_EXPLANATION.strip()}</p>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-2 mt-3 border-t border-rose-200 dark:border-rose-800 pt-3">
+            <div class="text-xs mt-3 bg-rose-50/50 dark:bg-rose-900/10 border border-rose-100 dark:border-rose-900/30 p-4 rounded-xl leading-relaxed">
+                <p class="mb-2 text-slate-600 dark:text-slate-300">{SOCIONICS_GENERAL_EXPLANATION.strip()}</p>
+                <!-- 쿼드라별 표시 영역 -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-2 mt-4 pt-1">
                     {socionics_all_types_html}
                 </div>
             </div>

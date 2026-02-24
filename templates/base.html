@@ -168,9 +168,9 @@
         }
 
         // Initial Check
-        const isDark = localStorage.theme === 'dark' ||
+        const initialThemeDark = localStorage.theme === 'dark' ||
             (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches);
-        setTheme(isDark);
+        setTheme(initialThemeDark);
 
         themeToggleBtn.addEventListener('click', function () {
             // Toggle based on current state

@@ -123,17 +123,17 @@
                 <!-- ▼ 매칭 상세 보기 확장 버튼 -->
                 {% if cand.match_details %}
                 {% set chart_info = {
-                'similarity': cand.match_details.similarity_score | default(0),
-                'chemistry': cand.match_details.chemistry_score | default(0),
-                'activity': cand.match_details.activity_score | default(0),
-                'myBig5': cand.my_big5 | default([50,50,50,50,50]),
-                'candBig5': cand.cand_big5 | default([50,50,50,50,50]),
-                'myLineCount': cand.my_line_count | default(0),
-                'candLineCount': cand.cand_line_count | default(0),
-                'mbtiScore': cand.match_details.mbti_detail | default(0.5),
-                'socioScore': cand.match_details.socio_detail | default(0.5),
-                'mbtiWeight': cand.match_details.mbti_weight | default(0.5),
-                'socioWeight': cand.match_details.socio_weight | default(0.5),
+                'similarity': cand.match_details.similarity_score |default(0),
+                'chemistry': cand.match_details.chemistry_score |default(0),
+                'activity': cand.match_details.activity_score |default(0),
+                'myBig5': cand.my_big5 |default([50,50,50,50,50]),
+                'candBig5': cand.cand_big5 |default([50,50,50,50,50]),
+                'myLineCount': cand.my_line_count |default(0),
+                'candLineCount': cand.cand_line_count |default(0),
+                'mbtiScore': cand.match_details.mbti_detail |default(0.5),
+                'socioScore': cand.match_details.socio_detail |default(0.5),
+                'mbtiWeight': cand.match_details.mbti_weight |default(0.5),
+                'socioWeight': cand.match_details.socio_weight |default(0.5),
                 'candName': cand.nickname or cand.username
                 } %}
                 <div class="text-center">
@@ -276,7 +276,7 @@
                                 (cand.match_details.similarity_score * 100) | int }}점</span>
                         </div>
                         <div class="flex items-center justify-center">
-                            <div style="max-width: 320px; max-height: 320px;" class="w-full">
+                            <div class="relative w-full aspect-square max-h-[350px] mx-auto">
                                 <canvas id="big5-radar-{{ loop.index }}"></canvas>
                             </div>
                         </div>
@@ -337,14 +337,14 @@
                             <div class="text-sm flex gap-3 font-bold">
                                 <span
                                     class="bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300 px-3 py-1 rounded-md">나:
-                                    {{ cand.match_details.target_mbti | default('?') }}</span>
+                                    {{ cand.match_details.target_mbti |default('?') }}</span>
                                 <span
                                     class="bg-rose-100 text-rose-700 dark:bg-rose-900/50 dark:text-rose-300 px-3 py-1 rounded-md">상대:
-                                    {{ cand.match_details.candidate_mbti | default('?') }}</span>
+                                    {{ cand.match_details.candidate_mbti |default('?') }}</span>
                             </div>
                         </div>
-                        {% set label = cand.match_details.mbti_label | default('Unknown') %}
-                        {% set score = cand.match_details.mbti_detail | default(0.5) %}
+                        {% set label = cand.match_details.mbti_label |default('Unknown') %}
+                        {% set score = cand.match_details.mbti_detail |default(0.5) %}
                         <div class="flex items-center gap-4">
                             <div class="text-3xl">
                                 {% if score >= 0.8 %}🏆
@@ -415,15 +415,15 @@
                                 </div>
                             </div>
                         </div>
-                        {% set tq = cand.match_details.target_quadra | default(None) %}
-                        {% set cq = cand.match_details.candidate_quadra | default(None) %}
-                        {% set same = cand.match_details.socio_quadra_same | default(false) %}
-                        {% set s_score = cand.match_details.socio_detail | default(0.5) %}
+                        {% set tq = cand.match_details.target_quadra |default(None) %}
+                        {% set cq = cand.match_details.candidate_quadra |default(None) %}
+                        {% set same = cand.match_details.socio_quadra_same |default(false) %}
+                        {% set s_score = cand.match_details.socio_detail |default(0.5) %}
                         <div class="flex items-center gap-4 flex-wrap">
                             <div
                                 class="flex-1 min-w-[120px] text-center p-3 rounded-lg bg-blue-50 dark:bg-blue-900/30 border border-blue-100 dark:border-blue-800/30">
                                 <div class="text-sm font-bold text-blue-600 dark:text-blue-400 mb-1">
-                                    나: {{ cand.match_details.target_socio | default('?') }}
+                                    나: {{ cand.match_details.target_socio |default('?') }}
                                 </div>
                                 <div class="text-sm font-bold text-slate-700 dark:text-slate-200">{{ tq if tq else '미확인'
                                     }}</div>
@@ -435,7 +435,7 @@
                             <div
                                 class="flex-1 min-w-[120px] text-center p-3 rounded-lg bg-rose-50 dark:bg-rose-900/30 border border-rose-100 dark:border-rose-800/30">
                                 <div class="text-sm font-bold text-rose-600 dark:text-rose-400 mb-1">
-                                    상대: {{ cand.match_details.candidate_socio | default('?') }}
+                                    상대: {{ cand.match_details.candidate_socio |default('?') }}
                                 </div>
                                 <div class="text-sm font-bold text-slate-700 dark:text-slate-200">{{ cq if cq else '미확인'
                                     }}</div>
@@ -525,7 +525,7 @@
                                     (cand.match_details.chemistry_score * 100) | int }}점</span>
                             </div>
                         </div>
-                        <div style="max-height: 120px;">
+                        <div class="relative w-full h-32 mt-4">
                             <canvas id="chem-bar-{{ loop.index }}"></canvas>
                         </div>
                         <div
@@ -568,7 +568,7 @@
                                 class="text-sm font-bold bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-md text-slate-600 dark:text-slate-300">{{
                                 (cand.match_details.activity_score * 100) | int }}점</span>
                         </div>
-                        <div style="max-height: 160px;">
+                        <div class="relative w-full h-40 mt-4">
                             <canvas id="activity-bar-{{ loop.index }}"></canvas>
                         </div>
                     </div>
@@ -607,11 +607,11 @@
     const chartInstances = {};
 
     // 다크모드 감지
-    function isDark() {
+    function checkIsDarkMode() {
         return document.documentElement.classList.contains('dark');
     }
-    function gridColor() { return isDark() ? 'rgba(148,163,184,0.2)' : 'rgba(100,116,139,0.15)'; }
-    function labelColor() { return isDark() ? '#94a3b8' : '#64748b'; }
+    function gridColor() { return checkIsDarkMode() ? 'rgba(148,163,184,0.2)' : 'rgba(100,116,139,0.15)'; }
+    function labelColor() { return checkIsDarkMode() ? '#94a3b8' : '#64748b'; }
 
     // 차트 데이터 (버튼 data 속성에서 파싱하여 저장)
     const chartData = {};
