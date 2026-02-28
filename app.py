@@ -323,13 +323,50 @@ def view_result(result_id=None):
 @login_required
 def history():
     """분석 히스토리 페이지"""
-    # 1. 사용자의 모든 결과 조회 (최신순)
-    results = PersonalityResult.query.filter_by(user_id=g.user.user_id).order_by(PersonalityResult.created_at.desc()).all()
+    from datetime import datetime
+    from flask import request
     
-    # 2. 현재 대표 결과 찾기
-    active_result = next((r for r in results if r.is_representative), None)
+    # 1. 쿼리 파라미터 가져오기
+    sort_order = request.args.get('sort', 'desc') # 기본값: 최근 순
+    start_date = request.args.get('start_date')
+    end_date = request.args.get('end_date')
+
+    # 2. 기본 쿼리 생성
+    query = PersonalityResult.query.filter_by(user_id=g.user.user_id)
+
+    # 3. 날짜 필터링 적용
+    if start_date:
+        try:
+            query = query.filter(PersonalityResult.created_at >= datetime.strptime(start_date, '%Y-%m-%d'))
+        except ValueError:
+            pass # 형식 오류 시 무시
+            
+    if end_date:
+        try:
+            # end_date는 해당 일의 23:59:59.999 까지 포함하도록 처리
+            end_date_obj = datetime.strptime(end_date, '%Y-%m-%d').replace(hour=23, minute=59, second=59)
+            query = query.filter(PersonalityResult.created_at <= end_date_obj)
+        except ValueError:
+            pass
+
+    # 4. 정렬 적용
+    if sort_order == 'asc':
+        query = query.order_by(PersonalityResult.created_at.asc())
+    else:
+        query = query.order_by(PersonalityResult.created_at.desc())
+        
+    results = query.all()
     
-    return render_template('history.html', results=results, active_result=active_result)
+    # 5. 현재 대표 결과 찾기 (전체 데이터 기준 유지)
+    all_user_results = PersonalityResult.query.filter_by(user_id=g.user.user_id).all()
+    active_result = next((r for r in all_user_results if r.is_representative), None)
+    
+    return render_template('history.html', 
+                           results=results, 
+                           active_result=active_result,
+                           current_sort=sort_order,
+                           current_start=start_date,
+                           current_end=end_date)
 
 @app.route('/set_representative/<int:result_id>', methods=['POST'])
 @login_required
