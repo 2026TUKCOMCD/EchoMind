@@ -1,0 +1,30 @@
+name: Deploy to AWS
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch: # 수동 실행 버튼
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to EC2
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            # 1. 프로젝트 폴더로 이동
+            cd /home/ubuntu/EchoMind-main
+            
+            # 2. 최신 코드 불러오기
+            git pull origin main
+            
+            # 3. 가상환경 활성화 및 의존성 확인
+            source venv/bin/activate
+            pip install -r requirements.txt
+            
+            # 4. Gunicorn 서비스 재시작하여 변경사항 적용
+            sudo systemctl restart gunicorn
