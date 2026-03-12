@@ -26,6 +26,7 @@ jobs:
             source venv/bin/activate
             pip install -r requirements.txt
             
-            # 4. Gunicorn 서버 재시작 (서비스 등록이 안 되어 있으므로 pkill 사용)
-            # -HUP 시그널을 보내 설정 및 코드를 다시 읽게 하거나, 없으면 새로 띄웁니다.
-            pkill -HUP gunicorn || (venv/bin/gunicorn -b 0.0.0.0:5000 app:app --daemon)
+            # 4. Gunicorn 서버 재시작 (타임아웃 120초 적용)
+            pkill gunicorn || true
+            sleep 2
+            venv/bin/gunicorn -b 0.0.0.0:5000 --timeout 120 app:app --daemon
