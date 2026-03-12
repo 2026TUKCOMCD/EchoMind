@@ -17,7 +17,7 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
             # 1. 프로젝트 폴더로 이동
-            cd /home/ubuntu/EchoMind-main
+            cd /home/ubuntu/EchoMind
             
             # 2. 최신 코드 불러오기
             git pull origin main
@@ -26,5 +26,6 @@ jobs:
             source venv/bin/activate
             pip install -r requirements.txt
             
-            # 4. Gunicorn 서비스 재시작하여 변경사항 적용
-            sudo systemctl restart gunicorn
+            # 4. Gunicorn 서버 재시작 (서비스 등록이 안 되어 있으므로 pkill 사용)
+            # -HUP 시그널을 보내 설정 및 코드를 다시 읽게 하거나, 없으면 새로 띄웁니다.
+            pkill -HUP gunicorn || (venv/bin/gunicorn -b 0.0.0.0:5000 app:app --daemon)
