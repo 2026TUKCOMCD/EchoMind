@@ -79,6 +79,7 @@ html.dark .bg-amber-50 {
 html.dark .text-slate-900,
 html.dark .text-gray-900 {
     color: #ffffff;
+    
 }
 
 html.dark .text-slate-500,
@@ -113,6 +114,29 @@ html.dark tbody tr:hover {
     background-color: rgba(255, 255, 255, 0.02);
 }
 
+/* Mobile Responsive Adjustments */
+@media (max-width: 640px) {
+    .max-w-7xl, .max-w-6xl {
+        padding-left: 1rem;
+        padding-right: 1rem;
+    }
+    
+    h1 {
+        font-size: 1.875rem !important; /* text-3xl */
+        line-height: 2.25rem !important;
+    }
+
+    .glass-panel {
+        padding: 1.5rem !important;
+        border-radius: 1.5rem !important;
+    }
+
+    /* Stack flex-row elements on mobile */
+    .md-flex-row {
+        flex-direction: column !important;
+    }
+}
+
 /* Date Picker Icon Styling */
 input[type="date"]::-webkit-calendar-picker-indicator {
     cursor: pointer;
@@ -136,4 +160,9 @@ html.dark input[type="date"]::-webkit-calendar-picker-indicator {
 
 html.dark input[type="date"]::-webkit-calendar-picker-indicator:hover {
     background-color: rgba(255, 255, 255, 0.1);
+}
+
+/* Alpine.js x-cloak: Prevent flickering on load */
+[x-cloak] {
+    display: none !important;
 }

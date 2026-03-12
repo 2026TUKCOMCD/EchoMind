@@ -44,7 +44,8 @@ from openai import OpenAI
 # ----------------------------
 LINE_PATTERNS = [
     re.compile(r"^\[(?P<name>.+?)\]\s+\[(?P<time>.+?)\]\s+(?P<msg>.+)$"),
-    re.compile(r"^(?P<time>\d{4}\.\s*\d{1,2}\.\s*\d{1,2}\.\s*.+?),\s*(?P<name>[^:]+?)\s*:\s*(?P<msg>.+)$"),
+    re.compile(r"^(?P<time>\d{4}\.\s*\d{1,2}\.\s*\d{1,2}\.\s*.+?),\s*(?P<name>[^:]+?)\s*:\s*(?P<msg>.*)$"),
+    re.compile(r"^(?P<time>\d{4}년\s*\d{1,2}월\s*\d{1,2}일\s*(?:오전|오후)\s*\d{1,2}:\d{1,2}),\s*(?P<name>[^:]+?)\s*:\s*(?P<msg>.*)$"),
 ]
 
 SYSTEM_SKIP_SUBSTR = [
@@ -124,43 +125,83 @@ def parse_target_rows(filepath: str, target_name: str) -> Tuple[List[Dict[str, s
     total_lines = parsed = failed = filtered_system = empty_text = pii_hits_total = 0
     rows: List[Dict[str, str]] = []
 
+    # [NEW] Case-insensitive comparison target
+    norm_target = target_name.strip().lower()
+
+    current_speaker = None
+    current_msg = []
+
+    def flush_msg():
+        nonlocal parsed, filtered_system, empty_text, pii_hits_total
+        # [NEW] Check speaker name case-insensitively
+        if current_speaker and current_speaker.strip().lower() == norm_target and current_msg:
+            full_text = "\n".join(current_msg).strip()
+            if not full_text:
+                empty_text += 1
+                return
+            if looks_like_system_message(full_text):
+                filtered_system += 1
+                return
+            
+            cleaned = clean_text_ko(full_text)
+            if not cleaned:
+                empty_text += 1
+                return
+                
+            masked, hits = mask_pii(cleaned)
+            pii_hits_total += hits
+
+            rows.append({"text": masked})
+            parsed += 1
+
     with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
         for raw in f:
             total_lines += 1
             line = raw.rstrip("\n")
+            
+            # Allow empty lines within multiline message, otherwise mark failed
             if not line.strip():
-                failed += 1
+                if current_speaker is not None:
+                    current_msg.append("") 
+                else:
+                    failed += 1
                 continue
 
+            # Check if this line starts a new message
             m = None
             for pat in LINE_PATTERNS:
                 m = pat.match(line)
                 if m:
                     break
-            if not m:
-                failed += 1
-                continue
 
-            speaker = m.group("name").strip()
-            if speaker != target_name:
-                continue
+            if m:
+                # Append the previous accumulated message
+                flush_msg()
+                
+                # Start recording a new message
+                speaker = m.group("name").strip()
+                text = m.group("msg")
+                
+                current_speaker = speaker
+                current_msg = [text]
+            else:
+                # Ignore top info metadata or pure date dividers from Kakao
+                is_meta = line.startswith("저장한 날짜 :") or "카카오톡 대화" in line
+                # e.g., "2025년 12월 2일 화요일" (Kakao daily divider string format roughly)
+                is_divider = bool(re.match(r"^\d{4}년\s*\d{1,2}월\s*\d{1,2}일\s*.*$", line))
+                
+                if is_meta or is_divider:
+                    failed += 1
+                    continue
+                
+                # If we have an active speaker, treat as a multiline continuation
+                if current_speaker is not None:
+                    current_msg.append(line)
+                else:
+                    failed += 1
 
-            text = m.group("msg").strip()
-
-            if looks_like_system_message(text):
-                filtered_system += 1
-                continue
-
-            text = clean_text_ko(text)
-            if not text:
-                empty_text += 1
-                continue
-
-            text, hits = mask_pii(text)
-            pii_hits_total += hits
-
-            rows.append({"text": text})
-            parsed += 1
+    # Catch the very last message in the file
+    flush_msg()
 
     quality = ParseQuality(
         total_lines=total_lines,

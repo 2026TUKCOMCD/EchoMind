@@ -44,20 +44,20 @@
                             </div>
                         </div>
 
-                        <div class="flex flex-col md:flex-row gap-6">
+                        <div class="flex flex-col md:flex-row gap-4 md:gap-6">
                             <!-- User Avatar & Basic Info -->
-                            <div class="flex-shrink-0">
+                            <div class="flex-shrink-0 flex items-center justify-center">
                                 <div
-                                    class="w-16 h-16 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl flex items-center justify-center text-white text-2xl font-bold shadow-indigo-100 shadow-lg dark:shadow-none">
+                                    class="w-14 h-14 md:w-16 md:h-16 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl flex items-center justify-center text-white text-xl md:text-2xl font-bold shadow-indigo-100 shadow-lg dark:shadow-none">
                                     {{ req.sender_nickname[0] if req.sender_nickname else req.sender_name[0] }}
                                 </div>
                             </div>
 
                             <div class="flex-grow space-y-3">
                                 <div class="flex flex-wrap items-center gap-2">
-                                    <h3 class="text-lg font-bold text-slate-900 dark:text-white">{{ req.sender_nickname
+                                    <h3 class="text-base md:text-lg font-bold text-slate-900 dark:text-white">{{ req.sender_nickname
                                         }}</h3>
-                                    <span class="text-xs text-slate-400 dark:text-slate-500 font-medium">@{{
+                                    <span class="text-[10px] md:text-xs text-slate-400 dark:text-slate-500 font-medium">@{{
                                         req.sender_name }}</span>
                                     {% if req.sender_mbti %}
                                     <span
@@ -97,18 +97,17 @@
                                         🕒 {{ req.created_at.strftime('%Y-%m-%d %H:%M') if req.created_at else '-' }}
                                     </span>
 
-                                    <div class="flex gap-2">
+                                    <div class="flex flex-wrap gap-2 justify-end">
                                         <a href="{{ url_for('match_detail', request_id=req.request_id) }}"
-                                            class="px-4 py-2 text-xs font-bold text-indigo-600 bg-indigo-50 dark:bg-indigo-900/30 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 rounded-xl transition-all">
-                                            상세 보기
+                                            class="px-3 py-2 text-[10px] md:text-xs font-bold text-indigo-600 bg-indigo-50 dark:bg-indigo-900/30 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 rounded-xl transition-all">
+                                            상세
                                         </a>
-                                        <div class="h-8 w-px bg-slate-100 dark:bg-slate-800 mx-1"></div>
                                         <a href="{{ url_for('respond_match', request_id=req.request_id, action='rejected') }}"
-                                            class="px-4 py-2 text-xs font-bold text-slate-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 bg-slate-50 dark:bg-slate-700 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-all">
+                                            class="px-3 py-2 text-[10px] md:text-xs font-bold text-slate-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 bg-slate-50 dark:bg-slate-700 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-all">
                                             거절
                                         </a>
                                         <a href="{{ url_for('respond_match', request_id=req.request_id, action='accepted') }}"
-                                            class="px-6 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-md shadow-indigo-100 dark:shadow-none transition-all hover:-translate-y-0.5">
+                                            class="px-4 py-2 text-[10px] md:text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-md transition-all">
                                             매칭 수락
                                         </a>
                                     </div>

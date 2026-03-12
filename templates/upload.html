@@ -39,7 +39,7 @@
                             <label for="file"
                                 class="relative cursor-pointer bg-white dark:bg-slate-700 rounded-md font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 dark:hover:text-indigo-300 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-indigo-500 pointer-events-auto px-1">
                                 <span>파일 선택</span>
-                                <input id="file" name="file" type="file" class="sr-only" accept=".txt, .json" required>
+                                <input id="file" name="file" type="file" class="sr-only" accept=".txt, .json, text/plain, application/json" required>
                             </label>
                             <p class="pl-1">또는 드래그 앤 드롭</p>
                         </div>
@@ -162,8 +162,14 @@
     function handleDrop(e) {
         const dt = e.dataTransfer;
         const files = dt.files;
-        fileInput.files = files;
-        validateAndDisplay(files[0]);
+        
+        // [Browser Compatibility Fix] Use DataTransfer constructor to inject files into input
+        const dataTransfer = new DataTransfer();
+        if (files.length > 0) {
+            dataTransfer.items.add(files[0]);
+            fileInput.files = dataTransfer.files;
+            validateAndDisplay(files[0]);
+        }
     }
 
     // Status Messages
@@ -198,26 +204,40 @@
             timerSec.textContent = s;
         }, 1000);
 
-        // Start Simulated Progress
+        // Start Stage-based Progress Animation (Pseudo-Realtime)
         let progress = 0;
-        const progressInterval = setInterval(() => {
-            // Fast at first, then slower
-            if (progress < 30) progress += 2;
-            else if (progress < 60) progress += 0.5;
-            else if (progress < 90) progress += 0.1;
-            else progress += 0.05;
-
-            // Never reach 100% until done
-            if (progress > 95) progress = 95;
+        let elapsed = 0;
+        
+        const updateProgress = () => {
+            elapsed += 0.5; // Every 500ms
+            
+            // Stages logic based on estimated time
+            if (elapsed < 3) {
+                // Stage 1: Parsing (0-3s)
+                progressStatus.textContent = "데이터 파싱 및 정제 중...";
+                progress += (20 - progress) * 0.2;
+            } else if (elapsed < 35) {
+                // Stage 2: AI Analysis (3-35s)
+                progressStatus.textContent = "🤖 AI가 대화의 맥락과 성향을 분석 중입니다...";
+                // Slow crawl from 20 to 85
+                progress += (85 - progress) * 0.02;
+            } else if (elapsed < 50) {
+                // Stage 3: Report Gen (35-50s)
+                progressStatus.textContent = "매칭 데이터 및 성향 리포트 구성 중...";
+                progress += (95 - progress) * 0.05;
+            } else {
+                // Final stretch
+                progressStatus.textContent = "거의 다 되었습니다. 잠시만 더 기다려주세요...";
+                progress += (99 - progress) * 0.01;
+            }
 
             progressBar.style.width = progress + "%";
+            
+            // Add a subtle heart-beat pulse to the bar for "alive" feeling
+            progressBar.style.filter = `brightness(${1 + Math.sin(elapsed * 2) * 0.1})`;
+        };
 
-            // Update messages based on progress
-            const msgIndex = Math.floor((progress / 95) * messages.length);
-            if (messages[msgIndex]) {
-                progressStatus.textContent = messages[msgIndex];
-            }
-        }, 200);
+        const progressInterval = setInterval(updateProgress, 500);
     });
 
     function validateAndDisplay(file) {
