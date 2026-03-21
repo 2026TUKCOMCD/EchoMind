@@ -406,14 +406,7 @@
                 <div class="relative w-full h-32 mt-4">
                     <canvas id="chem-bar-1"></canvas>
                 </div>
-                <div
-                    class="text-[11px] text-slate-500 dark:text-slate-400 mt-3 text-center bg-slate-100/50 dark:bg-slate-800/50 p-2 rounded-lg">
-                    <p class="mb-1 text-slate-600 dark:text-slate-300 font-medium">✨ 반영 비율 (신뢰도에 비례)</p>
-                    MBTI: <span class="font-bold text-indigo-500">{{ (match_details.mbti_weight |default(0) * 100)
-                        | round(0) }}%</span> /
-                    소시오닉스: <span class="font-bold text-rose-500">{{ (match_details.socio_weight |default(0) * 100)
-                        | round(0) }}%</span>
-                </div>
+
             </div>
 
             <!-- 6. 활동성 상세 -->
