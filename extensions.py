@@ -9,6 +9,7 @@ SQLAlchemy 인스턴스 및 모든 ORM 모델을 정의합니다.
 """
 
 from datetime import datetime
+import random
 from flask_sqlalchemy import SQLAlchemy
 
 # SQLAlchemy 인스턴스 생성 (app 없이)
@@ -68,9 +69,14 @@ class PersonalityResult(db.Model):
     
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
+def generate_match_code():
+    # 1:1 매칭 채팅방 10자리 난수 코드 생성
+    return str(random.randint(1000000000, 9999999999))
+
 class MatchRequest(db.Model):
     __tablename__ = 'match_requests'
     request_id = db.Column(db.Integer, primary_key=True)
+    match_code = db.Column(db.String(20), unique=True, nullable=False, default=generate_match_code)
     sender_id = db.Column(db.Integer, db.ForeignKey('users.user_id', ondelete='CASCADE'), nullable=False)
     receiver_id = db.Column(db.Integer, db.ForeignKey('users.user_id', ondelete='CASCADE'), nullable=False)
     status = db.Column(db.String(30), default='PENDING')
@@ -93,3 +99,47 @@ class Message(db.Model):
     content = db.Column(db.Text, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     is_read = db.Column(db.Boolean, default=False)
+
+def generate_room_code():
+    # 10자리 난수 생성 (예: 4928103945)
+    return str(random.randint(1000000000, 9999999999))
+
+# --- 그룹 채팅 시스템 (Group Chat) ---
+class GroupChatRoom(db.Model):
+    __tablename__ = 'group_chat_rooms'
+    id = db.Column(db.Integer, primary_key=True)
+    room_code = db.Column(db.String(20), unique=True, nullable=False, default=generate_room_code)
+    name = db.Column(db.String(100), nullable=False)
+    description = db.Column(db.Text)
+    creator_id = db.Column(db.Integer, db.ForeignKey('users.user_id', ondelete='CASCADE'), nullable=False)
+    max_participants = db.Column(db.Integer, default=10)
+    
+    # 입장 조건 (JSON 구조로 저장하여 확장성을 확보합니다)
+    # 예: {"genders": ["MALE", "FEMALE"], "min_age": 20, "max_age": 29, "mbtis": ["INTJ", "INTP"], "big5": {"openness": {"min": 60, "max": 100}}}
+    conditions = db.Column(db.JSON) 
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+class GroupChatParticipant(db.Model):
+    __tablename__ = 'group_chat_participants'
+    id = db.Column(db.Integer, primary_key=True)
+    room_id = db.Column(db.Integer, db.ForeignKey('group_chat_rooms.id', ondelete='CASCADE'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.user_id', ondelete='CASCADE'), nullable=False)
+    joined_at = db.Column(db.DateTime, default=datetime.utcnow)
+    last_read_message_id = db.Column(db.Integer, default=0)
+
+class GroupChatMessage(db.Model):
+    __tablename__ = 'group_chat_messages'
+    id = db.Column(db.Integer, primary_key=True)
+    room_id = db.Column(db.Integer, db.ForeignKey('group_chat_rooms.id', ondelete='CASCADE'), nullable=False)
+    sender_id = db.Column(db.Integer, db.ForeignKey('users.user_id', ondelete='CASCADE'), nullable=False)
+    content = db.Column(db.Text, nullable=False)
+    is_system = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+class GroupChatKickVote(db.Model):
+    __tablename__ = 'group_chat_kick_votes'
+    id = db.Column(db.Integer, primary_key=True)
+    room_id = db.Column(db.Integer, db.ForeignKey('group_chat_rooms.id', ondelete='CASCADE'), nullable=False)
+    voter_id = db.Column(db.Integer, db.ForeignKey('users.user_id', ondelete='CASCADE'), nullable=False)
+    target_id = db.Column(db.Integer, db.ForeignKey('users.user_id', ondelete='CASCADE'), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)

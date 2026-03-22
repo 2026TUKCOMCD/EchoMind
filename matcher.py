@@ -265,7 +265,7 @@ class HybridMatcher:
                 cos_sim = 0.0
             else:
                 cos_sim = 1 - dist
-        except:
+        except Exception:
             cos_sim = 0.0
 
         similarity_score = (cos_sim + 1) / 2

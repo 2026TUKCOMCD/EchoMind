@@ -117,7 +117,7 @@ def _parse_json_safe(data):
     return data if data is not None else {}
 
 # SQLAlchemy 인스턴스를 extensions에서 임포트 (순환 참조 방지)
-from extensions import db, User, ChatLog, PersonalityResult, MatchRequest, Notification, Message
+from extensions import db, User, ChatLog, PersonalityResult, MatchRequest, Notification, Message, GroupChatRoom, GroupChatParticipant, GroupChatMessage, GroupChatKickVote
 db.init_app(app)
 
 # --- 보안 및 세션 관리 (Security & Session) ---
@@ -192,12 +192,106 @@ def check_and_update_db_schema():
                     # 이미 nullable이거나 다른 DB 엔진인 경우 무시
                     app.logger.warning(f"log_id modification skipped or already nullable: {e}")
                     
+                # 4. group_chat_participants 테이블에 last_read_message_id 컬럼 추가
+                try:
+                    if 'group_chat_participants' in inspector.get_table_names():
+                        p_cols = [col['name'] for col in inspector.get_columns('group_chat_participants')]
+                        if 'last_read_message_id' not in p_cols:
+                            conn.execute(sqlalchemy.text("ALTER TABLE group_chat_participants ADD COLUMN last_read_message_id INT DEFAULT 0"))
+                            conn.commit()
+                            app.logger.info("'last_read_message_id' column added.")
+                except Exception as e:
+                    app.logger.warning(f"last_read_message_id migration failed: {e}")
+
+                # 5. group_chat_messages 테이블에 is_system 컬럼 추가
+                try:
+                    if 'group_chat_messages' in inspector.get_table_names():
+                        m_cols = [col['name'] for col in inspector.get_columns('group_chat_messages')]
+                        if 'is_system' not in m_cols:
+                            conn.execute(sqlalchemy.text("ALTER TABLE group_chat_messages ADD COLUMN is_system BOOLEAN DEFAULT FALSE"))
+                            conn.commit()
+                            app.logger.info("'is_system' column added.")
+                except Exception as e:
+                    app.logger.warning(f"is_system migration failed: {e}")
+
+                # 6. group_chat_kick_votes 테이블 추가
+                try:
+                    if 'group_chat_kick_votes' not in inspector.get_table_names():
+                        conn.execute(sqlalchemy.text("""
+                            CREATE TABLE group_chat_kick_votes (
+                                id INT AUTO_INCREMENT PRIMARY KEY,
+                                room_id INT NOT NULL,
+                                voter_id INT NOT NULL,
+                                target_id INT NOT NULL,
+                                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                                FOREIGN KEY (room_id) REFERENCES group_chat_rooms(id) ON DELETE CASCADE,
+                                FOREIGN KEY (voter_id) REFERENCES users(user_id) ON DELETE CASCADE,
+                                FOREIGN KEY (target_id) REFERENCES users(user_id) ON DELETE CASCADE
+                            )
+                        """))
+                        conn.commit()
+                except Exception as e:
+                    pass
+
+                # 7. group_chat_rooms 테이블에 room_code 추가 및 마이그레이션
+                try:
+                    if 'group_chat_rooms' in inspector.get_table_names():
+                        r_cols = [col['name'] for col in inspector.get_columns('group_chat_rooms')]
+                        if 'room_code' not in r_cols:
+                            import random
+                            conn.execute(sqlalchemy.text("ALTER TABLE group_chat_rooms ADD COLUMN room_code VARCHAR(20)"))
+                            conn.commit()
+                            
+                            rooms = conn.execute(sqlalchemy.text("SELECT id FROM group_chat_rooms WHERE room_code IS NULL")).fetchall()
+                            for r in rooms:
+                                new_code = str(random.randint(1000000000, 9999999999))
+                                conn.execute(sqlalchemy.text("UPDATE group_chat_rooms SET room_code = :c WHERE id = :id"), {"c": new_code, "id": r[0]})
+                            conn.commit()
+                            
+                            try:
+                                conn.execute(sqlalchemy.text("ALTER TABLE group_chat_rooms MODIFY COLUMN room_code VARCHAR(20) NOT NULL"))
+                                conn.execute(sqlalchemy.text("ALTER TABLE group_chat_rooms ADD UNIQUE INDEX idx_room_code (room_code)"))
+                                conn.commit()
+                            except Exception as e:
+                                pass
+                except Exception as e:
+                    pass
+
+                # 8. match_requests 테이블에 match_code 추가 및 마이그레이션
+                try:
+                    if 'match_requests' in inspector.get_table_names():
+                        m_cols = [col['name'] for col in inspector.get_columns('match_requests')]
+                        if 'match_code' not in m_cols:
+                            import random
+                            conn.execute(sqlalchemy.text("ALTER TABLE match_requests ADD COLUMN match_code VARCHAR(20)"))
+                            conn.commit()
+                            
+                            reqs = conn.execute(sqlalchemy.text("SELECT request_id FROM match_requests WHERE match_code IS NULL")).fetchall()
+                            for r in reqs:
+                                new_code = str(random.randint(1000000000, 9999999999))
+                                conn.execute(sqlalchemy.text("UPDATE match_requests SET match_code = :c WHERE request_id = :id"), {"c": new_code, "id": r[0]})
+                            conn.commit()
+                            
+                            try:
+                                conn.execute(sqlalchemy.text("ALTER TABLE match_requests MODIFY COLUMN match_code VARCHAR(20) NOT NULL"))
+                                conn.execute(sqlalchemy.text("ALTER TABLE match_requests ADD UNIQUE INDEX idx_match_code (match_code)"))
+                                conn.commit()
+                            except Exception as e:
+                                pass
+                except Exception as e:
+                    pass
+
         except Exception as e:
             app.logger.error(f"Schema update failed: {e}")
 
 # -------------------------------------------------------------------
 # Routes
 # -------------------------------------------------------------------
+
+@app.route('/favicon.ico')
+def favicon():
+    """브라우저의 자동 파비콘 요청으로 인한 404 에러 로그 방지"""
+    return '', 204
 
 @app.before_request
 def load_user():
@@ -222,9 +316,10 @@ def register():
             db.session.commit()
             flash("회원가입이 완료되었습니다! 로그인해주세요.", "success")
             return redirect(url_for('login'))
-        except:
+        except Exception as e:
             db.session.rollback()
-            flash("이미 존재하는 이메일입니다.", "danger")
+            app.logger.error(f"Registration error: {e}")
+            flash("이미 존재하는 이메일이거나 회원가입 중 오류가 발생했습니다.", "danger")
     return render_template('register.html')
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -721,7 +816,7 @@ def match_inbox():
         raw = my_profile.full_report_json
         try:
             current_profile = json.loads(raw) if isinstance(raw, str) else raw
-        except:
+        except (json.JSONDecodeError, TypeError):
             current_profile = raw
     
     # 매칭 점수 일괄 계산
@@ -859,7 +954,7 @@ def match_detail(request_id):
             raw = profile_obj.full_report_json
             try:
                 return json.loads(raw) if isinstance(raw, str) else raw
-            except:
+            except (json.JSONDecodeError, TypeError):
                 return raw
         
         my_profile = parse_profile(sender_profile if is_sender else receiver_profile)
@@ -1838,11 +1933,19 @@ def admin_reset_dummies():
 # -------------------------------------------------------------------------
 # [Chat System]
 # -------------------------------------------------------------------------
-@app.route('/chat/<int:request_id>')
+@app.route('/chat/<string:request_id>')
 @login_required
 def chat_room(request_id):
     """1:1 채팅방 화면"""
-    req = MatchRequest.query.get_or_404(request_id)
+    req = MatchRequest.query.filter_by(match_code=request_id).first()
+    
+    # 이전의 숫자 ID(request_id)로 접근한 경우 난수 코드로 리다이렉트
+    if not req and request_id.isdigit():
+        req = MatchRequest.query.get_or_404(int(request_id))
+        return redirect(url_for('chat_room', request_id=req.match_code))
+    elif not req:
+        from flask import abort
+        abort(404)
     
     # 권한 확인 (당사자만 접근 가능)
     if req.sender_id != g.user.user_id and req.receiver_id != g.user.user_id:
@@ -1858,51 +1961,506 @@ def chat_room(request_id):
     partner_id = req.receiver_id if req.sender_id == g.user.user_id else req.sender_id
     partner = User.query.get(partner_id)
     
-    return render_template('chat.html', request_id=request_id, partner=partner)
+    # 템플릿의 API 호출이 깨지지 않도록 request_id 변수에 match_code를 담아 넘깁니다
+    return render_template('chat.html', request_id=req.match_code, partner=partner)
 
-@app.route('/api/chat/<int:request_id>/messages')
+@app.route('/api/chat/<string:request_id>/messages')
 @login_required
 def get_chat_messages(request_id):
     """메시지 목록 조회 (Polling용)"""
-    req = MatchRequest.query.get_or_404(request_id)
-    if req.sender_id != g.user.user_id and req.receiver_id != g.user.user_id:
-        return jsonify({'error': 'Unauthorized'}), 403
-        
-    messages = Message.query.filter_by(request_id=request_id).order_by(Message.created_at.asc()).all()
-    
-    # 읽음 처리 (상대방이 보낸 메시지)
-    unread_exist = False
-    for m in messages:
-        if m.sender_id != g.user.user_id and not m.is_read:
-            m.is_read = True
-            unread_exist = True
-    if unread_exist:
-        db.session.commit()
-        
-    return jsonify({
-        'messages': [{
-            'id': m.id,
-            'sender_id': m.sender_id,
-            'content': m.content,
-            'created_at': (m.created_at + timedelta(hours=9)).strftime('%H:%M'),
-            'is_me': m.sender_id == g.user.user_id,
-            'is_read': m.is_read
-        } for m in messages]
-    })
+    try:
+        req = MatchRequest.query.filter_by(match_code=request_id).first()
+        if not req and request_id.isdigit():
+            req = MatchRequest.query.get(int(request_id))
+            if not req:
+                return jsonify({'error': 'Not found'}), 404
+            req = MatchRequest.query.get(int(request_id))
+            if not req:
+                return jsonify({'error': 'Not found'}), 404
+        elif not req:
+            return jsonify({'error': 'Not found'}), 404
+            
+        real_request_id = req.request_id
 
-@app.route('/api/chat/<int:request_id>/send', methods=['POST'])
+        if req.sender_id != g.user.user_id and req.receiver_id != g.user.user_id:
+            return jsonify({'error': 'Unauthorized'}), 403
+            
+        messages = Message.query.filter_by(request_id=real_request_id).order_by(Message.created_at.asc()).all()
+        
+        # 읽음 처리 (상대방이 보낸 메시지)
+        unread_exist = False
+        for m in messages:
+            if m.sender_id != g.user.user_id and not m.is_read:
+                m.is_read = True
+                unread_exist = True
+        if unread_exist:
+            db.session.commit()
+            
+        return jsonify({
+            'messages': [{
+                'id': m.id,
+                'sender_id': m.sender_id,
+                'content': m.content,
+                'created_at': (m.created_at + timedelta(hours=9)).strftime('%H:%M'),
+                'is_me': m.sender_id == g.user.user_id,
+                'is_read': m.is_read
+            } for m in messages]
+        })
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"API Chat messages error: {e}")
+        return jsonify({'error': '서버 처리 중 오류가 발생했습니다.'}), 500
+
+@app.route('/api/chat/<string:request_id>/send', methods=['POST'])
 @login_required
 def send_chat_message(request_id):
     """메시지 전송"""
-    data = request.get_json()
-    content = data.get('content', '').strip()
-    
-    if not content: return jsonify({'error': 'Empty message'}), 400
+    try:
+        req = MatchRequest.query.filter_by(match_code=request_id).first()
+        if not req and request_id.isdigit():
+            req = MatchRequest.query.get_or_404(int(request_id))
+        elif not req:
+            return jsonify({'error': 'Not found'}), 404
+            
+        real_request_id = req.request_id
+
+        data = request.get_json()
+        content = data.get('content', '').strip()
         
-    msg = Message(request_id=request_id, sender_id=g.user.user_id, content=content)
-    db.session.add(msg)
-    db.session.commit()
-    return jsonify({'success': True})
+        if not content: return jsonify({'error': 'Empty message'}), 400
+            
+        msg = Message(request_id=real_request_id, sender_id=g.user.user_id, content=content)
+        db.session.add(msg)
+        db.session.commit()
+        return jsonify({'success': True})
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"API Chat send error: {e}")
+        return jsonify({'error': '서버 처리 중 오류가 발생했습니다.'}), 500
+
+# -------------------------------------------------------------------------
+# [Group Chat System (조건부 그룹 채팅)]
+# -------------------------------------------------------------------------
+def calculate_age(birth_date):
+    if not birth_date: return None
+    from datetime import date
+    today = date.today()
+    return today.year - birth_date.year - ((today.month, today.day) < (birth_date.month, birth_date.day))
+
+def validate_conditions(user, profile, conditions):
+    if not conditions:
+        return True, "조건 없음"
+        
+    # 1. 성별 검증
+    allowed_genders = conditions.get('genders', [])
+    if allowed_genders and user.gender not in allowed_genders:
+        return False, f"입장 가능한 성별이 아닙니다. (내 성별: {user.gender})"
+        
+    # 2. 나이 검증
+    min_age = conditions.get('min_age')
+    max_age = conditions.get('max_age')
+    if min_age or max_age:
+        age = calculate_age(user.birth_date)
+        if age is None:
+            return False, "생년월일 정보가 없어 나이 조건을 확인할 수 없습니다."
+        if min_age and age < int(min_age):
+            return False, f"최소 {min_age}세 이상만 입장 가능합니다."
+        if max_age and age > int(max_age):
+            return False, f"최대 {max_age}세 이하만 입장 가능합니다."
+
+    # 프로필 필수 조건 검증 (MBTI, 소시오닉스, Big5)
+    has_personality_condition = any(k in conditions for k in ['mbtis', 'quadras', 'big5'])
+    if has_personality_condition and not profile:
+         return False, "성향 조건이 설정된 방입니다. 먼저 대화 분석을 진행하고 대표 프로필을 설정해주세요."
+
+    if profile:
+        # 3. MBTI 검증
+        allowed_mbtis = conditions.get('mbtis', [])
+        if allowed_mbtis and profile.mbti_prediction not in allowed_mbtis:
+            return False, f"입장 가능한 MBTI가 아닙니다. (내 MBTI: {profile.mbti_prediction})"
+            
+        # 4. 소시오닉스 쿼드라 검증
+        allowed_quadras = conditions.get('quadras', [])
+        if allowed_quadras:
+            from matcher import RelationshipBrain
+            user_quadra = None
+            for q_name, types in RelationshipBrain.QUADRAS.items():
+                if profile.socionics_prediction in types:
+                    user_quadra = q_name.split()[0] # "Alpha (개방/아이디어)" -> "Alpha"
+                    break
+            if not user_quadra or user_quadra not in allowed_quadras:
+                return False, f"입장 가능한 소시오닉스 쿼드라가 아닙니다. (내 쿼드라: {user_quadra or '알수없음'})"
+                
+        # 5. Big 5 검증
+        big5_conds = conditions.get('big5', {})
+        for trait, limits in big5_conds.items():
+            min_val, max_val = limits.get('min', 0), limits.get('max', 100)
+            user_val = getattr(profile, trait, 50)
+            if user_val < min_val or user_val > max_val:
+                trait_kr = {"openness": "개방성", "conscientiousness": "성실성", "extraversion": "외향성", "agreeableness": "우호성", "neuroticism": "신경성"}.get(trait, trait)
+                return False, f"{trait_kr} 점수가 조건({min_val}~{max_val})에 맞지 않습니다. (나의 점수: {int(user_val)})"
+                
+    return True, "조건을 모두 만족합니다."
+
+@app.route('/groups')
+@login_required
+def group_lobby():
+    """그룹 채팅방 로비 (목록)"""
+    rooms = GroupChatRoom.query.order_by(GroupChatRoom.created_at.desc()).all()
+    joined_rooms = [p.room_id for p in GroupChatParticipant.query.filter_by(user_id=g.user.user_id).all()]
+    profile = PersonalityResult.query.filter_by(user_id=g.user.user_id, is_representative=True).first()
+    
+    room_data = []
+    for r in rooms:
+        is_joined = r.id in joined_rooms
+        can_join, reason = validate_conditions(g.user, profile, r.conditions)
+        participant_count = GroupChatParticipant.query.filter_by(room_id=r.id).count()
+        
+        room_data.append({
+            'id': r.id,
+            'room_code': r.room_code,
+            'name': r.name,
+            'description': r.description,
+            'max_participants': r.max_participants,
+            'current_participants': participant_count,
+            'conditions': r.conditions,
+            'is_joined': is_joined,
+            'can_join': can_join,
+            'reason': reason
+        })
+        
+    return render_template('group_lobby.html', rooms=room_data)
+
+@app.route('/groups/create', methods=['GET', 'POST'])
+@login_required
+def group_create():
+    """새로운 조건부 그룹 채팅방 생성"""
+    if request.method == 'POST':
+        name = request.form.get('name')
+        description = request.form.get('description')
+        max_p_raw = request.form.get('max_participants')
+        max_p = int(max_p_raw) if max_p_raw and max_p_raw.isdigit() else 10
+        
+        conditions = {}
+        genders = request.form.getlist('genders')
+        if genders: conditions['genders'] = genders
+        
+        min_age = request.form.get('min_age')
+        max_age = request.form.get('max_age')
+        if min_age: conditions['min_age'] = int(min_age)
+        if max_age: conditions['max_age'] = int(max_age)
+        
+        mbtis = request.form.getlist('mbtis')
+        if mbtis: conditions['mbtis'] = mbtis
+        
+        quadras = request.form.getlist('quadras')
+        if quadras: conditions['quadras'] = quadras
+        
+        big5_conds = {}
+        for trait in ['openness', 'conscientiousness', 'extraversion', 'agreeableness', 'neuroticism']:
+            t_min = request.form.get(f'big5_{trait}_min')
+            t_max = request.form.get(f'big5_{trait}_max')
+            if t_min and t_max:
+                if int(t_min) > 0 or int(t_max) < 100: 
+                    big5_conds[trait] = {'min': int(t_min), 'max': int(t_max)}
+        if big5_conds:
+            conditions['big5'] = big5_conds
+
+        try:
+            import random
+            new_room_code = str(random.randint(1000000000, 9999999999))
+            new_room = GroupChatRoom(room_code=new_room_code, name=name, description=description, creator_id=g.user.user_id, max_participants=max_p, conditions=conditions)
+            db.session.add(new_room)
+            db.session.flush() # commit 대신 flush로 안전하게 room_id 확보 (단일 트랜잭션 보장)
+            
+            # 생성자는 자동으로 참여자로 등록
+            db.session.add(GroupChatParticipant(room_id=new_room.id, user_id=g.user.user_id))
+            
+            # 방 개설 시스템 메시지 추가
+            join_msg = GroupChatMessage(
+                room_id=new_room.id, 
+                sender_id=g.user.user_id, 
+                content=f"{g.user.nickname or g.user.username} 님께서 방을 개설했습니다.", 
+                is_system=True
+            )
+            db.session.add(join_msg)
+            db.session.commit()
+            
+            flash("성향 기반 그룹 채팅방이 개설되었습니다.", "success")
+            return redirect(url_for('group_lobby'))
+        except Exception as e:
+            db.session.rollback()
+            app.logger.error(f"Group create error: {e}")
+            flash("방 생성 중 서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요.", "danger")
+            return redirect(url_for('group_create'))
+        
+    return render_template('group_create.html')
+
+@app.route('/groups/<room_code>/join', methods=['POST'])
+@login_required
+def group_join(room_code):
+    """채팅방 조건 검증 및 입장"""
+    room = GroupChatRoom.query.filter_by(room_code=room_code).first_or_404()
+    room_id = room.id
+    
+    if GroupChatParticipant.query.filter_by(room_id=room_id, user_id=g.user.user_id).first():
+        return redirect(url_for('group_chat_room', room_code=room_code))
+        
+    if GroupChatParticipant.query.filter_by(room_id=room_id).count() >= room.max_participants:
+        flash("채팅방 인원이 가득 찼습니다.", "danger")
+        return redirect(url_for('group_lobby'))
+        
+    profile = PersonalityResult.query.filter_by(user_id=g.user.user_id, is_representative=True).first()
+    can_join, reason = validate_conditions(g.user, profile, room.conditions)
+    
+    if not can_join:
+        flash(f"입장 불가: {reason}", "danger")
+        return redirect(url_for('group_lobby'))
+        
+    try:
+        db.session.add(GroupChatParticipant(room_id=room.id, user_id=g.user.user_id))
+        
+        # 입장 시스템 메시지 추가
+        join_msg = GroupChatMessage(
+            room_id=room.id, 
+            sender_id=g.user.user_id, 
+            content=f"{g.user.nickname or g.user.username} 님께서 입장하셨습니다.", 
+            is_system=True
+        )
+        db.session.add(join_msg)
+        db.session.commit()
+        flash("채팅방에 성공적으로 입장했습니다.", "success")
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"Group join error: {e}")
+        flash("입장 처리 중 서버 오류가 발생했습니다.", "danger")
+        
+    return redirect(url_for('group_chat_room', room_code=room_code))
+
+@app.route('/groups/<room_code>')
+@login_required
+def group_chat_room(room_code):
+    """조건부 그룹 채팅방 메인 UI"""
+    room = GroupChatRoom.query.filter_by(room_code=room_code).first_or_404()
+    participant = GroupChatParticipant.query.filter_by(room_id=room.id, user_id=g.user.user_id).first()
+    if not participant:
+        flash("참여하지 않은 채팅방입니다.", "warning")
+        return redirect(url_for('group_lobby'))
+        
+    return render_template('group_chat.html', room=room)
+
+@app.route('/groups/<room_code>/leave', methods=['POST'])
+@login_required
+def group_leave(room_code):
+    """참여자: 채팅방 나가기"""
+    room = GroupChatRoom.query.filter_by(room_code=room_code).first_or_404()
+    room_id = room.id
+    if room.creator_id == g.user.user_id:
+        flash("방장은 방을 나갈 수 없습니다. 방 해체하기를 이용해주세요.", "warning")
+        return redirect(url_for('group_chat_room', room_code=room_code))
+        
+    participant = GroupChatParticipant.query.filter_by(room_id=room_id, user_id=g.user.user_id).first()
+    if participant:
+        try:
+            db.session.delete(participant)
+            leave_msg = GroupChatMessage(
+                room_id=room_id, 
+                sender_id=g.user.user_id, 
+                content=f"{g.user.nickname or g.user.username} 님이 채팅방을 나갔습니다.", 
+                is_system=True
+            )
+            db.session.add(leave_msg)
+            db.session.commit()
+            flash("채팅방에서 성공적으로 나갔습니다.", "success")
+        except Exception as e:
+            db.session.rollback()
+            app.logger.error(f"Group leave error: {e}")
+            flash("처리 중 서버 오류가 발생했습니다.", "danger")
+            
+    return redirect(url_for('group_lobby'))
+
+@app.route('/groups/<room_code>/delete', methods=['POST'])
+@login_required
+def group_delete(room_code):
+    """방장: 채팅방 해체"""
+    room = GroupChatRoom.query.filter_by(room_code=room_code).first_or_404()
+    if room.creator_id != g.user.user_id:
+        flash("방을 해체할 권한이 없습니다.", "danger")
+        return redirect(url_for('group_chat_room', room_code=room_code))
+        
+    try:
+        db.session.delete(room)
+        db.session.commit()
+        flash("채팅방이 성공적으로 해체되었습니다.", "success")
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"Group delete error: {e}")
+        flash("처리 중 서버 오류가 발생했습니다.", "danger")
+        
+    return redirect(url_for('group_lobby'))
+
+@app.route('/api/groups/<room_code>/messages')
+@login_required
+def get_group_chat_messages(room_code):
+    """그룹 채팅방 메시지 목록 조회 (Polling용)"""
+    try:
+        room = GroupChatRoom.query.filter_by(room_code=room_code).first()
+        if not room:
+            return jsonify({'error': 'Room not found'}), 404
+        room = GroupChatRoom.query.filter_by(room_code=room_code).first()
+        if not room:
+            return jsonify({'error': 'Room not found'}), 404
+        room = GroupChatRoom.query.filter_by(room_code=room_code).first()
+        if not room:
+            return jsonify({'error': 'Room not found'}), 404
+        room = GroupChatRoom.query.filter_by(room_code=room_code).first()
+        if not room:
+            return jsonify({'error': 'Room not found'}), 404
+        room_id = room.id
+        participant = GroupChatParticipant.query.filter_by(room_id=room_id, user_id=g.user.user_id).first()
+        if not participant:
+            return jsonify({'error': 'Unauthorized'}), 403
+            
+        messages = GroupChatMessage.query.filter_by(room_id=room_id).order_by(GroupChatMessage.created_at.asc()).all()
+        
+        # 메시지를 조회할 때 나의 마지막 읽은 지점 업데이트
+        if messages:
+            max_msg_id = messages[-1].id
+            if participant.last_read_message_id < max_msg_id:
+                participant.last_read_message_id = max_msg_id
+                db.session.commit()
+                
+        # 안 읽은 카운트 계산을 위한 데이터 준비
+        all_participants = GroupChatParticipant.query.filter_by(room_id=room_id).all()
+        read_thresholds = [p.last_read_message_id for p in all_participants]
+        total_participants = len(read_thresholds)
+        
+        msg_list = []
+        for m in messages:
+            sender = User.query.get(m.sender_id)
+            read_count = sum(1 for threshold in read_thresholds if threshold >= m.id)
+            unread_count = total_participants - read_count
+            
+            msg_list.append({
+                'id': m.id,
+                'sender_id': m.sender_id,
+                'sender_nickname': sender.nickname or sender.username if sender else '알 수 없음',
+                'content': m.content,
+                'is_system': m.is_system,
+                'unread_count': unread_count if unread_count > 0 else 0,
+                'created_at': (m.created_at + timedelta(hours=9)).strftime('%H:%M'),
+                'is_me': m.sender_id == g.user.user_id
+            })
+            
+        return jsonify({'messages': msg_list})
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"API Group messages error: {e}")
+        return jsonify({'error': '서버 처리 중 오류가 발생했습니다.'}), 500
+
+@app.route('/api/groups/<room_code>/send', methods=['POST'])
+@login_required
+def send_group_chat_message(room_code):
+    """그룹 채팅방 메시지 전송"""
+    try:
+        room = GroupChatRoom.query.filter_by(room_code=room_code).first_or_404()
+        room_id = room.id
+        participant = GroupChatParticipant.query.filter_by(room_id=room_id, user_id=g.user.user_id).first()
+        if not participant:
+            return jsonify({'error': 'Unauthorized'}), 403
+            
+        data = request.get_json()
+        content = data.get('content', '').strip()
+        
+        if not content: return jsonify({'error': 'Empty message'}), 400
+            
+        msg = GroupChatMessage(room_id=room_id, sender_id=g.user.user_id, content=content)
+        db.session.add(msg)
+        db.session.commit()
+        return jsonify({'success': True})
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"API Group send error: {e}")
+        return jsonify({'error': '메시지 전송 중 오류가 발생했습니다.'}), 500
+
+@app.route('/api/groups/<room_code>/participants')
+@login_required
+def get_group_chat_participants(room_code):
+    """그룹 채팅방 참여자 목록 조회"""
+    try:
+        room = GroupChatRoom.query.filter_by(room_code=room_code).first_or_404()
+        room_id = room.id
+        participant = GroupChatParticipant.query.filter_by(room_id=room_id, user_id=g.user.user_id).first()
+        if not participant:
+            return jsonify({'error': 'Unauthorized'}), 403
+            
+        participants = GroupChatParticipant.query.filter_by(room_id=room_id).all()
+        total_p = len(participants)
+        threshold = (total_p // 2) + 1
+        
+        res = []
+        for p in participants:
+            u = User.query.get(p.user_id)
+            if u:
+                votes = GroupChatKickVote.query.filter_by(room_id=room_id, target_id=p.user_id).count()
+                my_vote = GroupChatKickVote.query.filter_by(room_id=room_id, target_id=p.user_id, voter_id=g.user.user_id).first() is not None
+                res.append({
+                    'user_id': u.user_id, 
+                    'nickname': u.nickname or u.username, 
+                    'is_me': u.user_id == g.user.user_id,
+                    'is_creator': u.user_id == room.creator_id,
+                    'votes': votes,
+                    'threshold': threshold,
+                    'voted_by_me': my_vote
+                })
+        return jsonify({'participants': res})
+    except Exception as e:
+        app.logger.error(f"API Group participants error: {e}")
+        return jsonify({'error': '서버 처리 중 오류가 발생했습니다.'}), 500
+
+@app.route('/api/groups/<room_code>/kick/<int:target_id>', methods=['POST'])
+@login_required
+def vote_kick_participant(room_code, target_id):
+    """강퇴 투표 API"""
+    try:
+        room = GroupChatRoom.query.filter_by(room_code=room_code).first_or_404()
+        room_id = room.id
+        if target_id == room.creator_id:
+            return jsonify({'error': '방장은 강퇴할 수 없습니다.'}), 400
+            
+        if not GroupChatParticipant.query.filter_by(room_id=room_id, user_id=g.user.user_id).first():
+            return jsonify({'error': '권한이 없습니다.'}), 403
+            
+        target_p = GroupChatParticipant.query.filter_by(room_id=room_id, user_id=target_id).first()
+        if not target_p:
+            return jsonify({'error': '대상이 채팅방에 없습니다.'}), 400
+            
+        existing_vote = GroupChatKickVote.query.filter_by(room_id=room_id, voter_id=g.user.user_id, target_id=target_id).first()
+        if existing_vote:
+            db.session.delete(existing_vote)
+            db.session.commit()
+            return jsonify({'success': True, 'action': 'unvoted'})
+            
+        db.session.add(GroupChatKickVote(room_id=room_id, voter_id=g.user.user_id, target_id=target_id))
+        db.session.commit()
+        
+        total_p = GroupChatParticipant.query.filter_by(room_id=room_id).count()
+        votes = GroupChatKickVote.query.filter_by(room_id=room_id, target_id=target_id).count()
+        if votes >= (total_p // 2) + 1:
+            db.session.delete(target_p)
+            votes_to_delete = GroupChatKickVote.query.filter_by(room_id=room_id, target_id=target_id).all()
+            for v in votes_to_delete: db.session.delete(v)
+            target_u = User.query.get(target_id)
+            if target_u:
+                db.session.add(GroupChatMessage(room_id=room_id, sender_id=g.user.user_id, content=f"투표 결과에 따라 {target_u.nickname or target_u.username} 님이 강제 퇴장되었습니다.", is_system=True))
+            db.session.commit()
+            return jsonify({'success': True, 'action': 'kicked'})
+            
+        return jsonify({'success': True, 'action': 'voted'})
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"Vote kick error: {e}")
+        return jsonify({'error': "투표 처리 중 서버 오류가 발생했습니다."}), 500
 
 if __name__ == '__main__':
     import sys

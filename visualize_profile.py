@@ -557,7 +557,7 @@ def generate_report_html(data: dict, return_body_only=False) -> str:
     try:
         date_obj = datetime.fromisoformat(gen_time.replace("Z", "+00:00"))
         date_str = date_obj.strftime("%Y-%m-%d")
-    except:
+    except Exception:
         date_str = gen_time
 
     # 2. 요약

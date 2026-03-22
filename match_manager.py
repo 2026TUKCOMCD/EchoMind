@@ -512,7 +512,10 @@ class MatchManager:
                 db.session.commit() # 삭제 반영
 
             # 신청 생성
+            import random
+            new_code = str(random.randint(1000000000, 9999999999))
             new_req = MatchRequest(
+                match_code=new_code,
                 sender_id=sender_id, 
                 receiver_id=receiver_id, 
                 status='PENDING'

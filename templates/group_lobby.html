@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container mx-auto px-4 py-8 max-w-6xl">
+    <div class="flex justify-between items-center mb-8">
+        <div>
+            <h1 class="text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">성향 맞춤 그룹 라운지</h1>
+            <p class="text-slate-500 dark:text-slate-400 mt-2">나와 성향 조건이 맞는 사람들과 다대다 대화를 나눠보세요.</p>
+        </div>
+        <a href="{{ url_for('group_create') }}" class="bg-indigo-600 text-white px-5 py-2.5 rounded-lg shadow-md hover:bg-indigo-700 transition-colors font-semibold flex items-center gap-2">
+            <span>+ 새 그룹방 만들기</span>
+        </a>
+    </div>
+
+    <!-- 그룹 라운지 이용 가이드 -->
+    <div class="mb-8 bg-indigo-50 dark:bg-indigo-900/30 rounded-2xl p-6 border border-indigo-100 dark:border-indigo-800/50 shadow-sm">
+        <h3 class="text-lg font-bold text-indigo-900 dark:text-indigo-200 mb-3 flex items-center gap-2">
+            <span>성향 맞춤 그룹 라운지 이용 방법</span>
+        </h3>
+        <ul class="space-y-3 text-sm text-indigo-800 dark:text-indigo-300">
+            <li class="flex items-start gap-2">
+                <span class="font-bold min-w-max">방 탐색 및 참여:</span> 
+                <span class="leading-relaxed">내 가입 정보(성별, 나이)와 AI가 분석한 대표 프로필(MBTI, Big5, 쿼드라)이 방장의 설정 조건과 <b>모두 일치</b>하는 방에만 입장할 수 있습니다.</span>
+            </li>
+            <li class="flex items-start gap-2">
+                <span class="font-bold min-w-max">직접 만들기:</span> 
+                <span class="leading-relaxed">우측 상단의 <b>'+ 새 그룹방 만들기'</b> 버튼을 눌러보세요. 'INTP 토론방', '외향성 높은 하이텐션 방' 등 재밌는 조건의 방을 직접 개설할 수 있습니다.</span>
+            </li>
+        </ul>
+    </div>
+
+    <!-- 플래시 메시지 출력 -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="mb-6 p-4 rounded-lg text-sm font-medium {% if category == 'success' %}bg-green-100 text-green-800 border border-green-200{% elif category == 'danger' %}bg-red-100 text-red-800 border border-red-200{% else %}bg-yellow-100 text-yellow-800 border border-yellow-200{% endif %}">
+            {{ message }}
+          </div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {% for room in rooms %}
+        <div class="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 flex flex-col transition hover:shadow-md">
+            <div class="flex justify-between items-start mb-3">
+                <h2 class="text-xl font-bold text-slate-800 dark:text-white truncate">{{ room.name }}</h2>
+                <span class="text-xs font-semibold px-2 py-1 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 shrink-0">
+                    {{ room.current_participants }} / {{ room.max_participants }}명
+                </span>
+            </div>
+            <p class="text-sm text-slate-600 dark:text-slate-400 mb-4 flex-1 overflow-hidden" style="display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;">
+                {{ room.description or "설명이 없습니다." }}
+            </p>
+            
+            <div class="mt-auto pt-4 border-t border-slate-100 dark:border-slate-700">
+                {% if room.is_joined %}
+                    <a href="{{ url_for('group_chat_room', room_code=room.room_code) }}" class="block text-center w-full bg-indigo-500 text-white py-2 rounded-lg font-semibold hover:bg-indigo-600 transition-colors">입장하기 (참여중)</a>
+                {% elif room.can_join %}
+                    <form action="{{ url_for('group_join', room_code=room.room_code) }}" method="POST">
+                        <button type="submit" class="w-full bg-emerald-500 text-white py-2 rounded-lg font-semibold hover:bg-emerald-600 transition-colors shadow-sm">조건 일치! 참여하기</button>
+                    </form>
+                {% else %}
+                    <button disabled class="w-full bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400 py-2 rounded-lg font-semibold cursor-not-allowed">참여 불가</button>
+                    <p class="text-xs text-red-500 dark:text-red-400 mt-2 text-center break-keep">{{ room.reason }}</p>
+                {% endif %}
+            </div>
+        </div>
+        {% else %}
+        <div class="col-span-full py-20 text-center text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-dashed border-slate-200 dark:border-slate-700">
+            <div class="text-4xl mb-4">💬</div>
+            <p>현재 개설된 그룹 채팅방이 없습니다.</p>
+            <p class="text-sm mt-1">첫 번째 그룹방의 방장이 되어보세요!</p>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

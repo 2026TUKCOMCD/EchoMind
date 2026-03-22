@@ -1,0 +1,240 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container mx-auto px-4 py-6 max-w-5xl h-[85vh] flex flex-col" x-data="groupChatRoom('{{ room.room_code }}')">
+    
+    <!-- 방 헤더 정보 -->
+    <div class="bg-indigo-600 text-white p-5 rounded-t-2xl shadow-md flex justify-between items-center z-10 relative">
+        <div>
+            <div class="flex items-center gap-2 mb-1">
+                <span class="bg-indigo-800 text-xs px-2 py-0.5 rounded uppercase tracking-wider font-semibold">Group</span>
+                <h1 class="text-xl font-bold">{{ room.name }}</h1>
+            </div>
+            <p class="text-sm text-indigo-200">{{ room.description or "환영합니다! 성향이 일치하는 사람들과의 대화 공간입니다." }}</p>
+        </div>
+        <div class="flex gap-2">
+            <button @click="toggleParticipants()" class="bg-white/10 hover:bg-white/20 text-white border border-white/30 px-4 py-2 rounded-lg text-sm font-semibold transition-colors flex items-center gap-2">
+                <span>👥 <span x-text="participants.length"></span>명</span>
+            </button>
+            <a href="{{ url_for('group_lobby') }}" class="bg-white/10 hover:bg-white/20 text-white border border-white/30 px-4 py-2 rounded-lg text-sm font-semibold transition-colors flex items-center gap-2" title="목록으로 돌아가기">
+                <span>🔙 목록</span>
+            </a>
+            
+            {% if g.user.user_id == room.creator_id %}
+            <form action="{{ url_for('group_delete', room_code=room.room_code) }}" method="POST" onsubmit="return confirm('정말 이 채팅방을 해체하시겠습니까? 모든 대화 내용이 삭제됩니다.');" class="m-0">
+                <button type="submit" class="bg-red-500/80 hover:bg-red-600 text-white border border-red-400/50 px-4 py-2 rounded-lg text-sm font-semibold transition-colors flex items-center gap-2 h-full">
+                    <span>💥 해체</span>
+                </button>
+            </form>
+            {% else %}
+            <form action="{{ url_for('group_leave', room_code=room.room_code) }}" method="POST" onsubmit="return confirm('이 채팅방에서 영구적으로 나가시겠습니까?');" class="m-0">
+                <button type="submit" class="bg-white/10 hover:bg-white/20 text-white border border-white/30 px-4 py-2 rounded-lg text-sm font-semibold transition-colors flex items-center gap-2 h-full">
+                    <span>🚪 나가기</span>
+                </button>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+    
+    <div class="flex flex-1 overflow-hidden rounded-b-2xl border border-slate-200 dark:border-slate-700 shadow-sm relative bg-white dark:bg-slate-800">
+        <div class="flex-1 flex flex-col min-w-0">
+            <!-- 채팅 메시지 영역 -->
+            <div id="chat-messages" class="flex-1 bg-slate-50 dark:bg-slate-900 p-6 overflow-y-auto border-x border-slate-200 dark:border-slate-800 flex flex-col gap-3">
+                
+                <template x-for="msg in messages" :key="msg.id">
+                    <div class="w-full">
+                        <template x-if="msg.is_system">
+                            <div class="text-center my-4">
+                                <span class="bg-slate-200 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-xs px-4 py-1.5 rounded-full font-medium shadow-sm" x-text="msg.content">
+                                </span>
+                            </div>
+                        </template>
+                        
+                        <template x-if="!msg.is_system">
+                            <div class="flex w-full" :class="msg.is_me ? 'justify-end' : 'justify-start'">
+                                <div class="max-w-[70%] flex flex-col gap-1">
+                                    <span x-show="!msg.is_me" class="text-xs text-slate-500 dark:text-slate-400 font-bold px-1" x-text="msg.sender_nickname"></span>
+                                    <div class="flex gap-1" :class="msg.is_me ? 'flex-row-reverse' : 'flex-row'">
+                                        <div class="flex flex-col" :class="msg.is_me ? 'items-end' : 'items-start'">
+                                            <div class="px-3 py-2 rounded-2xl text-base shadow-sm break-words w-fit whitespace-pre-wrap flex items-center justify-center"
+                                                :class="msg.is_me ? 'bg-indigo-500 text-white rounded-tr-none' : 'bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 rounded-tl-none border border-slate-200 dark:border-slate-700'">
+                                                <span x-text="msg.content"></span>
+                                            </div>
+                                        </div>
+                                        <div class="flex flex-col justify-end gap-0.5 pb-0.5 min-w-[20px]"
+                                            :class="msg.is_me ? 'items-end' : 'items-start'">
+                                            <span x-show="msg.unread_count > 0" class="text-[11px] font-bold text-yellow-500" x-text="msg.unread_count"></span>
+                                            <span class="text-[10px] text-slate-400 whitespace-nowrap" x-text="msg.created_at"></span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </template>
+                <div x-show="messages.length === 0" class="text-center text-slate-400 text-sm py-10">
+                    첫 메시지를 남겨보세요!
+                </div>
+                
+            </div>
+            
+            <!-- 입력 영역 -->
+            <div class="p-4 bg-white dark:bg-slate-800 flex gap-3 items-center z-10 border-t border-slate-200 dark:border-slate-700">
+                <input type="text" x-model="newMessage" @keydown.enter.prevent="sendMessage()" class="flex-1 border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white rounded-xl px-4 py-3 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-shadow" placeholder="메시지를 입력하세요..." autocomplete="off">
+                <button @click="sendMessage()" :disabled="!newMessage.trim()" class="bg-indigo-600 text-white px-6 py-3 rounded-xl hover:bg-indigo-700 transition-colors font-bold shadow-md whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed">
+                    전송
+                </button>
+            </div>
+        </div>
+
+        <!-- 참여자 목록 서랍 (오른쪽 패널) -->
+        <div x-show="showParticipants" 
+             class="w-64 bg-white dark:bg-slate-800 border-l border-slate-200 dark:border-slate-700 overflow-y-auto"
+             x-transition:enter="transition ease-out duration-200"
+             x-transition:enter-start="translate-x-full"
+             x-transition:enter-end="translate-x-0"
+             x-transition:leave="transition ease-in duration-200"
+             x-transition:leave-start="translate-x-0"
+             x-transition:leave-end="translate-x-full"
+             style="display: none; position: absolute; right: 0; top: 0; bottom: 0; z-index: 20; box-shadow: -4px 0 15px rgba(0,0,0,0.05);">
+            <div class="p-4 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50 dark:bg-slate-900/50">
+                <h3 class="font-bold text-slate-700 dark:text-slate-200">대화 참여자</h3>
+                <button @click="showParticipants = false" class="text-slate-400 hover:text-slate-600 font-bold">
+                    ✕
+                </button>
+            </div>
+            <ul class="p-2 space-y-1">
+                <template x-for="p in participants" :key="p.user_id">
+                    <li class="px-3 py-2 rounded-lg text-sm flex items-center gap-2 hover:bg-slate-50 dark:hover:bg-slate-700/50">
+                        <div class="w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-900 flex items-center justify-center text-indigo-600 dark:text-indigo-400 font-bold shrink-0">
+                            <span x-text="p.nickname.charAt(0)"></span>
+                        </div>
+                        <span class="truncate text-slate-700 dark:text-slate-300 font-medium" x-text="p.nickname"></span>
+                        
+                        <span x-show="p.is_creator" class="text-[10px] bg-amber-100 dark:bg-amber-900/50 text-amber-600 dark:text-amber-400 px-1.5 py-0.5 rounded font-bold shrink-0">👑 관리자</span>
+                        <span x-show="p.is_me" class="ml-auto text-[10px] bg-slate-200 dark:bg-slate-600 text-slate-500 dark:text-slate-300 px-1.5 py-0.5 rounded shrink-0">나</span>
+                        
+                        <!-- 강퇴 투표 버튼 (내가 아니고, 방장이 아닐 때) -->
+                        <button x-show="!p.is_me && !p.is_creator" @click="voteKick(p.user_id)" 
+                                class="ml-auto text-[10px] px-1.5 py-0.5 rounded border transition-colors shrink-0 whitespace-nowrap"
+                                :class="p.voted_by_me ? 'bg-red-500 text-white border-red-500' : 'bg-white dark:bg-slate-700 text-red-500 border-red-500 hover:bg-red-50 dark:hover:bg-slate-600'">
+                            강퇴 투표 (<span x-text="p.votes"></span>/<span x-text="p.threshold"></span>)
+                        </button>
+                    </li>
+                </template>
+            </ul>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('alpine:init', () => {
+        Alpine.data('groupChatRoom', (roomCode) => ({
+            messages: [],
+            newMessage: '',
+            roomId: roomCode, // URL 파라미터로 사용됨
+            polling: null,
+            lastMessageCount: 0,
+            participants: [],
+            showParticipants: false,
+
+            init() {
+                this.fetchParticipants();
+                this.fetchMessages(true);
+                this.polling = setInterval(() => {
+                    this.fetchMessages(false);
+                    if (this.showParticipants) this.fetchParticipants();
+                }, 2000);
+                window.addEventListener('beforeunload', () => clearInterval(this.polling));
+            },
+            
+            async fetchParticipants() {
+                try {
+                    const res = await fetch(`/api/groups/${this.roomId}/participants`);
+                    if (res.status === 403 || res.status === 404) {
+                        window.location.href = '/groups';
+                        return;
+                    }
+                    if (res.ok) {
+                        const data = await res.json();
+                        this.participants = data.participants;
+                    }
+                } catch (e) { console.error(e); }
+            },
+            
+            toggleParticipants() {
+                this.showParticipants = !this.showParticipants;
+                if (this.showParticipants) this.fetchParticipants();
+            },
+
+            async fetchMessages(scroll = false) {
+                try {
+                    const res = await fetch(`/api/groups/${this.roomId}/messages`);
+                    if (res.status === 403 || res.status === 404) {
+                        alert("채팅방이 해체되었거나 참여 권한이 없습니다.");
+                        window.location.href = '/groups';
+                        return;
+                    }
+                    if (!res.ok) return;
+                    const data = await res.json();
+                    
+                    const shouldScroll = scroll || (data.messages.length > this.lastMessageCount);
+                    this.messages = data.messages;
+                    this.lastMessageCount = data.messages.length;
+
+                    if (shouldScroll) {
+                        this.$nextTick(() => {
+                            const container = document.getElementById('chat-messages');
+                            container.scrollTop = container.scrollHeight;
+                        });
+                    }
+                } catch (e) { console.error("메시지 조회 실패", e); }
+            },
+
+            async voteKick(targetId) {
+                try {
+                    const res = await fetch(`/api/groups/${this.roomId}/kick/${targetId}`, { 
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' }
+                    });
+                    
+                    if (!res.ok) {
+                        try {
+                            const errorData = await res.json();
+                            alert(errorData.error || "처리 중 오류가 발생했습니다.");
+                        } catch {
+                            alert(`서버 오류 발생 (상태 코드: ${res.status})`);
+                        }
+                        return;
+                    }
+                    
+                    const data = await res.json();
+                    if (data.error) {
+                        alert(data.error);
+                        return;
+                    }
+                    this.fetchParticipants();
+                } catch (e) { 
+                    console.error("투표 처리 중 오류:", e);
+                    alert("네트워크 통신 중 오류가 발생했습니다."); 
+                }
+            },
+
+            async sendMessage() {
+                if (!this.newMessage.trim()) return;
+
+                const content = this.newMessage;
+                this.newMessage = ''; 
+
+                try {
+                    await fetch(`/api/groups/${this.roomId}/send`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ content: content })
+                    });
+                    this.fetchMessages(true);
+                } catch (e) { alert('전송 실패'); }
+            }
+        }));
+    });
+</script>
+{% endblock %}
