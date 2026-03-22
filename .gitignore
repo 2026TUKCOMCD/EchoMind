@@ -11,6 +11,8 @@ profile/
 static/reports/
 debug.log
 dummy_*.json
+*.sql
+*.log
 
 # --- Android Project (EchoMind_app) Specific ---
 
