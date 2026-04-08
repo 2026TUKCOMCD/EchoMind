@@ -13,7 +13,7 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.EchoMind"
-        android:usesCleartextTraffic="true"
+        android:networkSecurityConfig="@xml/network_security_config"
         tools:targetApi="31">
 
         <activity
@@ -58,6 +58,31 @@
             android:name=".ChatActivity"
             android:exported="false"
             android:label="채팅" />
+
+        <activity
+            android:name=".GroupLoungeActivity"
+            android:exported="false"
+            android:label="그룹 라운지" />
+
+        <activity
+            android:name=".GroupChatActivity"
+            android:exported="false"
+            android:label="그룹 채팅" />
+
+        <activity
+            android:name=".GroupCreateActivity"
+            android:exported="false"
+            android:label="새 그룹 만들기" />
+
+        <activity
+            android:name=".HistoryActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".MatchDetailActivity"
+            android:exported="false"
+            android:label="상대방 분석 상세" />
+
 
     </application>
 

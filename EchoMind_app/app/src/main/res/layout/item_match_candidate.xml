@@ -1,84 +1,310 @@
 <?xml version="1.0" encoding="utf-8"?>
 <com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:layout_marginHorizontal="16dp"
-    android:layout_marginVertical="8dp"
-    app:cardCornerRadius="16dp"
-    app:cardElevation="2dp"
+    android:layout_marginVertical="12dp"
+    app:cardCornerRadius="24dp"
+    app:cardElevation="4dp"
     app:cardBackgroundColor="@color/card_bg"
-    app:strokeWidth="0dp">
+    app:strokeWidth="1dp"
+    app:strokeColor="@color/border">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:padding="16dp"
-        android:gravity="center_vertical">
+        android:orientation="vertical"
+        android:clipChildren="false"
+        android:clipToPadding="false"
+        android:padding="24dp">
 
-        <LinearLayout
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:orientation="vertical">
-
-            <TextView
-                android:id="@+id/tvCandidateName"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:textSize="18sp"
-                android:fontFamily="sans-serif-bold"
-                android:textColor="@color/text_primary" /> <!-- 다크모드 대응 -->
-
-            <TextView
-                android:id="@+id/tvCandidateMbti"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:textColor="@color/primary"
-                android:layout_marginTop="2dp" /> <!-- 테마 기본 강조색 -->
-
-            <com.google.android.material.chip.ChipGroup
-                android:id="@+id/chipGroupTraits"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                app:chipSpacingHorizontal="4dp" />
-        </LinearLayout>
-
-        <!-- 매칭 점수 박스 디자인 개선 -->
-        <com.google.android.material.card.MaterialCardView
+        <!-- 1. 순위 배지 -->
+        <TextView
+            android:id="@+id/tvRankBadge"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            app:cardCornerRadius="12dp"
-            app:cardElevation="0dp"
-            app:cardBackgroundColor="@color/background"
-            app:strokeWidth="1dp"
-            app:strokeColor="@color/border">
+            android:background="@drawable/bg_status_badge"
+            android:paddingHorizontal="12dp"
+            android:paddingVertical="4dp"
+            android:text="🥇 1st"
+            android:textColor="@color/white"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:layout_marginBottom="16dp" />
+
+        <!-- 2. 헤더 -->
+        <RelativeLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="20dp">
 
             <LinearLayout
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:gravity="center"
-                android:padding="12dp">
+                android:layout_alignParentStart="true"
+                android:layout_toStartOf="@id/layoutScoreBox">
 
+                <TextView
+                    android:id="@+id/tvCandidateName"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="사용자 이름"
+                    android:textSize="22sp"
+                    android:fontFamily="sans-serif-black"
+                    android:textColor="@color/text_primary" />
+
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginTop="4dp">
+                    <TextView
+                        android:id="@+id/tvMbtiBadge"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:background="@drawable/bg_status_badge"
+                        android:backgroundTint="#154F46E5"
+                        android:paddingHorizontal="8dp"
+                        android:paddingVertical="2dp"
+                        android:text="ENTJ"
+                        android:textColor="@color/primary"
+                        android:textSize="11sp" />
+                    <TextView
+                        android:id="@+id/tvSocioBadge"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="6dp"
+                        android:background="@drawable/bg_status_badge"
+                        android:backgroundTint="#15F43F5E"
+                        android:paddingHorizontal="8dp"
+                        android:paddingVertical="2dp"
+                        android:text="LIE"
+                        android:textColor="#F43F5E"
+                        android:textSize="11sp" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/layoutScoreBox"
+                android:layout_width="80dp"
+                android:layout_height="wrap_content"
+                android:layout_alignParentEnd="true"
+                android:background="@drawable/bg_status_badge"
+                android:backgroundTint="#0A4F46E5"
+                android:gravity="center"
+                android:orientation="vertical"
+                android:padding="10dp">
                 <TextView
                     android:id="@+id/tvMatchScore"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
+                    android:text="78"
+                    android:textColor="@color/primary"
                     android:textSize="24sp"
-                    android:fontFamily="sans-serif-black"
-                    android:textColor="@color/primary" />
-
+                    android:fontFamily="sans-serif-black" />
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="매칭점수"
-                    android:textSize="10sp"
+                    android:text="매칭 점수"
+                    android:textSize="9sp"
                     android:textColor="@color/text_secondary" />
             </LinearLayout>
-        </com.google.android.material.card.MaterialCardView>
+        </RelativeLayout>
+
+        <!-- 3. 상대 특징 -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="상대 특징"
+            android:textSize="11sp"
+            android:textColor="@color/text_secondary"
+            android:textAllCaps="true"
+            android:fontFamily="sans-serif-bold" />
+        <TextView
+            android:id="@+id/tvCandidateSummary"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:textColor="@color/text_primary"
+            android:textSize="14sp"
+            android:lineHeight="22sp"
+            android:layout_marginBottom="16dp" />
+
+        <!-- 4. 특징 칩 그룹 -->
+        <com.google.android.material.chip.ChipGroup
+            android:id="@+id/chipGroupTraits"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="24dp"
+            app:chipSpacingHorizontal="6dp" />
+
+        <!-- 5. 매칭 상세 분석 요약 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@drawable/bg_status_badge"
+            android:backgroundTint="#05000000"
+            android:orientation="vertical"
+            android:padding="16dp"
+            android:layout_marginBottom="20dp">
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+                <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:gravity="center" android:orientation="vertical">
+                    <TextView android:id="@+id/tvDetailSimilarity" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="0%" android:textColor="#3B82F6" android:textSize="18sp" android:fontFamily="sans-serif-black" />
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="성향 유사도" android:textSize="10sp" android:textColor="@color/text_secondary" />
+                </LinearLayout>
+                <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:gravity="center" android:orientation="vertical">
+                    <TextView android:id="@+id/tvDetailChemistry" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="0%" android:textColor="#F43F5E" android:textSize="18sp" android:fontFamily="sans-serif-black" />
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="케미스트리" android:textSize="10sp" android:textColor="@color/text_secondary" />
+                </LinearLayout>
+                <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:gravity="center" android:orientation="vertical">
+                    <TextView android:id="@+id/tvDetailActivity" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="0점" android:textColor="#F59E0B" android:textSize="18sp" android:fontFamily="sans-serif-black" />
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="활동성" android:textSize="10sp" android:textColor="@color/text_secondary" />
+                </LinearLayout>
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- 6. 확장 상세 보기 버튼 -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnToggleDetail"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:text="매칭 산출 상세 보기 ▼"
+            android:textSize="12sp"
+            app:cornerRadius="12dp"
+            android:layout_marginBottom="16dp" />
+
+        <LinearLayout
+            android:id="@+id/layoutExpandableDetail"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone"
+            android:clipChildren="false"
+            android:clipToPadding="false"
+            android:layout_marginBottom="24dp">
+
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="📊 상세 분석 차트" android:textSize="12sp" android:textStyle="bold" android:textColor="@color/text_primary" android:layout_marginBottom="8dp"/>
+            <com.github.mikephil.charting.charts.PieChart
+                android:id="@+id/chartDonut"
+                android:layout_width="match_parent"
+                android:layout_height="200dp" />
+
+            <!-- BIG5 성향 비교 (배지 추가) -->
+            <RelativeLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="24dp" android:layout_marginBottom="8dp">
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="🧠 BIG5 성향 비교" android:textSize="12sp" android:textStyle="bold" android:textColor="@color/text_primary" />
+                <TextView android:id="@+id/tvBig5ScoreBadge" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_alignParentEnd="true" android:text="0점" android:textColor="@color/text_primary" android:textSize="11sp" android:fontFamily="sans-serif-black" android:background="@drawable/bg_status_badge" android:backgroundTint="#10000000" android:paddingHorizontal="8dp" android:paddingVertical="2dp" />
+            </RelativeLayout>
+            <com.github.mikephil.charting.charts.RadarChart
+                android:id="@+id/chartRadar"
+                android:layout_width="match_parent"
+                android:layout_height="400dp" />
+
+            <!-- MBTI 관계 유형 (배지 추가) -->
+            <RelativeLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="24dp" android:layout_marginBottom="8dp">
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="💫 MBTI 관계 유형" android:textSize="12sp" android:textStyle="bold" android:textColor="@color/text_primary" />
+                <TextView android:id="@+id/tvMbtiScoreBadge" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_alignParentEnd="true" android:text="0점" android:textColor="@color/text_primary" android:textSize="11sp" android:fontFamily="sans-serif-black" android:background="@drawable/bg_status_badge" android:backgroundTint="#10000000" android:paddingHorizontal="8dp" android:paddingVertical="2dp" />
+            </RelativeLayout>
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:cardCornerRadius="12dp"
+                app:cardElevation="0dp"
+                app:cardBackgroundColor="@color/surface"
+                app:strokeWidth="1dp"
+                app:strokeColor="@color/border">
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+                    <TextView
+                        android:id="@+id/tvMbtiRelation"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Kindred (유사 관계)"
+                        android:textColor="@color/text_primary"
+                        android:textSize="16sp"
+                        android:fontFamily="sans-serif-black" />
+                    <TextView
+                        android:id="@+id/tvMbtiRelationDesc"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:text="B-Tier: 좋은 동료 — 유사성에 기반한 안정적인 관계가 기대됩니다."
+                        android:textColor="@color/text_secondary"
+                        android:textSize="12sp" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- 소시오닉스 쿼드라 (배지 추가) -->
+            <RelativeLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="24dp" android:layout_marginBottom="8dp">
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="🌐 소시오닉스 쿼드라" android:textSize="12sp" android:textStyle="bold" android:textColor="@color/text_primary" />
+                <TextView android:id="@+id/tvSocioScoreBadge" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_alignParentEnd="true" android:text="0점" android:textColor="@color/text_primary" android:textSize="11sp" android:fontFamily="sans-serif-black" android:background="@drawable/bg_status_badge" android:backgroundTint="#10000000" android:paddingHorizontal="8dp" android:paddingVertical="2dp" />
+            </RelativeLayout>
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:cardCornerRadius="12dp"
+                app:cardElevation="0dp"
+                app:cardBackgroundColor="@color/surface"
+                app:strokeWidth="1dp"
+                app:strokeColor="@color/border">
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+                    <TextView
+                        android:id="@+id/tvSocioQuadra"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="다른 쿼드라에 속합니다. 다양한 관점!"
+                        android:textColor="@color/text_primary"
+                        android:textSize="14sp"
+                        android:fontFamily="sans-serif-bold" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- 케미스트리 분해 (배지 추가) -->
+            <RelativeLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="24dp" android:layout_marginBottom="8dp">
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="⚗️ 케미스트리 분해" android:textSize="12sp" android:textStyle="bold" android:textColor="@color/text_primary" />
+                <TextView android:id="@+id/tvChemScoreBadge" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_alignParentEnd="true" android:text="0점" android:textColor="@color/text_primary" android:textSize="11sp" android:fontFamily="sans-serif-black" android:background="@drawable/bg_status_badge" android:backgroundTint="#10000000" android:paddingHorizontal="8dp" android:paddingVertical="2dp" />
+            </RelativeLayout>
+            <com.github.mikephil.charting.charts.HorizontalBarChart
+                android:id="@+id/chartChemBreakdown"
+                android:layout_width="match_parent"
+                android:layout_height="100dp"
+                android:background="@color/surface" />
+
+            <!-- 대화량 비교 (배지 추가) -->
+            <RelativeLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="24dp" android:layout_marginBottom="8dp">
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="💬 대화량 비교" android:textSize="12sp" android:textStyle="bold" android:textColor="@color/text_primary" />
+                <TextView android:id="@+id/tvActivityScoreBadge" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_alignParentEnd="true" android:text="0점" android:textColor="@color/text_primary" android:textSize="11sp" android:fontFamily="sans-serif-black" android:background="@drawable/bg_status_badge" android:backgroundTint="#10000000" android:paddingHorizontal="8dp" android:paddingVertical="2dp" />
+            </RelativeLayout>
+            <com.github.mikephil.charting.charts.HorizontalBarChart
+                android:id="@+id/chartActivityCompare"
+                android:layout_width="match_parent"
+                android:layout_height="140dp"
+                android:clipToPadding="false" />
+
+        </LinearLayout>
+
+        <!-- 7. 매칭 신청하기 버튼 -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnApplyMatch"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:text="💝 매칭 신청하기"
+            android:fontFamily="sans-serif-black"
+            app:cornerRadius="16dp" />
 
     </LinearLayout>
 </com.google.android.material.card.MaterialCardView>

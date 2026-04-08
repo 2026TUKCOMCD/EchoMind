@@ -13,15 +13,13 @@ import java.net.CookieManager
 import java.util.concurrent.TimeUnit
 
 object ApiClient {
-    private const val BASE_URL = "http://10.0.2.2:5000/"
+    private const val BASE_URL = "https://echomind.gleeze.com/"
 
     private val cookieManager = CookieManager()
 
     private val okHttpClient = OkHttpClient.Builder()
         .cookieJar(JavaNetCookieJar(cookieManager))
-        // [핵심] 로컬 서버와의 연결 불안정 해결을 위한 설정
-        .protocols(listOf(Protocol.HTTP_1_1)) // HTTP/1.1 강제 (로컬 Flask 서버 최적화)
-        .connectionPool(ConnectionPool(0, 1, TimeUnit.NANOSECONDS)) // 연결 풀링 비활성화 (매번 새 연결)
+        // [수정] 로컬 서버 연결 안정성을 위해 기본 설정으로 복원
         .retryOnConnectionFailure(true) // 실패 시 자동 재시도
         
         .connectTimeout(60, TimeUnit.SECONDS)

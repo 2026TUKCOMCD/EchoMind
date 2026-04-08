@@ -50,17 +50,20 @@ dependencies {
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
     ksp(libs.androidx.room.compiler)
+    implementation(libs.androidx.swiperefreshlayout)
 
     // Networking
     implementation(libs.retrofit)
     implementation(libs.retrofit.converter.gson)
-    // HTML 파싱 및 문자열 처리를 위해 추가
     implementation("com.squareup.retrofit2:converter-scalars:2.11.0")
     implementation("org.jsoup:jsoup:1.18.1")
 
     implementation(libs.okhttp)
     implementation(libs.okhttp.logging)
     implementation(libs.okhttp.urlconnection)
+
+    // [추가] 고퀄리티 차트 구현을 위한 라이브러리
+    implementation("com.github.PhilJay:MPAndroidChart:v3.1.0")
 
     // Coroutines
     implementation(libs.kotlinx.coroutines.android)

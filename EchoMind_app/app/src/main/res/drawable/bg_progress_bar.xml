@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- 배경 (진한 회색/슬레이트) -->
+    <!-- 배경 트랙 (다크모드 대응: border 색상 사용) -->
     <item android:id="@android:id/background">
         <shape>
             <corners android:radius="10dp" />
-            <solid android:color="#E2E8F0" /> <!-- slate-200 -->
+            <solid android:color="@color/border" />
         </shape>
     </item>
 

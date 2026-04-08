@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="utf-8"?>
+<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginBottom="16dp"
+    app:cardBackgroundColor="@color/card_bg"
+    app:cardCornerRadius="16dp"
+    app:cardElevation="2dp"
+    app:strokeWidth="1dp"
+    app:strokeColor="@color/border">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="20dp">
+
+        <RelativeLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+
+            <TextView
+                android:id="@+id/tvRoomName"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_alignParentStart="true"
+                android:layout_toStartOf="@id/tvParticipantCount"
+                android:fontFamily="sans-serif-black"
+                android:text="방 이름"
+                android:textColor="@color/text_primary"
+                android:textSize="18sp"
+                android:maxLines="1"
+                android:ellipsize="end" />
+
+            <!-- [수정] 다크모드 가독성을 위해 배경과 텍스트 색상 최적화 -->
+            <TextView
+                android:id="@+id/tvParticipantCount"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_alignParentEnd="true"
+                android:layout_centerVertical="true"
+                android:background="@drawable/bg_status_badge"
+                android:paddingHorizontal="10dp"
+                android:paddingVertical="4dp"
+                android:text="0/0명"
+                android:textColor="@color/text_primary"
+                android:textStyle="bold"
+                android:textSize="12sp" />
+        </RelativeLayout>
+
+        <TextView
+            android:id="@+id/tvRoomDescription"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:ellipsize="end"
+            android:maxLines="2"
+            android:text="방 설명이 여기에 표시됩니다."
+            android:textColor="@color/text_secondary"
+            android:textSize="14sp" />
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginVertical="16dp"
+            android:background="@color/border" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnJoinRoom"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="참여하기"
+            android:fontFamily="sans-serif-bold"
+            app:cornerRadius="12dp"
+            app:backgroundTint="@color/primary" />
+
+        <TextView
+            android:id="@+id/tvJoinReason"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:gravity="center"
+            android:text="참여 불가 사유"
+            android:textColor="#EF4444"
+            android:textSize="11sp"
+            android:visibility="gone" />
+
+    </LinearLayout>
+</com.google.android.material.card.MaterialCardView>

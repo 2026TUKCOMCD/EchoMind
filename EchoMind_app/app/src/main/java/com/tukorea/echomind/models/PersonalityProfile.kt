@@ -1,6 +1,21 @@
 package com.tukorea.echomind.models
 
+import com.google.gson.annotations.SerializedName
 import java.io.Serializable
+
+/**
+ * [서버 연동] /download_json 응답의 최상위 루트
+ */
+data class ProfileRootDto(
+    @SerializedName("meta") val meta: MetaDto? = null,
+    @SerializedName("llm_profile") val llmProfile: PersonalityProfile? = null
+) : Serializable
+
+data class MetaDto(
+    @SerializedName("result_id") val resultId: Int? = 0, // [해결] 서버의 진짜 ID를 수신
+    @SerializedName("speaker_name") val name: String? = "Unknown",
+    @SerializedName("generated_at_utc") val timestamp: String? = ""
+) : Serializable
 
 data class PersonalityProfile(
     val userId: String? = "unknown",

@@ -1,248 +1,213 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/background">
 
-    <LinearLayout
+    <com.google.android.material.appbar.AppBarLayout
+        android:id="@+id/appBar"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:padding="24dp">
+        android:background="@color/surface"
+        app:layout_constraintTop_toTopOf="parent">
+        <com.google.android.material.appbar.MaterialToolbar
+            android:id="@+id/toolbar"
+            android:layout_width="match_parent"
+            android:layout_height="?attr/actionBarSize"
+            app:title="성향 분석 리포트"
+            app:titleTextColor="@color/text_primary"
+            app:navigationIcon="@android:drawable/ic_menu_revert" />
+    </com.google.android.material.appbar.AppBarLayout>
 
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="성향 분석 리포트"
-            android:textSize="28sp"
-            android:fontFamily="sans-serif-black"
-            android:textColor="@color/text_primary" />
+    <androidx.core.widget.NestedScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        app:layout_behavior="@string/appbar_scrolling_view_behavior"
+        app:layout_constraintTop_toBottomOf="@id/appBar"
+        app:layout_constraintBottom_toTopOf="@id/btnFindMatches">
 
-        <!-- [추가] 웹 서비스와 동일하게 분석 대상 이름 표시 -->
-        <TextView
-            android:id="@+id/tvTargetName"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:text="분석 대상: 로딩중..."
-            android:textSize="14sp"
-            android:textColor="@color/text_secondary"
-            android:fontFamily="sans-serif-medium"
-            android:layout_marginBottom="32dp" />
-
-        <!-- 1. MBTI & Socionics Card -->
-        <com.google.android.material.card.MaterialCardView
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            app:cardCornerRadius="24dp"
-            app:cardElevation="0dp"
-            app:cardBackgroundColor="@color/card_bg"
-            app:strokeWidth="1dp"
-            app:strokeColor="@color/border">
+            android:orientation="vertical"
+            android:padding="20dp">
 
-            <LinearLayout
+            <TextView
+                android:id="@+id/tvTargetName"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="분석 대상: 김철수"
+                android:textColor="@color/text_secondary"
+                android:textSize="14sp"
+                android:layout_marginBottom="24dp" />
+
+            <!-- MBTI 메인 섹션 -->
+            <com.google.android.material.card.MaterialCardView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="24dp">
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="MBTI 유형"
-                    android:textColor="@color/text_secondary"
-                    android:textSize="12sp"
-                    android:textAllCaps="true" />
-
-                <TextView
-                    android:id="@+id/tvMbtiResult"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="----"
-                    android:textColor="@color/primary"
-                    android:textSize="48sp"
-                    android:fontFamily="sans-serif-black"
-                    android:layout_marginTop="4dp" />
-
-                <TextView
-                    android:id="@+id/tvMbtiReasons"
+                app:cardBackgroundColor="@color/card_bg"
+                app:cardCornerRadius="24dp"
+                app:strokeWidth="1dp"
+                app:strokeColor="@color/border">
+                <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="16dp"
-                    android:textSize="14sp"
-                    android:textColor="@color/text_secondary"
-                    android:lineSpacingExtra="4dp" />
+                    android:orientation="vertical"
+                    android:padding="24dp">
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="MBTI 유형"
+                        android:textSize="12sp"
+                        android:textColor="@color/text_secondary" />
+                    <TextView
+                        android:id="@+id/tvMbtiResult"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="ENFJ"
+                        android:textSize="48sp"
+                        android:fontFamily="sans-serif-black"
+                        android:textColor="@color/primary" />
+                    <TextView
+                        android:id="@+id/tvMbtiReasons"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="16dp"
+                        android:lineSpacingExtra="6dp"
+                        android:textColor="@color/text_primary"
+                        android:textSize="14sp" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
 
-                <View
-                    android:layout_width="match_parent"
-                    android:layout_height="1dp"
-                    android:background="@color/border"
-                    android:layout_marginVertical="24dp" />
+            <!-- 소시오닉스 섹션 -->
+            <TextView
+                android:id="@+id/tvSocionicsResult"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="32dp"
+                android:text="소시오닉스: EIE"
+                android:textSize="18sp"
+                android:fontFamily="sans-serif-bold"
+                android:textColor="@color/text_primary" />
+            <TextView
+                android:id="@+id/tvSocionicsReasons"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:lineSpacingExtra="4dp"
+                android:textColor="@color/text_secondary"
+                android:textSize="14sp" />
 
-                <TextView
-                    android:id="@+id/tvSocionicsResult"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="소시오닉스: --"
-                    android:textColor="@color/text_primary"
-                    android:fontFamily="sans-serif-bold"
-                    android:textSize="18sp" />
-
-                <TextView
-                    android:id="@+id/tvSocionicsReasons"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:textSize="14sp"
-                    android:textColor="@color/text_secondary"
-                    android:lineSpacingExtra="4dp" />
-            </LinearLayout>
-        </com.google.android.material.card.MaterialCardView>
-
-        <!-- 2. 소시오닉스란? 섹션 -->
-        <RelativeLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="40dp">
+            <!-- Big5 섹션 -->
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="소시오닉스(Socionics)란?"
+                android:layout_marginTop="40dp"
+                android:text="Big5 성격 특성"
                 android:textSize="18sp"
                 android:fontFamily="sans-serif-black"
-                android:textColor="@color/text_primary"
-                android:layout_alignParentStart="true" />
-            <ImageView
-                android:id="@+id/btnToggleSocionicsInfo"
-                android:layout_width="24dp"
-                android:layout_height="24dp"
-                android:layout_alignParentEnd="true"
-                android:layout_centerVertical="true"
-                android:src="@android:drawable/arrow_down_float"
-                android:contentDescription="상세보기" />
-        </RelativeLayout>
-
-        <com.google.android.material.card.MaterialCardView
-            android:id="@+id/cardSocionicsInfo"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            android:visibility="gone"
-            app:cardCornerRadius="20dp"
-            app:cardElevation="0dp"
-            app:cardBackgroundColor="@color/card_bg"
-            app:strokeWidth="1dp"
-            app:strokeColor="@color/border">
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:padding="20dp"
-                android:text="소시오닉스는 스위스의 심리학자 칼 융의 이론을 바탕으로 발전시킨 성격 유형학입니다. 단순히 성격을 분류하는 것을 넘어, 유형 간의 '관계'를 수학적으로 정립한 것이 특징입니다. EchoMind는 이를 통해 당신과 최고의 시너지를 낼 수 있는 '이원 관계(Duality)' 파트너를 추천해 드립니다."
-                android:textSize="14sp"
-                android:textColor="@color/text_secondary"
-                android:lineSpacingExtra="6dp" />
-        </com.google.android.material.card.MaterialCardView>
-
-        <!-- 3. Big5 Section -->
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Big5 성격 특성"
-            android:textSize="20sp"
-            android:fontFamily="sans-serif-black"
-            android:textColor="@color/text_primary"
-            android:layout_marginTop="48dp" />
-
-        <com.google.android.material.card.MaterialCardView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            app:cardCornerRadius="24dp"
-            app:cardElevation="0dp"
-            app:cardBackgroundColor="@color/card_bg"
-            app:strokeWidth="1dp"
-            app:strokeColor="@color/border">
+                android:textColor="@color/text_primary" />
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:padding="24dp">
+                android:layout_marginTop="16dp"
+                android:background="@drawable/bg_summary"
+                android:padding="16dp">
                 <include layout="@layout/item_big5_bar" android:id="@+id/barOpenness" />
                 <include layout="@layout/item_big5_bar" android:id="@+id/barConscientiousness" />
                 <include layout="@layout/item_big5_bar" android:id="@+id/barExtraversion" />
                 <include layout="@layout/item_big5_bar" android:id="@+id/barAgreeableness" />
                 <include layout="@layout/item_big5_bar" android:id="@+id/barNeuroticism" />
             </LinearLayout>
-        </com.google.android.material.card.MaterialCardView>
 
-        <!-- 4. 핵심 요약 섹션 -->
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="💡 핵심 요약"
-            android:textSize="20sp"
-            android:fontFamily="sans-serif-black"
-            android:textColor="@color/text_primary"
-            android:layout_marginTop="48dp" />
-
-        <com.google.android.material.card.MaterialCardView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            app:cardCornerRadius="24dp"
-            app:cardElevation="0dp"
-            app:cardBackgroundColor="@color/card_bg"
-            app:strokeWidth="1dp"
-            app:strokeColor="@color/border">
-
+            <!-- [추가] 특수 조합 분석 섹션 (웹 스타일) -->
             <LinearLayout
+                android:id="@+id/layoutSpecialCombo"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:padding="24dp">
+                android:visibility="gone">
                 <TextView
-                    android:id="@+id/tvSummary"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="40dp"
+                    android:text="✨ 특수 조합 분석"
+                    android:textSize="18sp"
+                    android:fontFamily="sans-serif-black"
+                    android:textColor="@color/primary" />
+                <LinearLayout
+                    android:id="@+id/containerCombos"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:textColor="@color/text_primary"
-                    android:textSize="16sp"
-                    android:lineSpacingExtra="8dp" />
-                <TextView
-                    android:id="@+id/tvStyleBullets"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="24dp"
-                    android:textColor="@color/text_secondary"
-                    android:textSize="14sp"
-                    android:lineSpacingExtra="6dp" />
+                    android:orientation="vertical"
+                    android:layout_marginTop="16dp" />
             </LinearLayout>
-        </com.google.android.material.card.MaterialCardView>
 
-        <!-- Caveats -->
-        <TextView
-            android:id="@+id/tvCaveats"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="32dp"
-            android:textSize="12sp"
-            android:textColor="#94A3B8"
-            android:lineSpacingExtra="4dp" />
+            <!-- 핵심 요약 -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="40dp"
+                android:text="💡 핵심 요약"
+                android:textSize="18sp"
+                android:fontFamily="sans-serif-black"
+                android:textColor="@color/text_primary" />
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                app:cardBackgroundColor="@color/surface"
+                app:cardCornerRadius="16dp">
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="20dp">
+                    <TextView
+                        android:id="@+id/tvSummary"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:textColor="@color/text_primary"
+                        android:lineHeight="22sp"
+                        android:textSize="15sp" />
+                    <TextView
+                        android:id="@+id/tvStyleBullets"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="16dp"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="13sp"
+                        android:lineSpacingExtra="4dp" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnFindMatches"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="48dp"
-            android:layout_marginBottom="40dp"
-            android:paddingVertical="16dp"
-            android:text="나와 잘 맞는 친구 찾기"
-            android:textSize="18sp"
-            android:fontFamily="sans-serif-black"
-            app:cornerRadius="16dp"
-            app:backgroundTint="@color/primary"
-            app:icon="@android:drawable/ic_menu_search" />
+            <!-- 주의사항 -->
+            <TextView
+                android:id="@+id/tvCaveats"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="32dp"
+                android:padding="16dp"
+                android:background="#10EF4444"
+                android:textColor="@color/text_secondary"
+                android:textSize="12sp"
+                android:lineHeight="18sp" />
 
-    </LinearLayout>
-</ScrollView>
+        </LinearLayout>
+    </androidx.core.widget.NestedScrollView>
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btnFindMatches"
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:layout_margin="20dp"
+        android:text="나와 잘 맞는 친구 찾기"
+        android:fontFamily="sans-serif-black"
+        app:cornerRadius="12dp"
+        app:layout_constraintBottom_toBottomOf="parent" />
+
+</androidx.constraintlayout.widget.ConstraintLayout>

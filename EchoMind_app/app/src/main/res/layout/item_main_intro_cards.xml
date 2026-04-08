@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical">
+
+    <!-- 1. 프리미엄 성향 분석 -->
+    <com.google.android.material.card.MaterialCardView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="16dp"
+        app:cardBackgroundColor="@color/card_bg"
+        app:cardCornerRadius="16dp"
+        app:cardElevation="0dp"
+        app:strokeWidth="1dp"
+        app:strokeColor="@color/border">
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="20dp">
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="🧠" android:textSize="32sp" />
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="프리미엄 성향 분석" android:fontFamily="sans-serif-black" android:textSize="18sp" android:layout_marginTop="12dp" android:textColor="@color/text_primary"/>
+            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="단순한 통계를 넘어, 카톡 대화의 뉘앙스를 분석하여 Big5와 MBTI를 정밀하게 추정합니다." android:textColor="@color/text_secondary" android:layout_marginTop="8dp" android:textSize="14sp"/>
+        </LinearLayout>
+    </com.google.android.material.card.MaterialCardView>
+
+    <!-- 2. 소시오닉스 매칭 -->
+    <com.google.android.material.card.MaterialCardView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="16dp"
+        app:cardBackgroundColor="@color/card_bg"
+        app:cardCornerRadius="16dp"
+        app:cardElevation="0dp"
+        app:strokeWidth="1dp"
+        app:strokeColor="@color/border">
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="20dp">
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="💞" android:textSize="32sp" />
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="소시오닉스 매칭" android:fontFamily="sans-serif-black" android:textSize="18sp" android:layout_marginTop="12dp" android:textColor="@color/text_primary"/>
+            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="단순히 성격이 비슷한 사람이 아닌, 서로를 보완해주는 '이원 관계(Duality)'를 찾아드립니다." android:textColor="@color/text_secondary" android:layout_marginTop="8dp" android:textSize="14sp"/>
+        </LinearLayout>
+    </com.google.android.material.card.MaterialCardView>
+
+    <!-- 3. 철저한 보안 -->
+    <com.google.android.material.card.MaterialCardView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        app:cardBackgroundColor="@color/card_bg"
+        app:cardCornerRadius="16dp"
+        app:cardElevation="0dp"
+        app:strokeWidth="1dp"
+        app:strokeColor="@color/border">
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="20dp">
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="🔒" android:textSize="32sp" />
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="철저한 보안" android:fontFamily="sans-serif-black" android:textSize="18sp" android:layout_marginTop="12dp" android:textColor="@color/text_primary"/>
+            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="업로드된 파일은 분석 즉시 파기되며, 개인정보는 마스킹 처리되어 안전하게 보호됩니다." android:textColor="@color/text_secondary" android:layout_marginTop="8dp" android:textSize="14sp"/>
+        </LinearLayout>
+    </com.google.android.material.card.MaterialCardView>
+
+</LinearLayout>

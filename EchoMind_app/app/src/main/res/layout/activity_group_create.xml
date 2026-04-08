@@ -1,0 +1,203 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.coordinatorlayout.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/background">
+
+    <com.google.android.material.appbar.AppBarLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+        <com.google.android.material.appbar.MaterialToolbar
+            android:id="@+id/toolbar"
+            android:layout_width="match_parent"
+            android:layout_height="?attr/actionBarSize"
+            android:background="@color/surface"
+            app:title="새 그룹 채팅방 만들기"
+            app:navigationIcon="@android:drawable/ic_menu_revert" />
+    </com.google.android.material.appbar.AppBarLayout>
+
+    <androidx.core.widget.NestedScrollView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        app:layout_behavior="@string/appbar_scrolling_view_behavior">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="24dp">
+
+            <!-- 기본 정보 -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="방 기본 정보"
+                android:textSize="16sp"
+                android:fontFamily="sans-serif-black"
+                android:textColor="@color/primary"
+                android:layout_marginBottom="12dp" />
+
+            <com.google.android.material.textfield.TextInputLayout
+                style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="방 제목 *"
+                app:boxCornerRadiusTopStart="12dp"
+                app:boxCornerRadiusTopEnd="12dp"
+                app:boxCornerRadiusBottomStart="12dp"
+                app:boxCornerRadiusBottomEnd="12dp">
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/etName"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:inputType="text" />
+            </com.google.android.material.textfield.TextInputLayout>
+
+            <com.google.android.material.textfield.TextInputLayout
+                style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:hint="방 설명"
+                app:boxCornerRadiusTopStart="12dp"
+                app:boxCornerRadiusTopEnd="12dp"
+                app:boxCornerRadiusBottomStart="12dp"
+                app:boxCornerRadiusBottomEnd="12dp">
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/etDescription"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:minLines="3"
+                    android:gravity="top"
+                    android:inputType="textMultiLine" />
+            </com.google.android.material.textfield.TextInputLayout>
+
+            <com.google.android.material.textfield.TextInputLayout
+                style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:hint="최대 참가 인원"
+                app:boxCornerRadiusTopStart="12dp"
+                app:boxCornerRadiusTopEnd="12dp"
+                app:boxCornerRadiusBottomStart="12dp"
+                app:boxCornerRadiusBottomEnd="12dp">
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/etMaxParticipants"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:inputType="number"
+                    android:text="10" />
+            </com.google.android.material.textfield.TextInputLayout>
+
+            <!-- 조건 설정 -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="32dp"
+                android:text="입장 조건 설정 (선택)"
+                android:textSize="16sp"
+                android:fontFamily="sans-serif-black"
+                android:textColor="@color/primary"
+                android:layout_marginBottom="4dp" />
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="입력하지 않은 조건은 누구나 입장 가능합니다."
+                android:textSize="12sp"
+                android:textColor="@color/text_secondary"
+                android:layout_marginBottom="16dp" />
+
+            <!-- 성별 -->
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="허용 성별" android:textStyle="bold" android:layout_marginBottom="8dp" />
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
+                <CheckBox android:id="@+id/cbMale" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="남성" />
+                <CheckBox android:id="@+id/cbFemale" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="여성" android:layout_marginStart="8dp"/>
+                <CheckBox android:id="@+id/cbOther" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="기타" android:layout_marginStart="8dp"/>
+            </LinearLayout>
+
+            <!-- 나이 -->
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="나이 제한" android:textStyle="bold" android:layout_marginTop="16dp" android:layout_marginBottom="8dp" />
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical">
+                <EditText android:id="@+id/etMinAge" android:layout_width="80dp" android:layout_height="wrap_content" android:hint="최소" android:inputType="number" />
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="~" android:layout_marginHorizontal="8dp" />
+                <EditText android:id="@+id/etMaxAge" android:layout_width="80dp" android:layout_height="wrap_content" android:hint="최대" android:inputType="number" />
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="세" android:layout_marginStart="8dp" />
+            </LinearLayout>
+
+            <!-- MBTI (Grid처럼 구성) -->
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="허용 MBTI" android:textStyle="bold" android:layout_marginTop="16dp" android:layout_marginBottom="8dp" />
+            <com.google.android.material.chip.ChipGroup
+                android:id="@+id/cgMbti"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:chipSpacingVertical="4dp">
+                <!-- 16개 MBTI를 코드로 추가할 예정 -->
+            </com.google.android.material.chip.ChipGroup>
+
+            <!-- 쿼드라 -->
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="허용 소시오닉스 쿼드라" android:textStyle="bold" android:layout_marginTop="16dp" android:layout_marginBottom="8dp" />
+            <com.google.android.material.chip.ChipGroup
+                android:id="@+id/cgQuadra"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
+                <com.google.android.material.chip.Chip android:id="@+id/chipAlpha" style="@style/Widget.MaterialComponents.Chip.Filter" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Alpha" />
+                <com.google.android.material.chip.Chip android:id="@+id/chipBeta" style="@style/Widget.MaterialComponents.Chip.Filter" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Beta" />
+                <com.google.android.material.chip.Chip android:id="@+id/chipGamma" style="@style/Widget.MaterialComponents.Chip.Filter" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Gamma" />
+                <com.google.android.material.chip.Chip android:id="@+id/chipDelta" style="@style/Widget.MaterialComponents.Chip.Filter" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Delta" />
+            </com.google.android.material.chip.ChipGroup>
+
+            <!-- Big 5 (5개 항목 min/max) -->
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Big 5 성격 점수 제한 (0~100)" android:textStyle="bold" android:layout_marginTop="16dp" android:layout_marginBottom="8dp" />
+
+            <!-- 개방성 -->
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical" android:layout_marginBottom="4dp">
+                <TextView android:layout_width="80dp" android:layout_height="wrap_content" android:text="개방성" android:textSize="13sp" />
+                <EditText android:id="@+id/etOpennessMin" android:layout_width="60dp" android:layout_height="wrap_content" android:hint="최소" android:inputType="number" android:textSize="13sp" />
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="~" android:layout_marginHorizontal="4dp" />
+                <EditText android:id="@+id/etOpennessMax" android:layout_width="60dp" android:layout_height="wrap_content" android:hint="최대" android:inputType="number" android:textSize="13sp" />
+            </LinearLayout>
+            <!-- 성실성 -->
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical" android:layout_marginBottom="4dp">
+                <TextView android:layout_width="80dp" android:layout_height="wrap_content" android:text="성실성" android:textSize="13sp" />
+                <EditText android:id="@+id/etConscientiousnessMin" android:layout_width="60dp" android:layout_height="wrap_content" android:hint="최소" android:inputType="number" android:textSize="13sp" />
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="~" android:layout_marginHorizontal="4dp" />
+                <EditText android:id="@+id/etConscientiousnessMax" android:layout_width="60dp" android:layout_height="wrap_content" android:hint="최대" android:inputType="number" android:textSize="13sp" />
+            </LinearLayout>
+            <!-- 외향성 -->
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical" android:layout_marginBottom="4dp">
+                <TextView android:layout_width="80dp" android:layout_height="wrap_content" android:text="외향성" android:textSize="13sp" />
+                <EditText android:id="@+id/etExtraversionMin" android:layout_width="60dp" android:layout_height="wrap_content" android:hint="최소" android:inputType="number" android:textSize="13sp" />
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="~" android:layout_marginHorizontal="4dp" />
+                <EditText android:id="@+id/etExtraversionMax" android:layout_width="60dp" android:layout_height="wrap_content" android:hint="최대" android:inputType="number" android:textSize="13sp" />
+            </LinearLayout>
+            <!-- 우호성 -->
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical" android:layout_marginBottom="4dp">
+                <TextView android:layout_width="80dp" android:layout_height="wrap_content" android:text="우호성" android:textSize="13sp" />
+                <EditText android:id="@+id/etAgreeablenessMin" android:layout_width="60dp" android:layout_height="wrap_content" android:hint="최소" android:inputType="number" android:textSize="13sp" />
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="~" android:layout_marginHorizontal="4dp" />
+                <EditText android:id="@+id/etAgreeablenessMax" android:layout_width="60dp" android:layout_height="wrap_content" android:hint="최대" android:inputType="number" android:textSize="13sp" />
+            </LinearLayout>
+            <!-- 신경성 -->
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical" android:layout_marginBottom="4dp">
+                <TextView android:layout_width="80dp" android:layout_height="wrap_content" android:text="신경성" android:textSize="13sp" />
+                <EditText android:id="@+id/etNeuroticismMin" android:layout_width="60dp" android:layout_height="wrap_content" android:hint="최소" android:inputType="number" android:textSize="13sp" />
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="~" android:layout_marginHorizontal="4dp" />
+                <EditText android:id="@+id/etNeuroticismMax" android:layout_width="60dp" android:layout_height="wrap_content" android:hint="최대" android:inputType="number" android:textSize="13sp" />
+            </LinearLayout>
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnCreate"
+                android:layout_width="match_parent"
+                android:layout_height="56dp"
+                android:layout_marginTop="40dp"
+                android:layout_marginBottom="24dp"
+                android:text="방 개설하기"
+                android:fontFamily="sans-serif-black"
+                app:cornerRadius="12dp" />
+
+        </LinearLayout>
+    </androidx.core.widget.NestedScrollView>
+
+</androidx.coordinatorlayout.widget.CoordinatorLayout>

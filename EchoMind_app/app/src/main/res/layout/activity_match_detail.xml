@@ -1,0 +1,360 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/background">
+
+    <com.google.android.material.appbar.AppBarLayout
+        android:id="@+id/appBar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@color/surface"
+        app:layout_constraintTop_toTopOf="parent">
+        <com.google.android.material.appbar.MaterialToolbar
+            android:id="@+id/toolbar"
+            android:layout_width="match_parent"
+            android:layout_height="?attr/actionBarSize"
+            app:title="매칭 상세 분석 리포트"
+            app:titleTextColor="@color/text_primary"
+            app:navigationIcon="@android:drawable/ic_menu_revert" />
+    </com.google.android.material.appbar.AppBarLayout>
+
+    <androidx.core.widget.NestedScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        app:layout_constraintTop_toBottomOf="@id/appBar"
+        app:layout_constraintBottom_toBottomOf="parent">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:clipChildren="false"
+            android:clipToPadding="false"
+            android:padding="20dp">
+
+            <!-- 1. 매칭 대시보드 카드 -->
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:cardCornerRadius="28dp"
+                app:cardElevation="4dp"
+                app:cardBackgroundColor="@color/card_bg"
+                android:layout_marginBottom="24dp">
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="24dp">
+                    <TextView
+                        android:id="@+id/tvMatchHeader"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="상대방 님과의 분석"
+                        android:textSize="22sp"
+                        android:fontFamily="sans-serif-black"
+                        android:textColor="@color/text_primary" />
+
+                    <TextView
+                        android:id="@+id/tvPartnerName"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="상대방"
+                        android:textColor="@color/primary"
+                        android:textSize="18sp"
+                        android:fontFamily="sans-serif-bold" />
+                    <TextView
+                        android:id="@+id/tvPartnerMbtiSocio"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:text="MBTI · SOC"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="14sp" />
+
+                    <TextView
+                        android:id="@+id/tvPartnerSummary"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="12dp"
+                        android:textColor="@color/text_primary"
+                        android:lineHeight="22sp"
+                        android:textSize="14sp" />
+
+                    <RelativeLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="240dp"
+                        android:layout_marginTop="16dp">
+                        <com.github.mikephil.charting.charts.PieChart
+                            android:id="@+id/chartDonut"
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent" />
+                    </RelativeLayout>
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- 2. 매칭 상세 차트 섹션 -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="🔍 매칭 상세 차트"
+                android:textSize="18sp"
+                android:fontFamily="sans-serif-black"
+                android:textColor="@color/text_primary"
+                android:layout_marginBottom="16dp" />
+
+            <!-- BIG5 성향 비교 (레이아웃 분리 및 공간 확보) -->
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:cardCornerRadius="20dp"
+                app:cardBackgroundColor="@color/surface"
+                android:layout_marginBottom="16dp">
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:clipChildren="false"
+                    android:clipToPadding="false"
+                    android:padding="20dp">
+
+                    <RelativeLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginBottom="12dp">
+                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="🧠 BIG5 성향 비교" android:textSize="13sp" android:fontFamily="sans-serif-bold" android:textColor="@color/text_secondary" />
+                        <TextView android:id="@+id/tvBig5ScoreBadge" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_alignParentEnd="true" android:text="0점" android:textColor="@color/text_primary" android:textSize="12sp" android:fontFamily="sans-serif-black" android:background="@drawable/bg_status_badge" android:paddingHorizontal="8dp" android:paddingVertical="2dp" />
+                    </RelativeLayout>
+
+                    <!-- 높이를 400dp로 키우고 상단 마진을 주어 글자 잘림을 방지했습니다 -->
+                    <com.github.mikephil.charting.charts.RadarChart
+                        android:id="@+id/chartRadar"
+                        android:layout_width="match_parent"
+                        android:layout_height="400dp"
+                        android:layout_marginTop="24dp" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- MBTI 관계 유형 -->
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:cardCornerRadius="20dp"
+                app:cardBackgroundColor="@color/surface"
+                android:layout_marginBottom="16dp">
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="20dp">
+                    <RelativeLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginBottom="12dp">
+                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="💫 MBTI 관계 유형" android:textSize="13sp" android:fontFamily="sans-serif-bold" android:textColor="@color/text_secondary" />
+                        <TextView android:id="@+id/tvMbtiScoreBadge" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_alignParentEnd="true" android:text="0점" android:textColor="@color/text_primary" android:textSize="12sp" android:fontFamily="sans-serif-black" android:background="@drawable/bg_status_badge" android:paddingHorizontal="8dp" android:paddingVertical="2dp" />
+                    </RelativeLayout>
+                    <TextView
+                        android:id="@+id/tvMbtiRelation"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="관계 로딩중..."
+                        android:textColor="@color/primary"
+                        android:textSize="18sp"
+                        android:fontFamily="sans-serif-black" />
+                    <TextView
+                        android:id="@+id/tvMbtiRelationDesc"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:textColor="@color/text_primary"
+                        android:textSize="14sp"
+                        android:lineHeight="20sp" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- 소시오닉스 쿼드라 -->
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:cardCornerRadius="20dp"
+                app:cardBackgroundColor="@color/surface"
+                android:layout_marginBottom="16dp">
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="20dp">
+                    <RelativeLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginBottom="12dp">
+                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="🌐 소시오닉스 쿼드라" android:textSize="13sp" android:fontFamily="sans-serif-bold" android:textColor="@color/text_secondary" />
+                        <TextView android:id="@+id/tvSocioScoreBadge" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_alignParentEnd="true" android:text="0점" android:textColor="@color/text_primary" android:textSize="12sp" android:fontFamily="sans-serif-black" android:background="@drawable/bg_status_badge" android:paddingHorizontal="8dp" android:paddingVertical="2dp" />
+                    </RelativeLayout>
+                    <TextView
+                        android:id="@+id/tvSocioQuadra"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="소시오닉스 쿼드라 정보"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="13sp" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- 케미스트리 분해 -->
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:cardCornerRadius="20dp"
+                app:cardBackgroundColor="@color/surface"
+                android:layout_marginBottom="16dp">
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="20dp">
+                    <RelativeLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginBottom="12dp">
+                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="⚗️ 케미스트리 분해" android:textSize="13sp" android:fontFamily="sans-serif-bold" android:textColor="@color/text_secondary" />
+                        <TextView android:id="@+id/tvChemScoreBadge" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_alignParentEnd="true" android:text="0점" android:textColor="@color/text_primary" android:textSize="12sp" android:fontFamily="sans-serif-black" android:background="@drawable/bg_status_badge" android:paddingHorizontal="8dp" android:paddingVertical="2dp" />
+                    </RelativeLayout>
+                    <com.github.mikephil.charting.charts.HorizontalBarChart
+                        android:id="@+id/chartChemBreakdown"
+                        android:layout_width="match_parent"
+                        android:layout_height="100dp" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- 대화량 비교 -->
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:cardCornerRadius="20dp"
+                app:cardBackgroundColor="@color/surface"
+                android:layout_marginBottom="32dp">
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="20dp">
+                    <RelativeLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginBottom="12dp">
+                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="💬 대화량 비교" android:textSize="13sp" android:fontFamily="sans-serif-bold" android:textColor="@color/text_secondary" />
+                        <TextView android:id="@+id/tvActivityScoreBadge" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_alignParentEnd="true" android:text="0점" android:textColor="@color/text_primary" android:textSize="12sp" android:fontFamily="sans-serif-black" android:background="@drawable/bg_status_badge" android:paddingHorizontal="8dp" android:paddingVertical="2dp" />
+                    </RelativeLayout>
+                    <com.github.mikephil.charting.charts.HorizontalBarChart
+                        android:id="@+id/chartActivityCompare"
+                        android:layout_width="match_parent"
+                        android:layout_height="140dp" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- 3. 상대방 상세 리포트 섹션 -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="📑 상대방 상세 리포트"
+                android:textSize="18sp"
+                android:fontFamily="sans-serif-black"
+                android:textColor="@color/text_primary"
+                android:layout_marginBottom="16dp" />
+
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:cardCornerRadius="24dp"
+                app:cardElevation="0dp"
+                app:strokeWidth="1dp"
+                app:strokeColor="@color/border"
+                app:cardBackgroundColor="@color/card_bg">
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="24dp">
+
+                    <TextView
+                        android:id="@+id/tvReportPartnerName"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="상대방 이름"
+                        android:textSize="20sp"
+                        android:fontFamily="sans-serif-black"
+                        android:textColor="@color/primary" />
+
+                    <!-- Big-5 성격 요인 상세 -->
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="🌊 Big-5 성격 요인" android:textSize="12sp" android:textColor="@color/text_secondary" android:layout_marginTop="32dp" />
+                    <LinearLayout
+                        android:id="@+id/layoutReportBig5"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:layout_marginTop="12dp">
+                        <include layout="@layout/item_big5_bar" android:id="@+id/barOpenness" />
+                        <include layout="@layout/item_big5_bar" android:id="@+id/barConscientiousness" />
+                        <include layout="@layout/item_big5_bar" android:id="@+id/barExtraversion" />
+                        <include layout="@layout/item_big5_bar" android:id="@+id/barAgreeableness" />
+                        <include layout="@layout/item_big5_bar" android:id="@+id/barNeuroticism" />
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:id="@+id/layoutReportSpecialCombo"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:visibility="gone">
+                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="✨ 특수 조합 분석" android:textSize="12sp" android:textColor="@color/text_secondary" android:layout_marginTop="32dp" />
+                        <LinearLayout
+                            android:id="@+id/containerReportCombos"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:layout_marginTop="12dp" />
+                    </LinearLayout>
+
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="MBTI 분석" android:textSize="12sp" android:textColor="@color/text_secondary" android:layout_marginTop="32dp" />
+                    <TextView
+                        android:id="@+id/tvReportMbti"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="ENFJ"
+                        android:textSize="32sp"
+                        android:fontFamily="sans-serif-black"
+                        android:textColor="@color/text_primary" />
+                    <TextView
+                        android:id="@+id/tvReportMbtiReasons"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="14sp" />
+
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="소시오닉스 분석" android:textSize="12sp" android:textColor="@color/text_secondary" android:layout_marginTop="32dp" />
+                    <TextView
+                        android:id="@+id/tvReportSocionics"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="EIE"
+                        android:textSize="20sp"
+                        android:fontFamily="sans-serif-black"
+                        android:textColor="@color/text_primary" />
+                    <TextView
+                        android:id="@+id/tvReportSocionicsReasons"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="14sp" />
+
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="💡 핵심 요약" android:textSize="12sp" android:textColor="@color/text_secondary" android:layout_marginTop="32dp" />
+                    <TextView
+                        android:id="@+id/tvReportSummary"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:textColor="@color/text_primary"
+                        android:textSize="15sp"
+                        android:fontFamily="sans-serif-medium"
+                        android:lineHeight="24sp" />
+
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <View android:layout_width="match_parent" android:layout_height="40dp" />
+
+        </LinearLayout>
+    </androidx.core.widget.NestedScrollView>
+</androidx.constraintlayout.widget.ConstraintLayout>

@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <shape xmlns:android="http://schemas.android.com/apk/res/android">
-    <solid android:color="#F1F5F9" />
+    <!-- 다크모드 대응을 위해 테마 색상(surface) 적용 -->
+    <solid android:color="@color/surface" />
     <corners android:radius="12dp" />
 </shape>
