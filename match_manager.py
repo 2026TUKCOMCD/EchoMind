@@ -147,7 +147,14 @@ class MatchManager:
                 current_user_profile_json
             )
             candidates = sorted(candidates, key=lambda x: x.get('match_score', 0), reverse=True)
-            return candidates[:limit]
+            limited_candidates = candidates[:limit]
+
+            # [최적화] 프론트엔드로 보내기 전, 불필요하게 큰 full_report_json 데이터 제거
+            # 이 데이터는 점수 계산에만 필요하고, match.html의 카드 뷰 렌더링에는 부담만 될 수 있습니다.
+            for cand in limited_candidates:
+                cand.pop('full_report_json', None)
+
+            return limited_candidates
         
         return []
 
@@ -373,16 +380,13 @@ class MatchManager:
             target_user = None
             if current_user_profile_json:
                 target_user = cls._convert_json_to_user_vector(current_user_profile_json, my_user_id)
-            
-            # Fallback: 파일 로드 (Legacy, 필요시 제거 가능)
+
+            # [수정] 현재 사용자 프로필 로드 실패 시, 점수 계산이 불가능하므로 빈 리스트를 반환합니다.
+            # 이는 보통 사용자의 대표 프로필(JSON) 데이터가 손상되었거나 오래된 형식일 때 발생할 수 있습니다.
             if not target_user:
-                base_dir = os.path.dirname(__file__)
-                profile_file = os.path.join(base_dir, 'profile', 'profile.json')
-                if os.path.exists(profile_file):
-                    target_user = matcher.load_profile(profile_file)
-            
-            if not target_user:
-                return candidates # 점수 계산 불가 시 그대로 반환
+                logger.error(f"매칭 점수 계산 실패: 현재 사용자(ID: {my_user_id})의 프로필 벡터를 생성할 수 없습니다.")
+                # 점수 계산이 불가능하므로 빈 후보 목록을 반환합니다.
+                return []
             
             # Candidates 변환
             candidate_users = []

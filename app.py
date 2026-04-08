@@ -16,6 +16,7 @@ import sqlalchemy
 from sqlalchemy import text
 from datetime import datetime, timedelta
 from flask import Flask, render_template, request, redirect, url_for, flash, session, g, jsonify
+from flask_compress import Compress
 from sqlalchemy.orm import aliased
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
@@ -29,6 +30,7 @@ import main as analyzer
 import visualize_profile 
 
 app = Flask(__name__)
+Compress(app)
 
 # --- 환경 설정 (Environment Setup) ---
 env = os.getenv('FLASK_ENV', 'development')
@@ -742,13 +744,16 @@ def start_matching():
             current_user_profile_json=current_profile,
             limit=30
         )
+        # [진단용 로그 추가] AVD에서 접속 시 후보자 수가 0명인지 확인하기 위함
+        app.logger.info(f"[MATCHING_LOG] User {g.user.user_id} found {len(candidates)} candidates.")
+        
         return render_template('match.html', candidates=candidates)
     except Exception as e:
         app.logger.error(f"Error in start_matching: {e}")
         import traceback
         app.logger.error(traceback.format_exc())
         flash('매칭 중 오류가 발생했습니다.', 'error')
-        return redirect(url_for('upload_page'))
+        return redirect(url_for('upload_chat'))
 
 @app.route('/inbox')
 @login_required
