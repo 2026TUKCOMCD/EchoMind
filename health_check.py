@@ -64,17 +64,18 @@ def check_flask_app():
         print_result("Flask App Initialization", True, "- (app.py) loaded successfully without crashing")
         
         # 2. 하드코딩 제거: 파이썬 클래스 정보 기반 동적 스키마 비교
-        engine = db.engine
-        inspector = sqlalchemy.inspect(engine)
-        actual_tables = set(inspector.get_table_names())
-        defined_tables = set(db.metadata.tables.keys())
-        
-        missing_tables = defined_tables - actual_tables
-        if missing_tables:
-            print_result("Database Schema", False, f"- Missing tables in DB: {', '.join(missing_tables)}")
-            return False
-        else:
-            print_result("Database Schema", True, f"- Total {len(defined_tables)} tables automatically matched between Python Models and MySQL")
+        with app.app_context():
+            engine = db.engine
+            inspector = sqlalchemy.inspect(engine)
+            actual_tables = set(inspector.get_table_names())
+            defined_tables = set(db.metadata.tables.keys())
+            
+            missing_tables = defined_tables - actual_tables
+            if missing_tables:
+                print_result("Database Schema", False, f"- Missing tables in DB: {', '.join(missing_tables)}")
+                return False
+            else:
+                print_result("Database Schema", True, f"- Total {len(defined_tables)} tables automatically matched between Python Models and MySQL")
             
         # 3. 가상 HTTP 요청 테스트 (Flask test_client 앱 구동 테스트 2)
         client = app.test_client()
