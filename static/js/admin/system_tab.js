@@ -58,11 +58,11 @@ document.addEventListener('alpine:init', () => {
                     });
                     this.logPath = data.path;
 
-                    // Auto scroll to bottom
-                    this.$nextTick(() => {
-                        const box = this.$refs.logBox;
-                        if (box) box.scrollTop = box.scrollHeight;
-                    });
+                    // Auto scroll to bottom 기능 제거 (사용자 요청)
+                    // this.$nextTick(() => {
+                    //     const box = this.$refs.logBox;
+                    //     if (box) box.scrollTop = box.scrollHeight;
+                    // });
                 }
             } catch (e) { console.error("Log Fetch Error:", e); }
         },

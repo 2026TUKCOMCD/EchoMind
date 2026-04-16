@@ -22,6 +22,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 import logging
 from logging.handlers import RotatingFileHandler
+from markupsafe import escape
 
 # [설정 및 커스텀 모듈 임포트]
 from config import config_by_name 
@@ -1166,11 +1167,13 @@ def admin_dashboard():
     
     # 2-2-3. Big5 평균 점수
     if representative_results:
-        avg_openness = sum(r.openness for r in representative_results if r.openness) / len(representative_results)
-        avg_conscientiousness = sum(r.conscientiousness for r in representative_results if r.conscientiousness) / len(representative_results)
-        avg_extraversion = sum(r.extraversion for r in representative_results if r.extraversion) / len(representative_results)
-        avg_agreeableness = sum(r.agreeableness for r in representative_results if r.agreeableness) / len(representative_results)
-        avg_neuroticism = sum(r.neuroticism for r in representative_results if r.neuroticism) / len(representative_results)
+        valid = [r for r in representative_results if r.openness is not None]
+        count = len(valid) or 1  # ZeroDivisionError 방지
+        avg_openness = sum(r.openness for r in valid) / count
+        avg_conscientiousness = sum(r.conscientiousness for r in valid if r.conscientiousness is not None) / count
+        avg_extraversion = sum(r.extraversion for r in valid if r.extraversion is not None) / count
+        avg_agreeableness = sum(r.agreeableness for r in valid if r.agreeableness is not None) / count
+        avg_neuroticism = sum(r.neuroticism for r in valid if r.neuroticism is not None) / count
     else:
         avg_openness = avg_conscientiousness = avg_extraversion = avg_agreeableness = avg_neuroticism = 0
     
@@ -2033,6 +2036,7 @@ def send_chat_message(request_id):
         content = data.get('content', '').strip()
         
         if not content: return jsonify({'error': 'Empty message'}), 400
+        content = str(escape(content))  # XSS 방어: HTML 태그 이스케이프
             
         msg = Message(request_id=real_request_id, sender_id=g.user.user_id, content=content)
         db.session.add(msg)
@@ -2378,6 +2382,7 @@ def send_group_chat_message(room_code):
         content = data.get('content', '').strip()
         
         if not content: return jsonify({'error': 'Empty message'}), 400
+        content = str(escape(content))  # XSS 방어: HTML 태그 이스케이프
             
         msg = GroupChatMessage(room_id=room_id, sender_id=g.user.user_id, content=content)
         db.session.add(msg)

@@ -26,7 +26,13 @@ jobs:
             source venv/bin/activate
             pip install -r requirements.txt
             
-            # 4. Gunicorn 서버 재시작 (타임아웃 120초 적용)
-            pkill gunicorn || true
+            # 4. 사전 상태 진단 (Health Check)
+            if ! python health_check.py; then
+                echo "Health Check Failed. Deployment aborted!"
+                exit 1
+            fi
+            
+            # 5. Gunicorn 서버 재시작 (타임아웃 120초 적용)
+            pkill -9 gunicorn || true
             sleep 2
             venv/bin/gunicorn -b 0.0.0.0:5000 --timeout 120 app:app --daemon
