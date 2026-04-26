@@ -33,7 +33,7 @@ class User(db.Model):
 class ChatLog(db.Model):
     __tablename__ = 'chat_logs'
     log_id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.user_id', ondelete='CASCADE'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.user_id', ondelete='CASCADE'), nullable=True)
     file_name = db.Column(db.String(255), nullable=False)
     file_path = db.Column(db.String(255), nullable=False)
     target_name = db.Column(db.String(100), nullable=False) # 분석 대상자 이름
@@ -43,7 +43,7 @@ class ChatLog(db.Model):
 class PersonalityResult(db.Model):
     __tablename__ = 'personality_results'
     result_id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.user_id', ondelete='CASCADE'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.user_id', ondelete='CASCADE'), nullable=True)
     log_id = db.Column(db.Integer, db.ForeignKey('chat_logs.log_id', ondelete='SET NULL'), nullable=True)  # 더미 사용자는 ChatLog 없음
     is_representative = db.Column(db.Boolean, default=True) # 대표 결과 여부
     

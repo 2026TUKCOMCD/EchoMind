@@ -17,6 +17,7 @@ from sqlalchemy import text
 from datetime import datetime, timedelta
 from flask import Flask, render_template, request, redirect, url_for, flash, session, g, jsonify
 from flask_compress import Compress
+from flask_migrate import Migrate
 from sqlalchemy.orm import aliased
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
@@ -122,6 +123,7 @@ def _parse_json_safe(data):
 # SQLAlchemy 인스턴스를 extensions에서 임포트 (순환 참조 방지)
 from extensions import db, User, ChatLog, PersonalityResult, MatchRequest, Notification, Message, GroupChatRoom, GroupChatParticipant, GroupChatMessage, GroupChatKickVote
 db.init_app(app)
+migrate = Migrate(app, db)
 
 # --- 보안 및 세션 관리 (Security & Session) ---
 def login_required(f):
@@ -317,6 +319,21 @@ def register():
         try:
             db.session.add(new_user)
             db.session.commit()
+            
+            # 비회원 시절 남긴 분석 결과가 있다면 계정 귀속 및 로그 이관
+            guest_result_id = session.pop('guest_result_id', None)
+            if guest_result_id:
+                guest_res = PersonalityResult.query.filter_by(result_id=guest_result_id, user_id=None).first()
+                if guest_res:
+                    guest_res.user_id = new_user.user_id
+                    # 첫 분석이라면 자동으로 대표 결과로 설정
+                    guest_res.is_representative = True
+                    # 연관된 채팅 로그(ChatLog)도 있다면 함께 이관
+                    if guest_res.log_id:
+                        guest_log = ChatLog.query.get(guest_res.log_id)
+                        if guest_log and guest_log.user_id is None:
+                            guest_log.user_id = new_user.user_id
+                    db.session.commit()
             flash("회원가입이 완료되었습니다! 로그인해주세요.", "success")
             return redirect(url_for('login'))
         except Exception as e:
@@ -337,7 +354,25 @@ def login():
             
             session['user_id'] = user.user_id
             session['username'] = user.username
-            session['is_admin'] = (user.email == 'admin@echomind.com') # 간단한 어드민 체크
+            session['is_admin'] = (user.email == 'admin@echomind.com')
+            # 로그인 시 비회원 분석 결과 발견하면 계정 귀속 및 로그 이관
+            guest_result_id = session.pop('guest_result_id', None)
+            if guest_result_id:
+                guest_res = PersonalityResult.query.filter_by(result_id=guest_result_id, user_id=None).first()
+                if guest_res:
+                    guest_res.user_id = user.user_id
+                    
+                    # 기존에 대표 결과가 없는 경우에만 이 결과를 대표로 설정
+                    has_rep = PersonalityResult.query.filter_by(user_id=user.user_id, is_representative=True).first()
+                    if not has_rep:
+                        guest_res.is_representative = True
+                        
+                    # 연관된 채팅 로그(ChatLog)도 있다면 함께 이관
+                    if guest_res.log_id:
+                        guest_log = ChatLog.query.get(guest_res.log_id)
+                        if guest_log and guest_log.user_id is None:
+                            guest_log.user_id = user.user_id
+                    db.session.commit()
             return redirect(url_for('home'))
         flash("이메일 또는 비밀번호가 올바르지 않습니다.", "danger")
     return render_template('login.html')
@@ -355,8 +390,10 @@ def suspended():
 # --- 라우팅 컨트롤러 (Routing Controllers) ---
 @app.route('/')
 def home():
-    if not g.user: return redirect(url_for('login'))
-    unread_count = len(MatchManager.get_unread_notifications(g.user.user_id))
+    if g.user:
+        unread_count = len(MatchManager.get_unread_notifications(g.user.user_id))
+    else:
+        unread_count = 0
     return render_template('index.html', user=g.user, unread_count=unread_count)
 
 @app.route('/result')
@@ -365,9 +402,14 @@ def view_result(result_id=None):
     """결과 조회 페이지 (특정 ID 또는 대표 결과)"""
     # [Auth Check] 관리자 또는 로그인 유저만 접근 가능
     is_admin = session.get('is_admin')
+    guest_result_id = session.get('guest_result_id')
+    
     if not g.user and not is_admin:
-        flash("로그인이 필요합니다.", "warning")
-        return redirect(url_for('login'))
+        if guest_result_id and not result_id:
+            return redirect(url_for('view_result', result_id=guest_result_id))
+        if not (guest_result_id and result_id == guest_result_id):
+            flash("로그인이 필요합니다.", "warning")
+            return redirect(url_for('login'))
 
     # [Admin Logic] 관리자는 모든 결과 조회 가능 (단, 본인 조회 의도인 경우 제외)
     if is_admin and (result_id or not g.user):
@@ -380,6 +422,13 @@ def view_result(result_id=None):
             flash("존재하지 않는 결과입니다.", "danger")
             return redirect(url_for('admin_dashboard'))
             
+    # [Guest Logic] 비회원 결과 조회
+    elif not getattr(g, 'user', None):
+        result = PersonalityResult.query.filter_by(result_id=result_id, user_id=None).first()
+        if not result:
+            flash("세션이 만료되었거나 접근 권한이 없습니다.", "danger")
+            return redirect(url_for('upload_chat'))
+
     # [User Logic] 본인의 결과만 조회 가능
     else:
         if result_id:
@@ -510,9 +559,9 @@ def download_result_json():
 
 # --- 분석 및 업로드 파이프라인 (Analysis Pipeline) ---
 @app.route('/upload', methods=['GET', 'POST'])
-@login_required
 def upload_chat():
     if request.method == 'POST':
+        current_user_id = g.user.user_id if getattr(g, 'user', None) else None
         file = request.files.get('file')
         target_name = request.form.get('target_name')
 
@@ -543,7 +592,7 @@ def upload_chat():
                 save_path = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
                 
                 new_log = ChatLog(
-                    user_id=g.user.user_id,
+                    user_id=current_user_id,
                     file_name=filename,
                     file_path=save_path,
                     target_name=target_name,
@@ -552,14 +601,15 @@ def upload_chat():
                 db.session.add(new_log)
                 db.session.flush()
 
-                # 기존 대표 결과 해제
-                PersonalityResult.query.filter_by(user_id=g.user.user_id).update({'is_representative': False})
+                # 기존 대표 결과 해제 (회원인 경우만)
+                if current_user_id:
+                    PersonalityResult.query.filter_by(user_id=current_user_id).update({'is_representative': False})
 
                 # PersonalityResult 저장
                 new_profile = PersonalityResult(
-                    user_id=g.user.user_id,
+                    user_id=current_user_id,
                     log_id=new_log.log_id,
-                    is_representative=True,
+                    is_representative=True if current_user_id else False,
                     
                     openness=float(profile['big5']['scores_0_100']['openness']),
                     conscientiousness=float(profile['big5']['scores_0_100']['conscientiousness']),
@@ -584,8 +634,11 @@ def upload_chat():
                 db.session.add(new_profile)
                 db.session.commit()
                 
+                if not current_user_id:
+                    session['guest_result_id'] = new_profile.result_id
+                
                 flash("결과 파일이 성공적으로 로드되었습니다!", "success")
-                return redirect(url_for('view_result'))
+                return redirect(url_for('view_result', result_id=new_profile.result_id))
 
             except Exception as e:
                 db.session.rollback()
@@ -612,7 +665,7 @@ def upload_chat():
 
                 # ChatLog 생성
                 new_log = ChatLog(
-                    user_id=g.user.user_id,
+                    user_id=current_user_id,
                     file_name=filename,
                     file_path=save_path,
                     target_name=target_name,
@@ -653,7 +706,8 @@ def upload_chat():
                         big5_reasons.append(f"{trait_kr}: {level} (점수: {score})")
                     profile['big5']['reasons'] = big5_reasons
 
-                PersonalityResult.query.filter_by(user_id=g.user.user_id).update({'is_representative': False})
+                if current_user_id:
+                    PersonalityResult.query.filter_by(user_id=current_user_id).update({'is_representative': False})
 
                 # [FIX] 전체 구조 저장 (meta/llm_profile/parse_quality 포함)
                 from dataclasses import asdict
@@ -667,8 +721,9 @@ def upload_chat():
                 }
 
                 new_profile = PersonalityResult(
-                    user_id=g.user.user_id,
+                    user_id=current_user_id,
                     log_id=new_log.log_id,
+                    is_representative=True if current_user_id else False,
                     openness=float(profile['big5']['scores_0_100']['openness']),
                     conscientiousness=float(profile['big5']['scores_0_100']['conscientiousness']),
                     extraversion=float(profile['big5']['scores_0_100']['extraversion']),
@@ -693,8 +748,11 @@ def upload_chat():
                 db.session.add(new_profile)
                 db.session.commit()
                 
+                if not current_user_id:
+                    session['guest_result_id'] = new_profile.result_id
+                
                 flash("분석이 완료되었습니다!", "success")
-                return redirect(url_for('view_result'))
+                return redirect(url_for('view_result', result_id=new_profile.result_id))
 
             except Exception as e:
                 db.session.rollback()

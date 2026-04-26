@@ -39,17 +39,20 @@
                         <a href="{{ url_for('home') }}"
                             class="text-2xl font-extrabold text-indigo-600 dark:text-indigo-400 tracking-tighter">EchoMind</a>
                     </div>
-                    {% if g.user %}
+                    {% if g.user or session.get('guest_result_id') %}
                     <!-- Desktop-only Links -->
                     <div class="hidden sm:ml-6 sm:flex sm:space-x-8">
+                        {% if g.user %}
                         <a href="{{ url_for('home') }}"
                             class="border-transparent text-slate-500 dark:text-slate-400 hover:border-indigo-300 hover:text-indigo-700 dark:hover:text-indigo-300 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium transition-colors">
                             홈
                         </a>
+                        {% endif %}
                         <a href="{{ url_for('view_result') }}"
                             class="border-transparent text-slate-500 dark:text-slate-400 hover:border-indigo-300 hover:text-indigo-700 dark:hover:text-indigo-300 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium transition-colors">
                             나의 분석 결과
                         </a>
+                        {% if g.user %}
                         <a href="{{ url_for('history') }}"
                             class="border-transparent text-slate-500 dark:text-slate-400 hover:border-indigo-300 hover:text-indigo-700 dark:hover:text-indigo-300 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium transition-colors">
                             분석 기록
@@ -72,6 +75,7 @@
                             </span>
                             {% endif %}
                         </a>
+                        {% endif %}
                     </div>
                     {% endif %}
                 </div>
