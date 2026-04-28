@@ -68,10 +68,6 @@ def upgrade():
                existing_type=mysql.INTEGER(),
                nullable=True)
 
-    with op.batch_alter_table('match_requests', schema=None) as batch_op:
-        batch_op.add_column(sa.Column('match_code', sa.String(length=20), nullable=False))
-        batch_op.create_unique_constraint(None, ['match_code'])
-
     with op.batch_alter_table('personality_results', schema=None) as batch_op:
         batch_op.alter_column('user_id',
                existing_type=mysql.INTEGER(),
@@ -86,10 +82,6 @@ def downgrade():
         batch_op.alter_column('user_id',
                existing_type=mysql.INTEGER(),
                nullable=False)
-
-    with op.batch_alter_table('match_requests', schema=None) as batch_op:
-        batch_op.drop_constraint(None, type_='unique')
-        batch_op.drop_column('match_code')
 
     with op.batch_alter_table('chat_logs', schema=None) as batch_op:
         batch_op.alter_column('user_id',

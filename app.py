@@ -283,8 +283,24 @@ def check_and_update_db_schema():
                                 conn.commit()
                             except Exception as e:
                                 pass
+                        else:
+                            # [FIX] 칼럼은 있지만 빈 문자열이거나 NULL인 데이터 정리
+                            import random
+                            bad_rows = conn.execute(sqlalchemy.text(
+                                "SELECT request_id FROM match_requests WHERE match_code IS NULL OR match_code = ''"
+                            )).fetchall()
+                            
+                            if bad_rows:
+                                app.logger.info(f"Cleaning {len(bad_rows)} invalid match_codes...")
+                                for r in bad_rows:
+                                    new_code = str(random.randint(1000000000, 9999999999))
+                                    conn.execute(sqlalchemy.text(
+                                        "UPDATE match_requests SET match_code = :c WHERE request_id = :id"
+                                    ), {"c": new_code, "id": r[0]})
+                                conn.commit()
+                                app.logger.info("match_code cleanup completed.")
                 except Exception as e:
-                    pass
+                    app.logger.warning(f"match_code migration/cleanup failed: {e}")
 
         except Exception as e:
             app.logger.error(f"Schema update failed: {e}")

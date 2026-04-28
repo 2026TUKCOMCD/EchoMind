@@ -60,6 +60,7 @@ def check_flask_app():
         # 1. 최상위 설계 파일(app.py)만 가져오면 의존성 달린 모델들과 db가 전부 빨려옵니다. (앱 구동 테스트 1)
         from app import app, db
         import sqlalchemy
+        from sqlalchemy import text
         
         print_result("Flask App Initialization", True, "- (app.py) loaded successfully without crashing")
         
@@ -76,6 +77,54 @@ def check_flask_app():
                 return False
             else:
                 print_result("Database Schema", True, f"- Total {len(defined_tables)} tables automatically matched between Python Models and MySQL")
+            
+            # 2-1. Alembic 마이그레이션 적용 상태 확인 (경고만 출력, 차단하지 않음)
+            # 주의: Health Check는 마이그레이션 전에 실행되므로, 첫 배포 시에는 아직 적용 전일 수 있음
+            migration_ok = True
+            if 'alembic_version' in actual_tables:
+                with engine.connect() as conn:
+                    result = conn.execute(text("SELECT version_num FROM alembic_version"))
+                    current_rev = result.scalar()
+                    
+                    if current_rev is None:
+                        print_result("Migration Status", False, 
+                            "- [WARNING] alembic_version 테이블은 존재하나 적용된 마이그레이션이 없습니다. "
+                            "'flask db upgrade'가 이후 단계에서 실행됩니다.")
+                        migration_ok = False
+                    else:
+                        print_result("Migration Status", True, 
+                            f"- Current applied migration: {current_rev}")
+            else:
+                print_result("Migration Status", False,
+                    "- [WARNING] alembic_version 테이블이 없습니다. 마이그레이션 시스템 초기화가 필요합니다.")
+                migration_ok = False
+            
+            # 2-2. 핵심 컬럼 속성 검증 (비회원 모드 필수 조건)
+            # 마이그레이션 미적용 시에는 경고만 출력
+            nullable_checks = [
+                ('personality_results', 'user_id'),
+                ('chat_logs', 'user_id'),
+            ]
+            for table_name, col_name in nullable_checks:
+                columns = inspector.get_columns(table_name)
+                for col in columns:
+                    if col['name'] == col_name:
+                        if not col.get('nullable', False):
+                            if migration_ok:
+                                # 마이그레이션이 적용되었는데도 NOT NULL이면 진짜 에러
+                                print_result("Schema Drift Check", False,
+                                    f"- {table_name}.{col_name}가 NOT NULL 상태입니다. "
+                                    f"비회원 모드가 작동하지 않습니다. 마이그레이션 적용을 확인하세요.")
+                                return False
+                            else:
+                                # 마이그레이션 미적용 상태 → 이후 단계에서 해결 예정
+                                print(f"{YELLOW}[WARN]{RESET} Schema Drift Check "
+                                    f"- {table_name}.{col_name}가 NOT NULL 상태입니다. "
+                                    f"마이그레이션 적용 후 해결될 예정입니다.")
+            
+            if migration_ok:
+                print_result("Schema Drift Check", True, 
+                    "- 핵심 컬럼 속성(user_id nullable)이 모델 정의와 일치합니다.")
             
         # 3. 가상 HTTP 요청 테스트 (Flask test_client 앱 구동 테스트 2)
         client = app.test_client()
