@@ -125,6 +125,15 @@ from extensions import db, User, ChatLog, PersonalityResult, MatchRequest, Notif
 db.init_app(app)
 migrate = Migrate(app, db)
 
+# --- Template Filters ---
+@app.template_filter('kst')
+def kst_filter(dt, format='%Y-%m-%d %H:%M'):
+    """UTC 시간을 KST(+9시간)로 변환하여 포맷팅하는 필터"""
+    if not dt:
+        return '-'
+    from datetime import timedelta
+    return (dt + timedelta(hours=9)).strftime(format)
+
 # --- 보안 및 세션 관리 (Security & Session) ---
 def login_required(f):
     from functools import wraps
@@ -2390,15 +2399,6 @@ def get_group_chat_messages(room_code):
         room = GroupChatRoom.query.filter_by(room_code=room_code).first()
         if not room:
             return jsonify({'error': 'Room not found'}), 404
-        room = GroupChatRoom.query.filter_by(room_code=room_code).first()
-        if not room:
-            return jsonify({'error': 'Room not found'}), 404
-        room = GroupChatRoom.query.filter_by(room_code=room_code).first()
-        if not room:
-            return jsonify({'error': 'Room not found'}), 404
-        room = GroupChatRoom.query.filter_by(room_code=room_code).first()
-        if not room:
-            return jsonify({'error': 'Room not found'}), 404
         room_id = room.id
         participant = GroupChatParticipant.query.filter_by(room_id=room_id, user_id=g.user.user_id).first()
         if not participant:
@@ -2419,10 +2419,32 @@ def get_group_chat_messages(room_code):
         total_participants = len(read_thresholds)
         
         msg_list = []
+        WEEKDAYS = ["월요일", "화요일", "수요일", "목요일", "금요일", "토요일", "일요일"]
+        last_date_str = None
+        
         for m in messages:
             sender = User.query.get(m.sender_id)
             read_count = sum(1 for threshold in read_thresholds if threshold >= m.id)
             unread_count = total_participants - read_count
+            
+            # KST 시간 변환
+            kst_time = m.created_at + timedelta(hours=9) if m.created_at else datetime.utcnow() + timedelta(hours=9)
+            current_date_str = kst_time.strftime('%Y년 %m월 %d일')
+            
+            # 💡 [핵심] 날짜가 바뀌면 날짜 구분선(시스템 메시지) 삽입
+            if current_date_str != last_date_str:
+                weekday_str = WEEKDAYS[kst_time.weekday()]
+                msg_list.append({
+                    'id': f'date-{m.id}',
+                    'sender_id': 0,
+                    'sender_nickname': 'System',
+                    'content': f"{current_date_str} {weekday_str}",
+                    'is_system': True,
+                    'unread_count': 0,
+                    'created_at': '',
+                    'is_me': False
+                })
+                last_date_str = current_date_str
             
             msg_list.append({
                 'id': m.id,
@@ -2431,7 +2453,7 @@ def get_group_chat_messages(room_code):
                 'content': m.content,
                 'is_system': m.is_system,
                 'unread_count': unread_count if unread_count > 0 else 0,
-                'created_at': (m.created_at + timedelta(hours=9)).strftime('%H:%M'),
+                'created_at': kst_time.strftime('%H:%M'),
                 'is_me': m.sender_id == g.user.user_id
             })
             

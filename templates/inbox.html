@@ -94,7 +94,7 @@
                                     class="flex items-center justify-between pt-4 mt-4 border-t border-slate-50 dark:border-slate-800">
                                     <span
                                         class="text-xs text-slate-400 dark:text-slate-500 font-medium flex items-center gap-1">
-                                        🕒 {{ req.created_at.strftime('%Y-%m-%d %H:%M') if req.created_at else '-' }}
+                                        🕒 {{ req.created_at | kst('%Y-%m-%d %H:%M') if req.created_at else '-' }}
                                     </span>
 
                                     <div class="flex flex-wrap gap-2 justify-end">
@@ -160,7 +160,7 @@
                                         {{ match.last_message }}
                                     </p>
                                     <span class="text-[10px] text-slate-400 dark:text-slate-500 font-medium">{{
-                                        match.matched_at.strftime('%Y-%m-%d') if match.matched_at else '-' }}</span>
+                                        match.matched_at | kst('%Y-%m-%d') if match.matched_at else '-' }}</span>
                                 </div>
                             </div>
 
@@ -240,7 +240,7 @@
                                         class="flex-shrink-0 text-[9px] font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-100 dark:border-indigo-800/50 px-2 py-0.5 rounded hover:bg-indigo-100 transition-colors">보기</a>
                                 </div>
                                 <p class="text-[10px] text-slate-400 dark:text-slate-500 font-medium">{{
-                                    req.created_at.strftime('%Y-%m-%d')
+                                    req.created_at | kst('%Y-%m-%d')
                                     if req.created_at else '-' }}</p>
                             </div>
                         </div>
@@ -299,7 +299,7 @@
                                 alert.message }}</p>
                             <span
                                 class="block mt-2 text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-tighter">
-                                {{ alert.created_at.strftime('%Y-%m-%d %H:%M') if alert.created_at else '-' }}
+                                {{ alert.created_at | kst('%Y-%m-%d %H:%M') if alert.created_at else '-' }}
                             </span>
                         </div>
                         {% endfor %}

@@ -1,5 +1,6 @@
 import os
 import sys
+import time
 import psutil
 import compileall
 import traceback
@@ -54,6 +55,30 @@ def check_dependencies():
         return False
     print_result("Dependencies", True, "- All core Python packages are installed")
     return True
+
+def check_db_connection():
+    """DB 서버 연결 가능 여부를 사전에 검증 (Flask 로딩 전 경량 테스트)"""
+    try:
+        from dotenv import load_dotenv
+        load_dotenv()
+        import pymysql
+        
+        conn = pymysql.connect(
+            host=os.environ.get('DB_HOST', 'localhost'),
+            user=os.environ.get('DB_USER', ''),
+            password=os.environ.get('DB_PASSWORD', ''),
+            database=os.environ.get('DB_NAME', ''),
+            connect_timeout=5
+        )
+        conn.ping(reconnect=False)
+        conn.close()
+        print_result("Database Connection", True, "- DB 서버 연결 및 Ping 응답 정상")
+        return True
+    except Exception as e:
+        print_result("Database Connection", False, 
+            f"- DB 서버에 연결할 수 없습니다. 호스트/인증 정보 또는 네트워크를 확인하세요.")
+        print_traceback(e)
+        return False
 
 def check_flask_app():
     try:
@@ -165,10 +190,24 @@ def check_system():
     return True
 
 def check_syntax():
-    # 파이썬 전체 코드 컴파일 오류 스캔
+    # 파이썬 전체 코드 컴파일 오류 스캔 (venv, .git 등 불필요한 폴더 제외)
     try:
-        result = compileall.compile_dir('.', maxlevels=10, quiet=1)
-        if not result:
+        exclude_dirs = ['venv', '.git', '__pycache__', 'node_modules', '.pytest_cache', 'EchoMind_app']
+        
+        # 프로젝트 루트의 .py 파일과 하위 디렉토리를 선별적으로 컴파일
+        all_ok = True
+        for entry in os.listdir('.'):
+            if entry in exclude_dirs or entry.startswith('.'):
+                continue
+            path = os.path.join('.', entry)
+            if os.path.isfile(path) and path.endswith('.py'):
+                if not compileall.compile_file(path, quiet=1):
+                    all_ok = False
+            elif os.path.isdir(path):
+                if not compileall.compile_dir(path, maxlevels=10, quiet=1):
+                    all_ok = False
+        
+        if not all_ok:
             print_result("Syntax Check", False, "- Python files contain syntax errors! Check standard output above.")
             return False
         print_result("Syntax Check", True, "- Passed static compilation check for all Python files")
@@ -179,9 +218,25 @@ def check_syntax():
         return False
 
 if __name__ == "__main__":
+    start_time = time.time()
+    
     print(f"\n{YELLOW}{'='*50}")
-    print(" ECHO-MIND SERVER HEALTH CHECK V2 (Production Mode)")
+    print(" ECHO-MIND SERVER HEALTH CHECK V1 (Production Mode)")
     print(f"{'='*50}{RESET}\n")
+    
+    # 버전 정보 출력
+    print(f" Python  : {sys.version.split()[0]}")
+    try:
+        import flask
+        print(f" Flask   : {flask.__version__}")
+    except ImportError:
+        print(f" Flask   : {RED}Not Installed{RESET}")
+    try:
+        import sqlalchemy
+        print(f" SQLAlchemy: {sqlalchemy.__version__}")
+    except ImportError:
+        print(f" SQLAlchemy: {RED}Not Installed{RESET}")
+    print()
     
     passed = True
     passed &= check_syntax()
@@ -190,12 +245,16 @@ if __name__ == "__main__":
     
     if passed:
         passed &= check_system()
+        passed &= check_db_connection()
+    
+    if passed:
         passed &= check_flask_app()
         
+    elapsed = time.time() - start_time
     print(f"\n{YELLOW}{'='*50}{RESET}")
     if passed:
-        print(f"{GREEN}[SUCCESS] All diagnostic checks passed. System is ready for deployment.{RESET}\n")
+        print(f"{GREEN}[SUCCESS] All diagnostic checks passed. System is ready for deployment. (took {elapsed:.2f}s){RESET}\n")
         sys.exit(0)
     else:
-        print(f"{RED}[ABORT] Critical failures detected. Deployment halted. Check traceback above.{RESET}\n")
+        print(f"{RED}[ABORT] Critical failures detected. Deployment halted. (took {elapsed:.2f}s){RESET}\n")
         sys.exit(1)

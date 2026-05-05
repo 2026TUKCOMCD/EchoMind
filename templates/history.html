@@ -37,7 +37,7 @@
                         {{ active_result.full_report_json.meta.speaker_name if active_result.full_report_json and
                         active_result.full_report_json.meta else "알 수 없음" }}
                     </span>
-                    <span class="text-xs text-slate-400 font-mono">{{ active_result.created_at.strftime('%Y-%m-%d')
+                    <span class="text-xs text-slate-400 font-mono">{{ active_result.created_at | kst('%Y-%m-%d')
                         }}</span>
                 </div>
                 <p class="text-slate-600 dark:text-slate-300 text-sm leading-relaxed line-clamp-2">
@@ -126,8 +126,7 @@
             <!-- Info -->
             <div class="flex-1">
                 <div class="flex items-center gap-3 mb-2">
-                    <span class="text-xs font-mono text-slate-400 font-medium">{{ res.created_at.strftime('%Y-%m-%d
-                        %H:%M')
+                    <span class="text-xs font-mono text-slate-400 font-medium">{{ res.created_at | kst('%Y-%m-%d %H:%M')
                         }}</span>
                     {% if res.is_representative %}
                     <span

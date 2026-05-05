@@ -36,7 +36,7 @@
                             class="px-2.5 py-1 rounded-full text-[10px] font-black bg-slate-600 text-slate-300 uppercase tracking-widest">거절됨</span>
                         {% endif %}
                         <span class="text-xs font-medium text-slate-500 dark:text-slate-400 opacity-70">{{
-                            request_info.created_at.strftime('%Y년 %m월 %d일') }}</span>
+                            request_info.created_at | kst('%Y년 %m월 %d일') }}</span>
                     </div>
                     <h1 class="text-3xl md:text-4xl font-black tracking-tight">
                         <span class="text-indigo-600 dark:text-indigo-300">{{ request_info.counterpart_nickname
