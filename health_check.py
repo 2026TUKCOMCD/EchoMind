@@ -30,7 +30,7 @@ def check_env():
     try:
         from dotenv import load_dotenv
         load_dotenv()
-        required_keys = ['DB_USER', 'DB_PASSWORD', 'DB_HOST', 'DB_NAME', 'SECRET_KEY']
+        required_keys = ['DB_USER', 'DB_PASSWORD', 'DB_HOST', 'DB_NAME', 'SECRET_KEY', 'OPENAI_API_KEY']
         missing = [key for key in required_keys if not os.environ.get(key)]
         if missing:
             print_result("Environment", False, f"- Missing keys: {', '.join(missing)}")
@@ -43,7 +43,7 @@ def check_env():
         return False
 
 def check_dependencies():
-    critical_modules = ['flask', 'pymysql', 'flask_sqlalchemy', 'openai', 'numpy', 'scipy', 'cryptography', 'flask_migrate', 'dotenv']
+    critical_modules = ['flask', 'pymysql', 'flask_sqlalchemy', 'openai', 'numpy', 'scipy', 'cryptography', 'flask_migrate', 'dotenv', 'flask_compress']
     missing = []
     for mod in critical_modules:
         try:

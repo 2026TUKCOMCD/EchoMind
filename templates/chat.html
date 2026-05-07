@@ -25,24 +25,37 @@
     <div class="bg-slate-100 dark:bg-slate-900 min-h-[calc(100vh-180px)] p-4 flex flex-col gap-3 pb-24"
         id="chat-container">
         <template x-for="msg in messages" :key="msg.id">
-            <div class="flex w-full" :class="msg.is_me ? 'justify-end' : 'justify-start'">
-                <div class="max-w-[70%] flex gap-1" :class="msg.is_me ? 'flex-row-reverse' : 'flex-row'">
-                    <!-- Message Bubble -->
-                    <div class="flex flex-col" :class="msg.is_me ? 'items-end' : 'items-start'">
-                        <div class="px-2 py-1 rounded-2xl text-base text-center shadow-sm break-words w-fit whitespace-pre-wrap flex items-center justify-center"
-                            :class="msg.is_me ? 'bg-indigo-500 text-white rounded-tr-none' : 'bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 rounded-tl-none border border-slate-200 dark:border-slate-700'">
-                            <span x-text="msg.content"></span>
+        <div class="w-full">
+            <!-- 날짜 구분선 (시스템 메시지) -->
+            <template x-if="msg.is_system">
+                <div class="text-center my-4">
+                    <span class="bg-slate-200 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-xs px-4 py-1.5 rounded-full font-medium shadow-sm" x-text="msg.content">
+                    </span>
+                </div>
+            </template>
+
+            <!-- 실제 일반 메시지 -->
+            <template x-if="!msg.is_system">
+                <div class="flex w-full" :class="msg.is_me ? 'justify-end' : 'justify-start'">
+                    <div class="max-w-[70%] flex gap-1" :class="msg.is_me ? 'flex-row-reverse' : 'flex-row'">
+                        <!-- Message Bubble -->
+                        <div class="flex flex-col" :class="msg.is_me ? 'items-end' : 'items-start'">
+                            <div class="px-2 py-1 rounded-2xl text-base text-center shadow-sm break-words w-fit whitespace-pre-wrap flex items-center justify-center"
+                                :class="msg.is_me ? 'bg-indigo-500 text-white rounded-tr-none' : 'bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 rounded-tl-none border border-slate-200 dark:border-slate-700'">
+                                <span x-text="msg.content"></span>
+                            </div>
+                        </div>
+                        <!-- Time & Read Indicator -->
+                        <div class="flex flex-col justify-end gap-0.5 pb-0.5 min-w-[30px]"
+                            :class="msg.is_me ? 'items-end' : 'items-start'">
+                            <span x-show="msg.is_me && !msg.is_read"
+                                class="text-[10px] text-yellow-500 font-bold leading-none">1</span>
+                            <span class="text-[10px] text-slate-400 whitespace-nowrap" x-text="msg.created_at"></span>
                         </div>
                     </div>
-                    <!-- Time & Read Indicator -->
-                    <div class="flex flex-col justify-end gap-0.5 pb-0.5 min-w-[30px]"
-                        :class="msg.is_me ? 'items-end' : 'items-start'">
-                        <span x-show="msg.is_me && !msg.is_read"
-                            class="text-[10px] text-yellow-500 font-bold leading-none">1</span>
-                        <span class="text-[10px] text-slate-400 whitespace-nowrap" x-text="msg.created_at"></span>
-                    </div>
                 </div>
-            </div>
+            </template>
+        </div>
         </template>
         <div x-show="messages.length === 0" class="text-center text-slate-400 text-sm py-10">
             대화를 시작해보세요!

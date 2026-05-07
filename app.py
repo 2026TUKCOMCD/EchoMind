@@ -2065,9 +2065,6 @@ def get_chat_messages(request_id):
             req = MatchRequest.query.get(int(request_id))
             if not req:
                 return jsonify({'error': 'Not found'}), 404
-            req = MatchRequest.query.get(int(request_id))
-            if not req:
-                return jsonify({'error': 'Not found'}), 404
         elif not req:
             return jsonify({'error': 'Not found'}), 404
             
@@ -2087,16 +2084,40 @@ def get_chat_messages(request_id):
         if unread_exist:
             db.session.commit()
             
-        return jsonify({
-            'messages': [{
+        msg_list = []
+        WEEKDAYS = ["월요일", "화요일", "수요일", "목요일", "금요일", "토요일", "일요일"]
+        last_date_str = None
+        
+        for m in messages:
+            # KST 시간 변환
+            kst_time = m.created_at + timedelta(hours=9) if m.created_at else datetime.utcnow() + timedelta(hours=9)
+            current_date_str = kst_time.strftime('%Y년 %m월 %d일')
+            
+            # 날짜 구분선 삽입
+            if current_date_str != last_date_str:
+                weekday_str = WEEKDAYS[kst_time.weekday()]
+                msg_list.append({
+                    'id': f'date-{m.id}',
+                    'sender_id': 0,
+                    'content': f"{current_date_str} {weekday_str}",
+                    'is_system': True,
+                    'created_at': '',
+                    'is_me': False,
+                    'is_read': True
+                })
+                last_date_str = current_date_str
+                
+            msg_list.append({
                 'id': m.id,
                 'sender_id': m.sender_id,
                 'content': m.content,
-                'created_at': (m.created_at + timedelta(hours=9)).strftime('%H:%M'),
+                'is_system': False,
+                'created_at': kst_time.strftime('%H:%M'),
                 'is_me': m.sender_id == g.user.user_id,
                 'is_read': m.is_read
-            } for m in messages]
-        })
+            })
+            
+        return jsonify({'messages': msg_list})
     except Exception as e:
         db.session.rollback()
         app.logger.error(f"API Chat messages error: {e}")
