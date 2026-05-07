@@ -109,6 +109,10 @@ class MatchDetailActivity : AppCompatActivity() {
         binding.tvPartnerName.text = partnerName
         binding.tvPartnerSummary.text = summaryText
         binding.tvReportPartnerName.text = partnerName
+        
+        // [KST 반영] 서버에서 kst 필터가 적용된 날짜 텍스트 추출
+        val kstDate = doc.select("span.text-xs.font-medium.text-slate-500").first()?.text()?.trim() ?: ""
+        binding.tvMatchDate.text = kstDate
 
         // 3. 관계 설명 및 점수 배지
         binding.tvMbtiRelation.text = doc.select("p.text-lg.font-bold").first()?.text()?.trim() ?: "관계 분석"
@@ -130,14 +134,13 @@ class MatchDetailActivity : AppCompatActivity() {
         binding.tvReportSummary.text = summaryText
         binding.tvPartnerMbtiSocio.text = "$mbtiType · $socioType"
 
-        // [해결 핵심] 웹의 Big-5 "진짜" 상세 분석 내용 추출 (Description + Witty Comment + AI Note 통합)
+        // [해결 핵심] 웹의 Big-5 상세 분석 내용 추출
         val big5Rows = doc.select("section:has(h2:contains(Big 5)) .grid")
         val fullDetailedReasons = big5Rows.map { row ->
             val desc = row.select("div.md\\:col-span-9 div.font-medium").text().trim()
             val witty = row.select("div.md\\:col-span-9 div.bg-indigo-50\\/30").text().trim()
             val aiNote = row.select("div.md\\:col-span-9 div.bg-slate-50\\/50").text().trim()
 
-            // 모든 정보를 하나로 합쳐서 "나의 분석" 탭과 동일한 정보량 확보
             buildString {
                 append(desc)
                 if (witty.isNotEmpty()) append("\n\n").append(witty)
@@ -174,15 +177,12 @@ class MatchDetailActivity : AppCompatActivity() {
         itemBinding.pbTrait.progress = score.toInt()
         itemBinding.tvTraitDescription.text = desc
         
-        // [해결] 역삼각형 아이콘 클릭 시 상세 설명 토글
         itemBinding.btnToggleDescription.setOnClickListener {
             val isVisible = itemBinding.tvTraitDescription.visibility == View.VISIBLE
             itemBinding.tvTraitDescription.visibility = if (isVisible) View.GONE else View.VISIBLE
-            // 아이콘 회전 효과 (선택 사항)
             itemBinding.btnToggleDescription.animate().rotation(if (isVisible) 0f else 180f).setDuration(200).start()
         }
         
-        // 초기 상태: 숨김
         itemBinding.tvTraitDescription.visibility = View.GONE
     }
 

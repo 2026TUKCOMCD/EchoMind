@@ -220,8 +220,10 @@ class InboxActivity : AppCompatActivity() {
                     hasWithdrawBtn || statusText.contains("수락을 기다리고") -> "ME"
                     else -> "NONE"
                 }
+
+                val date = card.select("span.text-slate-400, span.text-slate-500").last()?.text()?.trim() ?: ""
                 
-                friends.add(FriendMatchModel(requestId, matchCode, name, lastMsg, unmatchRequester, unreadCount))
+                friends.add(FriendMatchModel(requestId, matchCode, name, lastMsg, unmatchRequester, unreadCount, date))
             }
         }
         friendsAdapter.updateData(friends)
@@ -236,7 +238,8 @@ class InboxActivity : AppCompatActivity() {
             val id = card.select("a[href*=/respond_match/][href*=/accepted]").attr("href").split("/").find { it.toIntOrNull() != null }?.toIntOrNull() ?: 0
             
             if (id != 0 && name.isNotEmpty()) {
-                received.add(MatchRequestDtoInternal(id, name, score, mbti, summary))
+                val date = card.select("span.text-slate-400, span.text-slate-500").last()?.text()?.replace("🕒", "")?.trim() ?: ""
+                received.add(MatchRequestDtoInternal(id, name, score, mbti, summary, date))
             }
         }
         receivedAdapter.updateData(received)
@@ -246,7 +249,10 @@ class InboxActivity : AppCompatActivity() {
         doc.select("section:contains(보낸 신청 현황) div.bg-white").forEach { card ->
             val nameText = card.select("p.text-sm.font-bold").text().replace("님에게", "").trim()
             val id = card.select("form").attr("action").split("/").find { it.toIntOrNull() != null }?.toIntOrNull() ?: 0
-            if (nameText.isNotBlank()) sentList.add(SentMatchRequestDtoInternal(id, nameText, "대기중"))
+            if (nameText.isNotBlank()) {
+                val date = card.select("p.text-slate-400, p.text-slate-500").last()?.text()?.trim() ?: ""
+                sentList.add(SentMatchRequestDtoInternal(id, nameText, "대기중", date))
+            }
         }
         sentAdapter.updateData(sentList)
 
@@ -260,9 +266,9 @@ class InboxActivity : AppCompatActivity() {
 
 // --- 어댑터 및 내부 모델 ---
 
-data class FriendMatchModel(val requestId: Int, val matchCode: String, val name: String, val lastMessage: String, val unmatchRequester: String, val unreadCount: Int)
-data class MatchRequestDtoInternal(val requestId: Int, val senderName: String, val matchScore: String = "", val mbti: String = "", val summary: String = "")
-data class SentMatchRequestDtoInternal(val requestId: Int, val receiverName: String, val status: String)
+data class FriendMatchModel(val requestId: Int, val matchCode: String, val name: String, val lastMessage: String, val unmatchRequester: String, val unreadCount: Int, val matchedAt: String)
+data class MatchRequestDtoInternal(val requestId: Int, val senderName: String, val matchScore: String = "", val mbti: String = "", val summary: String = "", val date: String = "")
+data class SentMatchRequestDtoInternal(val requestId: Int, val receiverName: String, val status: String, val date: String = "")
 
 class InboxRequestAdapter(private var items: MutableList<MatchRequestDtoInternal>, private val onAction: (Int, String) -> Unit) : RecyclerView.Adapter<InboxRequestAdapter.ViewHolder>() {
     fun updateData(newItems: List<MatchRequestDtoInternal>) { items.clear(); items.addAll(newItems); notifyDataSetChanged() }
@@ -275,6 +281,7 @@ class InboxRequestAdapter(private var items: MutableList<MatchRequestDtoInternal
             tvMatchScore.text = "${item.matchScore}점"
             tvSenderInfo.text = if (item.mbti.isNotEmpty()) item.mbti else "MBTI · 소시오닉스"
             tvSummary.text = if (item.summary.isNotEmpty()) item.summary else "상대방의 성향 요약 내용이 여기에 표시됩니다."
+            tvRequestDate.text = item.date
             
             btnAccept.setOnClickListener { onAction(item.requestId, "ACCEPTED") }
             btnReject.setOnClickListener { onAction(item.requestId, "REJECTED") }
@@ -295,6 +302,7 @@ class FriendsDashboardAdapter(private var items: MutableList<FriendMatchModel>, 
             tvLastMessage.text = item.lastMessage.ifBlank { "대화를 시작해보세요." }
             tvUnreadBadge.visibility = if (item.unreadCount > 0) View.VISIBLE else View.GONE
             tvUnreadBadge.text = item.unreadCount.toString()
+            tvMatchDate.text = item.matchedAt
             
             btnViewDetail.setOnClickListener { onViewDetail(item) }
             btnChat.setOnClickListener { onChat(item) }
@@ -328,6 +336,7 @@ class SentRequestsAdapter(private var items: MutableList<SentMatchRequestDtoInte
         val item = items[position]
         holder.binding.tvReceiverName.text = item.receiverName
         holder.binding.tvStatusBadge.text = item.status
+        holder.binding.tvRequestDate.text = item.date
         holder.binding.btnCancelRequest.setOnClickListener { onCancel(item.requestId) }
     }
     override fun getItemCount() = items.size

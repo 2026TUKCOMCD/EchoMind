@@ -91,20 +91,31 @@ class HistoryActivity : AppCompatActivity() {
                         val detailUrl = element.select("a:contains(상세 보기)").attr("href")
                         val serverId = detailUrl.split("/").lastOrNull()?.toIntOrNull() ?: 0
                         val isRepresentative = element.select("span:contains(ACTIVE PROFILE)").isNotEmpty()
+                        
+                        // [KST 날짜 추출]
+                        val dateStr = element.select("span.text-xs.font-mono").first()?.text()?.trim() ?: ""
 
                         if (serverId != 0) {
                             // 3. 로컬 DB에 해당 기록이 있는지 확인
                             val localMatch = allLocal.find { it.serverResultId == serverId || (it.mbti == mbti && it.summary.contains(summaryPart)) }
                             
                             if (localMatch != null) {
-                                // 이미 있다면 상태만 업데이트
-                                val updated = localMatch.copy(serverResultId = serverId, isRepresentative = isRepresentative)
+                                // 이미 있다면 상태 및 날짜 하이재킹 업데이트
+                                val updated = localMatch.copy(
+                                    serverResultId = serverId, 
+                                    isRepresentative = isRepresentative,
+                                    summary = if (dateStr.isNotEmpty()) dateStr + ":::" + localMatch.summary.substringAfter(":::") else localMatch.summary
+                                )
                                 db.personalityDao().insertResult(updated)
                             } else {
-                                // [해결] 없다면 서버에서 이 리포트 정보를 긁어와야 함
-                                // 웹의 내용을 기반으로 뼈대를 만들고, 상세 데이터는 서버에서 가져옵니다.
-                                fetchAndSaveMissingProfile(serverId, isRepresentative)
+                                // 없다면 서버에서 이 리포트 정보를 가져옴
+                                fetchAndSaveMissingProfile(serverId, isRepresentative, dateStr)
                             }
+                        }
+                        
+                        // [대표 프로필 날짜 UI 즉시 반영] - 서버에서 가져온 텍스트 사용
+                        if (isRepresentative) {
+                            binding.tvActiveDate.text = dateStr
                         }
                     }
                 }
@@ -117,16 +128,15 @@ class HistoryActivity : AppCompatActivity() {
     }
 
     // 서버에만 있고 앱에는 없는 기록을 다운로드하여 저장
-    private suspend fun fetchAndSaveMissingProfile(serverId: Int, isRepresentative: Boolean) {
+    private suspend fun fetchAndSaveMissingProfile(serverId: Int, isRepresentative: Boolean, dateStr: String) {
         try {
-            // 임시로 해당 ID를 대표로 설정한 뒤 JSON을 가져오는 방식으로 데이터 무결성을 확보합니다.
-            // (서버에 개별 결과 JSON 조회 API가 없으므로 이 방식을 사용)
             historyService.setRepresentative(serverId)
             val jsonResp = historyService.getRepresentativeJson()
             if (jsonResp.isSuccessful) {
                 val root = jsonResp.body()
                 val profile = root?.llmProfile
                 if (profile != null) {
+                    val rawSummary = profile.summary?.one_paragraph ?: ""
                     val newEntity = PersonalityEntity(
                         serverResultId = serverId,
                         userEmail = currentEmail,
@@ -143,7 +153,8 @@ class HistoryActivity : AppCompatActivity() {
                         socionics = profile.socionics?.type ?: "",
                         socionicsReasons = profile.socionics?.reasons?.joinToString("|") ?: "",
                         lineCount = profile.lineCount,
-                        summary = profile.summary?.one_paragraph ?: "",
+                        // [하이재킹 저장]
+                        summary = if (dateStr.isNotEmpty()) dateStr + ":::" + rawSummary else rawSummary,
                         styleBullets = profile.summary?.communication_style_bullets?.joinToString("|") ?: "",
                         caveats = profile.caveats?.joinToString("|") ?: "",
                         isRepresentative = isRepresentative
@@ -181,11 +192,18 @@ class HistoryActivity : AppCompatActivity() {
 
     private fun displayActiveProfile(entity: PersonalityEntity) {
         binding.apply {
+            val parts = entity.summary.split(":::")
             tvActiveMbti.text = entity.mbti
             tvActiveName.text = entity.name
-            tvActiveSummary.text = entity.summary
             
-            // [해결] 대표 프로필 Big5 항목별 수치 및 레이블 개별 설정
+            if (parts.size > 1) {
+                tvActiveDate.text = parts[0]
+                tvActiveSummary.text = parts[1]
+            } else {
+                tvActiveDate.text = "날짜 정보 없음"
+                tvActiveSummary.text = entity.summary
+            }
+            
             miniOpen.apply {
                 tvMiniScore.text = entity.openness.toInt().toString()
                 tvMiniLabel.text = "OPEN"
@@ -240,9 +258,11 @@ class HistoryActivity : AppCompatActivity() {
     }
 
     private fun mapEntityToProfile(entity: PersonalityEntity): PersonalityProfile {
+        // 상세 보기 화면으로 넘길 때는 하이재킹된 날짜를 제거하고 순수 요약만 보냄
+        val pureSummary = entity.summary.substringAfter(":::")
         return PersonalityProfile(
             name = entity.name,
-            summary = SummaryData(entity.summary, entity.styleBullets.split("|").filter { it.isNotBlank() }),
+            summary = SummaryData(pureSummary, entity.styleBullets.split("|").filter { it.isNotBlank() }),
             mbti = MbtiData(entity.mbti, entity.mbtiConfidence, entity.mbtiReasons.split("|").filter { it.isNotBlank() }),
             big5 = Big5Data(Big5Scores(entity.openness, entity.conscientiousness, entity.extraversion, entity.agreeableness, entity.neuroticism), 1.0, entity.big5Reasons.split("|").filter { it.isNotBlank() }),
             socionics = SocionicsData(entity.socionics, 1.0, entity.socionicsReasons.split("|").filter { it.isNotBlank() }),
@@ -267,8 +287,17 @@ class HistoryAdapter(
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
         val item = items[position]
         holder.binding.apply {
+            val parts = item.summary.split(":::")
             tvHistoryNameMbti.text = "${item.name} (${item.mbti})"
-            tvHistorySummary.text = item.summary
+            
+            if (parts.size > 1) {
+                tvHistoryDate.text = parts[0]
+                tvHistorySummary.text = parts[1]
+            } else {
+                tvHistoryDate.text = "분석 완료"
+                tvHistorySummary.text = item.summary
+            }
+
             val isActive = item.id == activeId
             tvActiveBadge.visibility = if (isActive) View.VISIBLE else View.GONE
             btnSetRep.visibility = if (isActive) View.GONE else View.VISIBLE

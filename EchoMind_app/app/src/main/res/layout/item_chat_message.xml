@@ -5,30 +5,49 @@
     android:layout_height="wrap_content"
     android:padding="8dp">
 
-    <!-- 시스템 메시지 (중앙) -->
+    <!-- 시스템 메시지 및 날짜 구분선 (중앙) -->
     <LinearLayout
         android:id="@+id/layoutSystem"
-        android:layout_width="wrap_content"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
+        android:orientation="horizontal"
         android:gravity="center"
+        android:layout_marginVertical="8dp"
         android:visibility="gone"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintTop_toTopOf="parent">
+
+        <View
+            android:id="@+id/viewDividerLeft"
+            android:layout_width="0dp"
+            android:layout_height="1dp"
+            android:layout_weight="1"
+            android:layout_marginEnd="12dp"
+            android:background="#D1D5DB"
+            android:visibility="gone" />
 
         <TextView
             android:id="@+id/tvSystemMessage"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:background="@drawable/bg_status_badge"
-            android:backgroundTint="#40000000"
+            android:backgroundTint="#15000000"
             android:paddingHorizontal="16dp"
             android:paddingVertical="6dp"
             android:text="시스템 메시지"
-            android:textColor="@color/text_secondary"
+            android:textColor="#6B7280"
             android:textSize="11sp"
             android:gravity="center" />
+
+        <View
+            android:id="@+id/viewDividerRight"
+            android:layout_width="0dp"
+            android:layout_height="1dp"
+            android:layout_weight="1"
+            android:layout_marginStart="12dp"
+            android:background="#D1D5DB"
+            android:visibility="gone" />
     </LinearLayout>
 
     <!-- 상대방 메시지 (왼쪽) -->

@@ -1,5 +1,7 @@
 package com.tukorea.echomind
 
+import android.content.res.ColorStateList
+import android.graphics.Color
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -20,9 +22,11 @@ import kotlinx.coroutines.launch
 import okhttp3.ResponseBody
 import retrofit2.Response
 import retrofit2.http.*
+import java.text.SimpleDateFormat
+import java.util.*
 
 data class GroupMessageDto(
-    val id: Int,
+    val id: String, // Date divider ids can be strings like "date-123"
     val sender_id: Int,
     val sender_nickname: String,
     val content: String,
@@ -143,7 +147,7 @@ class GroupChatActivity : AppCompatActivity() {
             binding.rvMessages.adapter = GroupChatAdapter(messages)
         } else {
             adapter.updateMessages(messages)
-            if (messages.isNotEmpty()) binding.rvMessages.scrollToPosition(messages.size - 1)
+            // No auto-scroll here to avoid jumpy behavior, rely on stackFromEnd
         }
     }
 
@@ -151,7 +155,15 @@ class GroupChatActivity : AppCompatActivity() {
         lifecycleScope.launch {
             try {
                 val response = groupService.sendGroupMessage(roomCode, mapOf("content" to content))
-                if (response.isSuccessful) binding.etMessage.text.clear()
+                if (response.isSuccessful) {
+                    binding.etMessage.text.clear()
+                    // Fetch immediately after send
+                    val msgRes = groupService.getGroupMessages(roomCode)
+                    if (msgRes.isSuccessful) {
+                        updateChatList(msgRes.body()?.messages ?: emptyList())
+                        binding.rvMessages.scrollToPosition((msgRes.body()?.messages?.size ?: 1) - 1)
+                    }
+                }
             } catch (e: Exception) { }
         }
     }
@@ -185,39 +197,79 @@ class GroupChatActivity : AppCompatActivity() {
 }
 
 class GroupChatAdapter(private var items: List<GroupMessageDto>) : RecyclerView.Adapter<GroupChatAdapter.ViewHolder>() {
-    fun updateMessages(newItems: List<GroupMessageDto>) { items = newItems; notifyDataSetChanged() }
+    fun updateMessages(newItems: List<GroupMessageDto>) { 
+        if (items.size != newItems.size) {
+            items = newItems
+            notifyDataSetChanged() 
+        } else {
+            // Check for unread count changes
+            items = newItems
+            notifyDataSetChanged()
+        }
+    }
+    
     class ViewHolder(val binding: ItemChatMessageBinding) : RecyclerView.ViewHolder(binding.root)
+    
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int) = ViewHolder(ItemChatMessageBinding.inflate(LayoutInflater.from(parent.context), parent, false))
+    
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
         val item = items[position]
         holder.binding.apply {
-            // [해결] 시스템 메시지 중앙 배치 로직
             if (item.is_system) {
                 layoutSystem.visibility = View.VISIBLE
                 layoutMe.visibility = View.GONE
                 layoutPartner.visibility = View.GONE
                 tvSystemMessage.text = item.content
-            } else if (item.is_me) {
-                layoutSystem.visibility = View.GONE
-                layoutMe.visibility = View.VISIBLE
-                layoutPartner.visibility = View.GONE
-                tvMeMessage.text = item.content
-                tvMeTime.text = item.created_at
-                tvMeUnread.visibility = if (item.unread_count > 0) View.VISIBLE else View.GONE
-                tvMeUnread.text = item.unread_count.toString()
+                
+                // [카카오톡 스타일 날짜 구분선]
+                val isDateDivider = item.content.contains("요일") && item.content.contains("년")
+                viewDividerLeft.visibility = if (isDateDivider) View.VISIBLE else View.GONE
+                viewDividerRight.visibility = if (isDateDivider) View.VISIBLE else View.GONE
+                
+                if (isDateDivider) {
+                    tvSystemMessage.setBackgroundResource(0)
+                    tvSystemMessage.setTextColor(Color.parseColor("#6B7280"))
+                } else {
+                    tvSystemMessage.setBackgroundResource(R.drawable.bg_status_badge)
+                    tvSystemMessage.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#15000000"))
+                    tvSystemMessage.setTextColor(Color.parseColor("#6B7280"))
+                }
             } else {
                 layoutSystem.visibility = View.GONE
-                layoutMe.visibility = View.GONE
-                layoutPartner.visibility = View.VISIBLE
-                tvPartnerName.visibility = View.VISIBLE
-                tvPartnerName.text = item.sender_nickname
-                tvPartnerMessage.text = item.content
-                tvPartnerTime.text = item.created_at
-                tvPartnerUnread.visibility = if (item.unread_count > 0) View.VISIBLE else View.GONE
-                tvPartnerUnread.text = item.unread_count.toString()
+                val formattedTime = formatToKstTime(item.created_at)
+                
+                if (item.is_me) {
+                    layoutMe.visibility = View.VISIBLE
+                    layoutPartner.visibility = View.GONE
+                    tvMeMessage.text = item.content
+                    tvMeTime.text = formattedTime
+                    tvMeUnread.visibility = if (item.unread_count > 0) View.VISIBLE else View.GONE
+                    tvMeUnread.text = item.unread_count.toString()
+                } else {
+                    layoutMe.visibility = View.GONE
+                    layoutPartner.visibility = View.VISIBLE
+                    tvPartnerName.visibility = View.VISIBLE
+                    tvPartnerName.text = item.sender_nickname
+                    tvPartnerMessage.text = item.content
+                    tvPartnerTime.text = formattedTime
+                    tvPartnerUnread.visibility = if (item.unread_count > 0) View.VISIBLE else View.GONE
+                    tvPartnerUnread.text = item.unread_count.toString()
+                }
             }
         }
     }
+
+    private fun formatToKstTime(timeStr: String): String {
+        return try {
+            val sdf24 = SimpleDateFormat("HH:mm", Locale.getDefault())
+            val date = sdf24.parse(timeStr) ?: return timeStr
+            val sdf12 = SimpleDateFormat("a h:mm", Locale.KOREAN)
+            sdf12.format(date)
+        } catch (e: Exception) {
+            timeStr
+        }
+    }
+
     override fun getItemCount() = items.size
 }
 

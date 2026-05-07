@@ -1,5 +1,7 @@
 package com.tukorea.echomind
 
+import android.content.res.ColorStateList
+import android.graphics.Color
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -17,15 +19,18 @@ import kotlinx.coroutines.launch
 import okhttp3.ResponseBody
 import retrofit2.Response
 import retrofit2.http.*
+import java.text.SimpleDateFormat
+import java.util.*
 
 // [독립 연동] 1:1 채팅 전용 인터페이스 정의
 data class MessageDto(
-    val id: Int,
+    val id: String, // ID를 String으로 변경하여 시스템 메시지(날짜 구분선)와 호환성 유지
     val sender_id: Int,
     val content: String,
     val created_at: String,
     val is_me: Boolean,
-    val is_read: Boolean
+    val is_read: Boolean,
+    val is_system: Boolean = false // 날짜 구분선 및 시스템 메시지 처리를 위한 필드 추가
 )
 
 data class MessagesResponse(
@@ -155,24 +160,58 @@ class ChatAdapter(private var items: List<MessageDto>) : RecyclerView.Adapter<Ch
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
         val item = items[position]
         holder.binding.apply {
-            if (item.is_me) {
-                layoutMe.visibility = View.VISIBLE
-                layoutPartner.visibility = View.GONE
-                tvMeMessage.text = item.content
-                tvMeTime.text = item.created_at
-                tvMeUnread.visibility = if (item.is_read) View.GONE else View.VISIBLE
-            } else {
+            if (item.is_system) {
+                // [구분선 처리] 시스템 메시지 레이아웃 활성화
+                layoutSystem.visibility = View.VISIBLE
                 layoutMe.visibility = View.GONE
-                layoutPartner.visibility = View.VISIBLE
-                tvPartnerMessage.text = item.content
-                tvPartnerTime.text = item.created_at
-                tvPartnerUnread.visibility = View.GONE
-                // 1:1 채팅에서도 상대방 닉네임을 보여주고 싶다면 tvPartnerName 사용 가능
-                try {
-                    val tvName = root.findViewById<android.widget.TextView>(R.id.tvPartnerName)
-                    tvName?.visibility = View.GONE // 1:1은 보통 이름 생략
-                } catch(e: Exception) {}
+                layoutPartner.visibility = View.GONE
+                tvSystemMessage.text = item.content
+
+                // [날짜 구분선 스타일링] 년, 월, 일, 요일 포함 시 구분선 표시
+                val isDateDivider = item.content.contains("요일") && item.content.contains("년")
+                viewDividerLeft.visibility = if (isDateDivider) View.VISIBLE else View.GONE
+                viewDividerRight.visibility = if (isDateDivider) View.VISIBLE else View.GONE
+
+                if (isDateDivider) {
+                    tvSystemMessage.setBackgroundResource(0)
+                    tvSystemMessage.setTextColor(Color.parseColor("#6B7280"))
+                } else {
+                    tvSystemMessage.setBackgroundResource(R.drawable.bg_status_badge)
+                    tvSystemMessage.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#15000000"))
+                    tvSystemMessage.setTextColor(Color.parseColor("#6B7280"))
+                }
+            } else {
+                layoutSystem.visibility = View.GONE
+                val formattedTime = formatToKstTime(item.created_at)
+
+                if (item.is_me) {
+                    layoutMe.visibility = View.VISIBLE
+                    layoutPartner.visibility = View.GONE
+                    tvMeMessage.text = item.content
+                    tvMeTime.text = formattedTime
+                    tvMeUnread.visibility = if (item.is_read) View.GONE else View.VISIBLE
+                } else {
+                    layoutMe.visibility = View.GONE
+                    layoutPartner.visibility = View.VISIBLE
+                    tvPartnerMessage.text = item.content
+                    tvPartnerTime.text = formattedTime
+                    tvPartnerUnread.visibility = View.GONE
+                    
+                    // 1:1 채팅이므로 파트너 닉네임은 숨김 (상단 툴바 활용)
+                    tvPartnerName.visibility = View.GONE
+                }
             }
+        }
+    }
+
+    private fun formatToKstTime(timeStr: String): String {
+        return try {
+            val sdf24 = SimpleDateFormat("HH:mm", Locale.getDefault())
+            val date = sdf24.parse(timeStr) ?: return timeStr
+            val sdf12 = SimpleDateFormat("a h:mm", Locale.KOREAN)
+            sdf12.format(date)
+        } catch (e: Exception) {
+            timeStr
         }
     }
 
