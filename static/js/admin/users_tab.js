@@ -13,7 +13,8 @@ document.addEventListener('alpine:init', () => {
                 const params = new URLSearchParams({
                     q: this.query,
                     sort_by: this.sortBy,
-                    order: this.sortOrder
+                    order: this.sortOrder,
+                    _t: Date.now()
                 });
 
                 const res = await fetch(`/admin/api/users?${params.toString()}`);

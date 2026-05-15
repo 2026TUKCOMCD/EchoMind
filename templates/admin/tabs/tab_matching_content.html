@@ -1,5 +1,5 @@
 <!-- 4. Matching Tab -->
-<div x-show="activeTab === 'matching'" style="display: none;" x-data="dummyManager" x-init="init()">
+<div x-show="activeTab === 'matching'" style="display: none;" x-data="dummyManager" x-effect="if (activeTab === 'matching') init()">
 
     <div class="space-y-6">
 

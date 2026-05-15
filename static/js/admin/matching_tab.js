@@ -45,8 +45,10 @@ document.addEventListener('alpine:init', () => {
         async fetchCandidates() {
             this.loading = true;
             try {
-                const url = '/admin/api/users' + (this.searchQuery ? '?q=' + encodeURIComponent(this.searchQuery) : '');
-                const res = await fetch(url);
+                const url = new URL('/admin/api/users', window.location.origin);
+                if (this.searchQuery) url.searchParams.append('q', this.searchQuery);
+                url.searchParams.append('_t', Date.now());
+                const res = await fetch(url.toString());
                 const data = await res.json();
                 if (data.success) {
                     this.candidates = data.users;

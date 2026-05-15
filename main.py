@@ -347,11 +347,11 @@ def call_llm_profile(client: OpenAI, model: str, llm_input: Dict[str, object]) -
         },
         "big5": {
             "scores_0_100": {
-                "openness": "0~100",
-                "conscientiousness": "0~100",
-                "extraversion": "0~100",
-                "agreeableness": "0~100",
-                "neuroticism": "0~100"
+                "openness": "0~100 (반드시 숫자 타입)", #환각 오류 방지
+                "conscientiousness": "0~100 (반드시 숫자 타입)",
+                "extraversion": "0~100 (반드시 숫자 타입)",
+                "agreeableness": "0~100 (반드시 숫자 타입)",
+                "neuroticism": "0~100 (반드시 숫자 타입)"
             },
             "confidence": "0~1 number",
             "reasons": ["Trait: reason string...", "..."]
@@ -382,7 +382,8 @@ def call_llm_profile(client: OpenAI, model: str, llm_input: Dict[str, object]) -
         "출력 형식 요구사항:\n"
         "- 반드시 JSON '객체' 하나만 출력하십시오.\n"
         "- 설명 문장/마크다운/코드블록/여분 텍스트를 절대 포함하지 마십시오.\n"
-        "- 키 이름은 아래 계약(json_contract)과 동일해야 합니다."
+        "- 키 이름은 아래 계약(json_contract)과 동일해야 합니다.\n"
+        "- Big5 점수(scores)와 confidence 값은 영단어(Forty-Five 등)나 문자열이 아닌, 반드시 순수한 숫자(Number) 타입으로 반환하십시오."
     )
 
     user = {

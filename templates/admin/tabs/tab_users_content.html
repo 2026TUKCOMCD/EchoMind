@@ -1,6 +1,6 @@
 <!-- 2. Users Tab -->
-<div x-show="activeTab === 'users'" style="display: none;" x-data="userSearch" x-init="fetchUsers()"
-    @refresh-users.window="fetchUsers()">
+<div x-show="activeTab === 'users'" style="display: none;" x-data="userSearch"
+    x-effect="if (activeTab === 'users') fetchUsers()">
     <div class="glass-panel p-6 rounded-2xl border border-slate-100 dark:border-slate-800">
         <div class="flex justify-between items-center mb-6">
             <h2 class="text-xl font-bold text-slate-800 dark:text-white">회원 목록 (<span x-text="users.length"></span>)
