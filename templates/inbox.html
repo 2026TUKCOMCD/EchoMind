@@ -359,17 +359,25 @@
         const randomTip = tips[Math.floor(Math.random() * tips.length)];
         tipElement.textContent = randomTip;
 
-        // 실시간 인박스 업데이트 (2초 주기)
+        // 인박스 실시간 동기화 (5초 주기)
+        // 초기 상태 스냅샷 저장 (현재 화면에 렌더링된 데이터 기준)
+        let lastState = {
+            receivedCount: {{ requests|length }},
+            sentIds: JSON.stringify({{ sent_requests|map(attribute='request_id')|list|tojson }}),
+            matchStatuses: JSON.stringify({% if matches %}{{ matches|map(attribute='status')|list|tojson }}{% else %}[]{% endif %}),
+            hasAlerts: {{ 'true' if alerts else 'false' }}
+        };
+
         setInterval(async () => {
             try {
-                const response = await fetch('/api/inbox/updates');
+                const response = await fetch('/api/inbox/updates?_t=' + Date.now());
                 if (!response.ok) return;
                 const data = await response.json();
                 
+                // 1. 기존 기능 유지: 채팅 뱃지 및 마지막 메시지 업데이트
                 data.updates.forEach(update => {
                     const reqId = update.request_id;
                     
-                    // 1. 뱃지 업데이트
                     const badge = document.getElementById(`unread-badge-${reqId}`);
                     if (badge) {
                         if (update.unread_count > 0) {
@@ -380,16 +388,31 @@
                         }
                     }
                     
-                    // 2. 마지막 메시지 업데이트
                     const msgElem = document.getElementById(`last-msg-${reqId}`);
                     if (msgElem) {
                         msgElem.textContent = update.last_message;
                     }
                 });
+
+                // 2. 상태 변경 감지: 변경이 있으면 페이지 자동 새로고침
+                const newSentIds = JSON.stringify(data.sent_statuses.map(s => s.request_id));
+                const newMatchStatuses = JSON.stringify(data.match_statuses.map(m => m.status));
+                
+                const changed = (
+                    data.received_count !== lastState.receivedCount ||
+                    newSentIds !== lastState.sentIds ||
+                    newMatchStatuses !== lastState.matchStatuses ||
+                    (data.has_new_alerts && !lastState.hasAlerts)
+                );
+
+                if (changed) {
+                    console.log('[Inbox] 상태 변경 감지 — 새로고침');
+                    location.reload();
+                }
             } catch (e) {
                 console.error("Inbox update failed", e);
             }
-        }, 2000);
+        }, 5000);
     });
 </script>
 

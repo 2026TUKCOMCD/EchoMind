@@ -967,8 +967,9 @@ def match_inbox():
 @app.route('/api/inbox/updates')
 @login_required
 def inbox_updates():
-    """인박스 실시간 업데이트를 위한 API (Polling용)"""
-    successful_matches = MatchManager.get_successful_matches(g.user.user_id)
+    """인박스 실시간 업데이트를 위한 API (Polling용) - 매칭 상태 변경 감지 포함"""
+    user_id = g.user.user_id
+    successful_matches = MatchManager.get_successful_matches(user_id)
     
     updates = []
     for match in successful_matches:
@@ -989,8 +990,33 @@ def inbox_updates():
             'unread_count': unread_count,
             'last_message': last_message_content
         })
+    
+    # [추가] 받은 매칭 신청 수 (PENDING만 — COUNT 쿼리로 가볍게)
+    received_count = MatchRequest.query.filter_by(
+        receiver_id=user_id, status='PENDING'
+    ).count()
+    
+    # [추가] 보낸 신청 상태 (PENDING인 것만 — 상태 변경 감지용)
+    sent_pending = MatchRequest.query.filter_by(
+        sender_id=user_id, status='PENDING'
+    ).all()
+    sent_statuses = [{'request_id': r.request_id, 'status': r.status} for r in sent_pending]
+    
+    # [추가] 성사된 매칭 상태 (취소 요청 감지용)
+    match_statuses = [{'request_id': m['request_id'], 'status': m['status']} for m in successful_matches]
+    
+    # [추가] 읽지 않은 알림 존재 여부
+    has_new_alerts = Notification.query.filter_by(
+        user_id=user_id, is_read=False
+    ).count() > 0
         
-    return jsonify({'updates': updates})
+    return jsonify({
+        'updates': updates,
+        'received_count': received_count,
+        'sent_statuses': sent_statuses,
+        'match_statuses': match_statuses,
+        'has_new_alerts': has_new_alerts
+    })
 
 @app.route('/match/detail/<int:request_id>')
 @login_required
