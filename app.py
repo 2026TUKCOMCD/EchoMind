@@ -1121,7 +1121,10 @@ def match_detail(request_id):
             'my_big5': match_data.get('my_big5', [50]*5),
             'cand_big5': match_data.get('cand_big5', [50]*5),
             'my_line_count': match_data.get('my_line_count', 0),
-            'cand_line_count': match_data.get('cand_line_count', 0)
+            'cand_line_count': match_data.get('cand_line_count', 0),
+            'my_functions': match_data.get('my_functions'),
+            'cand_functions': match_data.get('cand_functions'),
+            'relative_traits': match_data.get('relative_traits', [])
         }
         
         return render_template('match_detail.html',
