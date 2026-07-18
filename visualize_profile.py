@@ -29,10 +29,46 @@ import sys
 import html
 import random
 from datetime import datetime
+from matcher import RelationshipBrain
 
 # -------------------------------------------------------------------------
 # 설정 / 매핑 (Configuration / Mappings)
 # -------------------------------------------------------------------------
+
+FUNCTION_ANALYSIS_EXPLANATION = """
+<div class="space-y-4 text-slate-600 dark:text-slate-300 text-sm leading-relaxed">
+    <p>MBTI의 8가지 심리 기능은 개인이 정보를 인식하고(인식 기능), 판단을 내리는(판단 기능) 방식을 설명합니다. 각 기능은 내향(i) 또는 외향(e)의 태도를 가지며, 이들의 조합과 서열(주기능, 부기능 등)에 따라 16가지 성격 유형이 결정됩니다.</p>
+    
+    <div class="p-4 bg-slate-100 dark:bg-slate-900/50 rounded-lg border border-slate-200 dark:border-slate-700">
+        <h4 class="font-bold text-slate-800 dark:text-slate-200">1. 인식기능 (S-N) - 어떻게 정보를 받아들이는가?</h4>
+        <ul class="list-disc pl-5 mt-2 space-y-1">
+            <li><b>감각 (Sensing)</b>: "사실이 뭐야?" - 오감을 통해 실제적이고 구체적인 정보를 받아들입니다. 현재에 집중하며, 사실과 경험을 중시합니다.</li>
+            <li><b>직관 (iNtuition)</b>: "의미가 뭐야?" - 정보의 이면에 있는 의미, 관계, 가능성을 파악합니다. 미래를 지향하며, 상상력과 영감을 신뢰합니다.</li>
+        </ul>
+    </div>
+
+    <div class="p-4 bg-slate-100 dark:bg-slate-900/50 rounded-lg border border-slate-200 dark:border-slate-700">
+        <h4 class="font-bold text-slate-800 dark:text-slate-200">2. 판단기능 (T-F) - 어떻게 결정을 내리는가?</h4>
+        <ul class="list-disc pl-5 mt-2 space-y-1">
+            <li><b>사고 (Thinking)</b>: "뭐가 맞아?" - 객관적인 사실과 논리적 원칙에 근거하여 결정을 내립니다. 공정성과 효율성을 중요하게 생각합니다.</li>
+            <li><b>감정 (Feeling)</b>: "뭐가 좋아?" - 개인적인 가치, 인간관계, 타인에게 미칠 영향을 고려하여 결정을 내립니다. 조화와 공감을 중시합니다.</li>
+        </ul>
+    </div>
+    
+    <div class="p-4 bg-slate-100 dark:bg-slate-900/50 rounded-lg border border-slate-200 dark:border-slate-700">
+        <h4 class="font-bold text-slate-800 dark:text-slate-200">3. 태도지표 (E-I / J-P) - 에너지 방향과 생활 양식</h4>
+        <ul class="list-disc pl-5 mt-2 space-y-1">
+            <li><b>외향(E) / 내향(I)</b>: 에너지의 방향을 결정합니다. 외향형은 외부 활동에서, 내향형은 내면 활동에서 에너지를 얻습니다.</li>
+            <li><b>판단(J) / 인식(P)</b>: 외부 세계에 대처하는 생활 양식을 보여줍니다. 판단형은 계획적이고 체계적인 것을, 인식형은 자율적이고 융통성 있는 것을 선호합니다.</li>
+        </ul>
+    </div>
+
+    <div>
+        <h4 class="font-bold text-slate-800 dark:text-slate-200 mt-4 mb-2">4. 8가지 심리 기능의 역할</h4>
+        <p>이 8가지 기능(Si, Se, Ni, Ne, Ti, Te, Fi, Fe)은 각 MBTI 유형마다 <b>주기능, 부기능, 3차기능, 열등기능</b> 등의 위계를 가집니다. 이 리포트의 '심리 기능 분석' 섹션은 당신의 MBTI 유형에서 각 기능이 어떤 역할을 하는지, 그리고 그에 따른 강점과 약점이 무엇인지 설명합니다.</p>
+    </div>
+</div>
+"""
 
 SCORE_MAP = [
     (20, "매우 낮음", "bg-gray-200 text-gray-700 dark:bg-slate-700 dark:text-slate-300"),
@@ -486,6 +522,9 @@ HTML_BODY_TEMPLATE = """
             </section>
         </div>
 
+        <!-- 심리 기능 -->
+        {function_stack_section}
+
         <!-- Big 5 특성 -->
         <section class="glass-panel rounded-2xl p-8">
             <h2 class="text-xl font-bold text-slate-900 dark:text-white mb-6 border-b pb-2 border-slate-100 dark:border-slate-800">🌊 Big 5 성격 요인</h2>
@@ -653,6 +692,46 @@ def generate_report_html(data: dict, return_body_only=False) -> str:
     </div>
     """
 
+    # [NEW] 4.5 심리 기능 (Psychological Functions)
+    function_stack_details = RelationshipBrain.get_function_stack_details(mbti_type)
+    function_stack_html = ""
+    if function_stack_details:
+        rows = []
+        for func in function_stack_details:
+            rows.append(f"""
+            <div class="p-4 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700/50">
+                <div class="flex items-baseline">
+                    <h5 class="font-bold text-slate-800 dark:text-slate-200">{func['role']}</h5>
+                    <span class="ml-2 text-sm font-mono px-2 py-0.5 rounded bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-300">{func['function']}</span>
+                </div>
+                <p class="text-sm text-slate-600 dark:text-slate-400 mt-1">{func['description']}</p>
+            </div>
+            """)
+        
+        explanation_dropdown = f"""
+        <div class="mt-6 pt-6 border-t border-slate-100 dark:border-slate-700/50">
+            <details class="group">
+                <summary class="list-none cursor-pointer text-xs font-semibold text-indigo-500 hover:text-indigo-700 flex items-center transition-colors select-none">
+                    <span class="mr-1">❔ 심리 기능 분석이란?</span>
+                    <span class="group-open:rotate-180 transition-transform">▼</span>
+                </summary>
+                <div class="mt-3 bg-indigo-50/50 dark:bg-indigo-900/10 border border-indigo-100 dark:border-indigo-900/30 p-4 rounded-xl">
+                    {FUNCTION_ANALYSIS_EXPLANATION}
+                </div>
+            </details>
+        </div>
+        """
+
+        function_stack_html = f"""
+        <section class="glass-panel rounded-2xl p-8">
+            <h2 class="text-xl font-bold text-slate-900 dark:text-white mb-6 border-b pb-2 border-slate-100 dark:border-slate-800">🧠 심리 기능 분석 (8 Functions)</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {''.join(rows)}
+            </div>
+            {explanation_dropdown}
+        </section>
+        """
+
     # 5. Big 5
     big5 = profile.get("big5", {})
     scores = big5.get("scores_0_100", {})
@@ -769,6 +848,7 @@ def generate_report_html(data: dict, return_body_only=False) -> str:
         soc_conf_text=sConf,
         soc_conf_css=sCss,
         soc_reasons=soc_reasons,
+        function_stack_section=function_stack_html,
         big5_rows="\n".join(big5_rows_html),
         big5_conf_text=bConf,
         big5_conf_css=bCss,
