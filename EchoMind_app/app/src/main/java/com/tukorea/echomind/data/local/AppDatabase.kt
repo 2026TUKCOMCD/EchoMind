@@ -19,7 +19,7 @@ abstract class AppDatabase : RoomDatabase() {
                 val instance = Room.databaseBuilder(
                     context.applicationContext,
                     AppDatabase::class.java,
-                    "echomind_db"
+                    "echomind"
                 )
                     // [핵심 솔루션] DB 구조가 바뀌었을 때 앱이 종료되지 않도록 기존 데이터를 초기화하고 새로 구성합니다.
                     .fallbackToDestructiveMigration()
