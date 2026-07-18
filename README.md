@@ -117,9 +117,9 @@
 | 구분 | 환경 |
 | :---: | :---: |
 | **클라우드 플랫폼** | Amazon Web Services (AWS) |
-| **서버 (Compute)** | AWS EC2 (t2.micro / t3.small) |
+| **서버 (Compute)** | AWS EC2 (t3.micro) |
 | **서버 운영체제** | Ubuntu Linux 24.04 LTS |
-| **데이터베이스** | Amazon RDS (MySQL) |
+| **데이터베이스** | MySQL deployed as Docker container |
 | **웹 서버** | Nginx (Reverse Proxy) |
 | **AI 모델** | OpenAI GPT (API) |
 
