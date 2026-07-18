@@ -39,6 +39,7 @@ import os
 import glob
 import numpy as np
 from dataclasses import dataclass
+from datetime import date, datetime
 from typing import List, Dict, Optional
 from scipy.spatial.distance import cosine
 import logging
@@ -67,16 +68,19 @@ class UserVector:
     # 활동성 데이터
     line_count: int = 0
 
+    # [NEW] 나이 계산을 위한 생년월일
+    birth_date: Optional[date] = None
+
 # ----------------------------
 # 2. 관계 분석 브레인 (Relationship Brain)
 # ----------------------------
 class RelationshipBrain:
     """
-    MBTI 4글자 조합을 분석하여 소시오닉스의 '16가지 관계 유형'을 도출하고,
-    정밀한 케미스트리 점수를 산출합니다.
+    소시오닉스 16관계 이론에 기반한 MBTI 궁합 매트릭스.
+    모든 16x16 조합에 대해 1위부터 16위까지의 순위를 정하고,
+    1.0 ~ 0.1까지의 고정 점수를 부여하는 '정공법' 매칭 시스템입니다.
     """
-
-    # 소시오닉스 4 쿼드라 (가치관 공유 그룹)
+    # 소시오닉스 쿼드라 그룹 (가치관 공유)
     QUADRAS = {
         "Alpha (개방/아이디어)": ["ILE", "SEI", "ESE", "LII"],
         "Beta (열정/규율)":     ["EIE", "LSI", "SLE", "IEI"],
@@ -84,123 +88,316 @@ class RelationshipBrain:
         "Delta (평화/성실)":    ["LSE", "EII", "IEE", "SLI"]
     }
 
+    # 심리기능에 따른 유형별 특성: MBTI 8기능 스택 (주기능, 부기능, 3차기능, 열등기능)
+    FUNCTION_STACKS = {
+        "ISTJ": ("Si", "Te", "Fi", "Ne"),
+        "ISFJ": ("Si", "Fe", "Ti", "Ne"),
+        "INFJ": ("Ni", "Fe", "Ti", "Se"),
+        "INTJ": ("Ni", "Te", "Fi", "Se"),
+        "ISTP": ("Ti", "Se", "Ni", "Fe"),
+        "ISFP": ("Fi", "Se", "Ni", "Te"),
+        "INFP": ("Fi", "Ne", "Si", "Te"),
+        "INTP": ("Ti", "Ne", "Si", "Fe"),
+        "ESTP": ("Se", "Ti", "Fe", "Ni"),
+        "ESFP": ("Se", "Fi", "Te", "Ni"),
+        "ENFP": ("Ne", "Fi", "Te", "Si"),
+        "ENTP": ("Ne", "Ti", "Fe", "Si"),
+        "ESTJ": ("Te", "Si", "Ne", "Fi"),
+        "ESFJ": ("Fe", "Si", "Ne", "Ti"),
+        "ENFJ": ("Fe", "Ni", "Se", "Ti"),
+        "ENTJ": ("Te", "Ni", "Se", "Fi"),
+    }
+
+    # 심리기능에 따른 유형별 특성: 정의
+    FUNCTION_DESCRIPTIONS = {
+        "Si": {
+            "dominant": "최대한 많은 정보데이터를 수집하여 조직하고 활용하는 것을 즐깁니다.",
+            "auxiliary": "주기능의 판단이 현실 가능한지 타진하고자 정보데이터를 효율적으로 수집합니다.",
+            "inferior": "감각의 주관적 왜곡, 객관적 정보의 무시로 인한 지나친 비현실성으로 표현됩니다."
+        },
+
+        "Se": {
+            "dominant": "적극적 활동을 통해 얻는 강한 신체적 감각을 즐기고 인생을 기꺼이 경험하며 즐기고자 합니다.",
+            "auxiliary": "신체운동기능을 잘 사용하여 인정을 얻습니다.",
+            "inferior": "지나치게 과민하거나 둔감한 감각, 천박한 감각적 향락에 빠질 수 있습니다."
+        },
+
+        "Ni": {
+            "dominant": "통찰력을 사용하여 세상과 인간, 존재를 이해하고자 합니다.",
+            "auxiliary": "통찰력 있는 미래비전을 제시하여 타인을 통솔하고 성장시킵니다.",
+            "inferior": "도덕적 맹종, 종교적 광신 또는 미신에 현혹될 수 있습니다."
+        },
+
+        "Ne": {
+            "dominant": "창조적인 아이디어를 모든 상황에 적용하는 것을 즐깁니다.",
+            "auxiliary": "자신의 가치와 논리를 창의적 아이디어로 표현합니다.",
+            "inferior": "부정적 예견(비관주의), 편집적 사고(지나친 의심), 지나친 공포와 불안에 시달릴 수 있습니다."
+        },
+
+        "Ti": {
+            "dominant": "세상과 상황을 매우 객관적으로 분석하는 날카로운 논리가 있습니다.",
+            "auxiliary": "자신의 주장을 논리적으로 설파하여 상대를 설득합니다. 어떤 상황에서도 변명이 가능합니다.",
+            "inferior": "특정 대상을 향한 무자비하고 냉혹한 태도를 합리화할 수 있습니다."       
+        },
+
+        "Te": {
+            "dominant": "보편적인 상식과 논리, 이론에 맞게 상황을 조직합니다.",
+            "auxiliary": "상식적인 언행을 통해 타인에게 신뢰를 얻습니다.",
+            "inferior": "인습에 대한 집착을 보이거나 사회적 합의를 무시할 수 있습니다. 원시적인 논리를 내세우며 고집을 부리기도 합니다."
+        },
+
+        "Fi": {
+            "dominant": "자신의 감정과 가치를 바탕으로 세상과 사람을 이해합니다.",
+            "auxiliary": "상황에 따른 주관적 감정을 자유롭게 표현하여 편안함을 줍니다.",
+            "inferior": "충동적 감정에 압도되거나 (예: 갑작스런 분노), 자신만의 아집을 꺾지 않을 수 있습니다."
+        },
+
+        "Fe": {
+            "dominant": "다양한 관계를 형성하고 조직하여 보편적 유대감을 형성합니다.",
+            "auxiliary": "타인의 감정을 이해하고 공감하며 깊고 친밀한 관계를 맺습니다.",
+            "inferior": "높은 피암시성을 보이거나 모든 비판에 대한 분노를 표출할 수 있습니다. 보편성에 집착하여 타인의 감정을 비판하기도 합니다."
+        }
+    }
+
     @staticmethod
-    def get_socionics_score(type_a: str, type_b: str) -> float:
-        """
-        [소시오닉스 쿼드라 로직]
-        같은 쿼드라(Quadra)에 속하면 대화 코드가 통하고 가치관이 비슷하므로 높은 점수(1.0)를 부여합니다.
-        """
-        if not type_a or not type_b or type_a == "UNK" or type_b == "UNK":
-            return 0.5 
+    def _calculate_dynamic_score(stack_a: tuple, stack_b: tuple) -> float:
+        """[REVISED] 기능 스택을 직접 비교하여 -1.0 ~ 1.0 범위의 동적 점수를 계산합니다."""
+        score = 0.0
+        P1, A1, T1, I1 = stack_a  # Dominant, Auxiliary, Tertiary, Inferior
+        P2, A2, T2, I2 = stack_b
 
-        quadra_a = None
-        quadra_b = None
+        # 기능 태도(내향/외향) 변환 헬퍼
+        opposites = {"Si": "Se", "Se": "Si", "Ni": "Ne", "Ne": "Ni", "Ti": "Te", "Te": "Ti", "Fi": "Fe", "Fe": "Fi"}
 
-        for q_name, types in RelationshipBrain.QUADRAS.items():
-            if type_a in types: quadra_a = q_name
-            if type_b in types: quadra_b = q_name
+        # --- 점수 계산: 계층적 규칙 적용 ---
+
+        # 1. 최상위/최하위 관계는 즉시 점수 확정 (가장 영향력이 큼)
+        if P1 == I2 and P2 == I1: return 1.0  # Duality (이원)
+        if P1 == A2 and P2 == A1: return 0.8  # Activity (활동)
+        if opposites.get(I1) == P2 and opposites.get(I2) == P1: return -1.0 # Conflict (갈등) [FIXED]
+
+        # Supervision(감독)은 비대칭이므로 별도 체크
+        is_supervision_A_B = (P1 == T2 and A1 == I2)
+        is_supervision_B_A = (P2 == T1 and A2 == I1)
+        if is_supervision_A_B or is_supervision_B_A: return -0.7
+
+        # 2. 나머지 관계들은 점수를 누적하여 계산
+        # 긍정적 관계
+        if A1 == I2 and A2 == I1: score += 0.7  # Semi-Duality (준이원)
+        if A1 == A2 and P1 != P2: score += 0.5  # Mirror (거울)
+        if P1 == T2 and P2 == T1: score += 0.4  # Mirage (신기루)
         
-        if quadra_a and quadra_b:
-            if quadra_a == quadra_b:
-                return 1.0  # 같은 쿼드라 (최상의 가치관 매칭)
-            else:
-                return 0.4  # 다른 쿼드라
-        
-        return 0.5
+        # 유사 관계
+        if P1 == P2:
+            if I1 == I2: score += 0.3  # Identical (동일)
+            else: score += 0.1 # Kindred (유사)
+
+        # Business 관계: 3차 기능이 상대의 주기능, 열등 기능이 상대의 부기능이 되는 관계
+        if T1 == P2 and I1 == A2:
+            score += 0.1 # Business (비즈니스)
+
+        if opposites.get(P1) == P2 and opposites.get(A1) == A2: score += 0.2 # Quasi-Identical (준동일)
+
+        # 부정적 및 비대칭 관계
+        if opposites.get(P1) == T2 and opposites.get(A1) == I2: score -= 0.6 # Super-Ego (초자아)
+
+        # Contrary (소멸): 주기능과 열등기능이 서로 교차되나, 기능의 내/외향성이 같아 오해를 유발.
+        if P1 == I2 and I1 == P2:
+            score -= 0.5
+
+        # Benefit (시혜): 비대칭 관계. 한쪽이 도움을 주지만 부담을 느끼기 쉬움.
+        is_benefit_A_B = (A1 == T2 and T1 == I2) # A가 B에게 시혜
+        is_benefit_B_A = (A2 == T1 and T2 == I1) # B가 A에게 시혜
+        if is_benefit_A_B or is_benefit_B_A:
+            score -= 0.2
+
+        return np.clip(score, -1.0, 1.0) # 최종 점수를 -1.0 ~ 1.0 범위로 제한
 
     @staticmethod
-    def analyze_relationship(type_a: str, type_b: str) -> Dict[str, any]:
-        """
-        [MBTI 기반 관계 분석]
-        두 MBTI 유형 간의 관계를 분석하여 점수와 라벨을 반환합니다.
-        """
-        a = type_a.upper()
-        b = type_b.upper()
+    def _get_dynamic_relationship_type(stack_a: tuple, stack_b: tuple) -> Optional[str]:
+        """기능 스택을 직접 비교하여 관계 유형의 '키'를 동적으로 반환합니다."""
+        P1, A1, T1, I1 = stack_a
+        P2, A2, T2, I2 = stack_b
+        opposites = {"Si": "Se", "Se": "Si", "Ni": "Ne", "Ne": "Ni", "Ti": "Te", "Te": "Ti", "Fi": "Fe", "Fe": "Fi"}
 
-        if len(a) != 4 or len(b) != 4:
-            return {"score": 0.5, "label": "Unknown"}
-
-        # [CRITICAL CHECK] 결측치가 있을 경우 엉뚱한 듀얼 매칭 방지
-        if 'X' in a or 'X' in b:
-            return {"score": 0.5, "label": "Unknown"}
-
-        # 지표별 비교
-        same_EI = a[0] == b[0]
-        same_NS = a[1] == b[1]
-        same_TF = a[2] == b[2]
-        same_JP = a[3] == b[3]
-
-        diff_count = sum([not same_EI, not same_NS, not same_TF, not same_JP])
-
-        # ------------------------------------------------------------
-        # [A-Tier] 영혼의 파트너 (상호 보완 & 시너지)
-        # ------------------------------------------------------------
+        # 순서가 중요 (가장 명확한 관계부터)
+        if P1 == I2 and P2 == I1: return "Duality"
+        if P1 == A2 and P2 == A1: return "Activity"
+        if opposites.get(I1) == P2 and opposites.get(I2) == P1: return "Conflict"
         
-        # 1. 이원 관계 (Duality) - 점수: 1.0 (MAX)
-        # 조건: 4글자가 모두 다름 (예: INTJ <-> ESFP)
-        if diff_count == 4:
-            return {"score": 1.0, "label": "Dual (이원 관계)"}
+        # 비대칭 관계
+        if P1 == T2 and A1 == I2: return "Supervision_Supervisor" # A가 B를 감독
+        if P2 == T1 and A2 == I1: return "Supervision_Supervisee" # A가 B에게 감독받음
 
-        # 2. 활동 관계 (Activity) - 점수: 0.9
-        # 조건: E/I는 같고 나머지 3글자는 다름
-        # 예: ENTP <-> ESFJ
-        if same_EI and not same_NS and not same_TF and not same_JP:
-            return {"score": 0.9, "label": "Activity (활동 관계)"}
+        if A1 == I2 and A2 == I1: return "Semi-Duality"
+        if P1 == T2 and P2 == T1: return "Mirage"
+        if opposites.get(P1) == T2 and opposites.get(A1) == I2: return "Super-Ego"
+
+        if A1 == T2 and T1 == I2: return "Benefit_Giver" # A가 B에게 시혜
+        if A2 == T1 and T2 == I1: return "Benefit_Receiver" # A가 B에게 수혜
+
+        if P1 == I2 and I1 == P2: return "Contrary"
+
+        # 유사 관계
+        if P1 == P2:
+            if A1 == A2: return "Identical"
+            else: return "Kindred"
         
-        # 3. 거울 관계 (Mirror) - 점수: 0.8
-        # 조건: E/I만 다르고 N/S, T/F, J/P는 같음
-        if not same_EI and same_NS and same_TF and same_JP:
-            return {"score": 0.8, "label": "Mirror (거울 관계)"}
+        if A1 == A2: # P1 != P2는 위에서 걸러짐
+            return "Mirror"
 
-        # ------------------------------------------------------------
-        # [B-Tier] 좋은 동료 (유사성 & 이해)
-        # ------------------------------------------------------------
+        if T1 == P2 and I1 == A2: return "Business"
+        if opposites.get(P1) == P2 and opposites.get(A1) == A2: return "Quasi-Identical"
 
-        # 4. 유사 관계 (Kindred / Look-alike) - 점수: 0.75
-        # 조건: E/I와 J/P는 같고, 가운데 기능만 다름
-        if same_EI and same_JP and diff_count == 1:
-             return {"score": 0.75, "label": "Kindred (유사 관계)"}
+        return "Unknown"
 
-        # 6. 수혜/감독 관계 (비대칭) - 점수: 0.65
-        # 예: 기능은 비슷하나 J/P가 다른 경우 등
-        if (same_NS or same_TF) and not same_JP:
-             return {"score": 0.65, "label": "Asymmetric (비대칭)"}
-        
-        # 5. 동일 관계 (Identical) - 점수: 0.6
-        # 완벽한 이해는 가능하지만, 약점도 공유하여 상호 보완이 어려움
-        if diff_count == 0:
-            return {"score": 0.6, "label": "Identical (동일 관계)"}
-
-        # ------------------------------------------------------------
-        # [C-Tier] 갈등 및 주의 (스트레스 유발)
-        # ------------------------------------------------------------
-
-        # 7. 초자아 관계 (Super-Ego) - 점수: 0.3
-        # 조건: E/I, J/P는 같지만 기능(N/S, T/F)이 다름
-        # 겉보기엔 비슷해 보이지만 가치관 충돌 발생
-        if same_EI and same_JP and not same_NS and not same_TF:
-            return {"score": 0.3, "label": "Super-Ego (초자아)"}
-        
-        # 8. 갈등 관계 (Conflict) - 점수: 0.1 (MIN)
-        # 조건: J/P만 같고 나머지는 다름
-        if not same_EI and not same_NS and not same_TF and same_JP:
-             return {"score": 0.1, "label": "Conflict (갈등 관계)"}
-
-        # 9. 그 외 (중립)
-        return {"score": 0.5, "label": "Neutral"}
 
     @staticmethod
     def get_chemistry_score(type_a: str, type_b: str) -> float:
-        return RelationshipBrain.analyze_relationship(type_a, type_b)["score"]
-    
-    @staticmethod
-    def get_label(type_a: str, type_b: str) -> str:
-        return RelationshipBrain.analyze_relationship(type_a, type_b)["label"]
+        """[REVISED] 기능 역학 분석을 통해 동적으로 MBTI 궁합 점수를 계산합니다."""
+        a = type_a.upper()
+        b = type_b.upper()
 
+        if len(a) != 4 or len(b) != 4 or 'X' in a or 'X' in b:
+            return 0.5
+
+        stack_a = RelationshipBrain.FUNCTION_STACKS.get(a)
+        stack_b = RelationshipBrain.FUNCTION_STACKS.get(b)
+
+        if not stack_a or not stack_b:
+            return 0.5
+
+        raw_score = RelationshipBrain._calculate_dynamic_score(stack_a, stack_b)
+        return (raw_score + 1) / 2 # 0.0 ~ 1.0 범위로 정규화
+
+    @staticmethod
+    def get_socionics_score(type_a: str, type_b: str) -> float:
+        """소시오닉스 쿼드라(가치관) 점수"""
+        if not type_a or not type_b or type_a == "UNK" or type_b == "UNK": return 0.5
+        quadra_a = next((q for q, types in RelationshipBrain.QUADRAS.items() if type_a in types), None)
+        quadra_b = next((q for q, types in RelationshipBrain.QUADRAS.items() if type_b in types), None)
+        return 1.0 if quadra_a and quadra_a == quadra_b else 0.4
+
+    @staticmethod
+    def get_relationship_label(type_a: str, type_b: str) -> str:
+        """두 유형의 대표적인 관계 라벨을 반환합니다."""
+        a = type_a.upper()
+        b = type_b.upper()
+        if len(a) != 4 or len(b) != 4 or 'X' in a or 'X' in b:
+            return "Unknown"
+
+        stack_a = RelationshipBrain.FUNCTION_STACKS.get(a)
+        stack_b = RelationshipBrain.FUNCTION_STACKS.get(b)
+
+        if not stack_a or not stack_b:
+            return "Unknown"
+
+        # [REFACTORED] 동적 분석 함수 호출
+        relation_key = RelationshipBrain._get_dynamic_relationship_type(stack_a, stack_b)
+
+        # 비대칭 관계 라벨 처리
+        if relation_key == "Benefit_Giver":
+            return "Benefit (시혜자)"
+        if relation_key == "Benefit_Receiver":
+            return "Benefit (수혜자)"
+        if relation_key == "Supervision_Supervisor":
+            return "Supervision (감독자)"
+        if relation_key == "Supervision_Supervisee":
+            return "Supervision (피감자)"
+
+        # 대칭 관계 라벨 처리
+        # 예: "Duality" -> "Duality (이원)"
+        korean_map = {"Duality": "이원", "Activity": "활동", "Identical": "동일", "Mirror": "거울", "Mirage": "신기루", "Semi-Duality": "준이원", "Kindred": "유사", "Business": "비즈니스", "Quasi-Identical": "준동일", "Contrary": "소멸", "Super-Ego": "초자아", "Conflict": "갈등"}
+        korean_label = korean_map.get(relation_key, relation_key)
+        return f"{relation_key} ({korean_label})"
+
+    @staticmethod
+    def get_relationship_analysis(type_a: str, type_b: str) -> dict:
+        """두 유형의 기능적 상호작용을 상세히 분석하여 텍스트 리포트를 생성합니다."""
+        a = type_a.upper(); b = type_b.upper()
+        if len(a) != 4 or len(b) != 4 or 'X' in a or 'X' in b: return {}
+        
+        stack_a = RelationshipBrain.FUNCTION_STACKS.get(a)
+        stack_b = RelationshipBrain.FUNCTION_STACKS.get(b)
+        if not stack_a or not stack_b: return {}
+
+        # [REFACTORED] 동적 분석 함수 호출
+        relation_type = RelationshipBrain._get_dynamic_relationship_type(stack_a, stack_b)
+        if not relation_type: return {}
+
+        # 비대칭 관계의 경우, 분석을 위해 대표 키로 통일 (예: Supervision_Supervisor -> Supervision)
+        if "Supervision" in relation_type: relation_type = "Supervision"
+        if "Benefit" in relation_type: relation_type = "Benefit"
+
+        P1, A1, T1, I1 = stack_a
+        P2, A2, T2, I2 = stack_b
+
+        analysis = {
+            "type": relation_type,
+            "summary": "",
+            "dynamics": []
+        }
+
+        # 관계별 핵심 상호작용 분석 (예시: 이원관계)
+        if "Duality" in relation_type:
+            analysis["summary"] = "서로의 강점이 상대방의 약점을 완벽하게 보완해주는 최상의 궁합입니다."
+            # 분석 1: A의 주기능 -> B의 열등기능
+            desc1 = f"{a}의 강점인 '{RelationshipBrain.FUNCTION_DESCRIPTIONS[P1]['dominant']}' 특성은, {b}가 어려움을 겪는 '{RelationshipBrain.FUNCTION_DESCRIPTIONS[I2]['inferior']}' 영역에 안정감과 해결책을 제시합니다."
+            analysis["dynamics"].append({"interaction": f"{a}(주기능) ↔ {b}(열등기능)", "description": desc1})
+            # 분석 2: B의 주기능 -> A의 열등기능
+            desc2 = f"{b}의 강점인 '{RelationshipBrain.FUNCTION_DESCRIPTIONS[P2]['dominant']}' 특성은, {a}가 불안해하는 '{RelationshipBrain.FUNCTION_DESCRIPTIONS[I1]['inferior']}' 영역에 새로운 가능성과 활력을 불어넣습니다."
+            analysis["dynamics"].append({"interaction": f"{b}(주기능) ↔ {a}(열등기능)", "description": desc2})
+        
+        # 'Activity' 관계 분석 로직
+        elif "Activity" in relation_type:
+            analysis["summary"] = "함께 있으면 즐겁고 활력이 넘치는, 최고의 파트너 관계입니다. 서로를 쉽게 이해하고 지지해줍니다."
+            # 분석 1: A의 주기능 -> B의 부기능
+            desc1 = f"{a}가 가장 자신있는 '{RelationshipBrain.FUNCTION_DESCRIPTIONS[P1]['dominant']}' 방식은, {b}가 유능하게 사용하는 '{RelationshipBrain.FUNCTION_DESCRIPTIONS[A2]['auxiliary']}' 방식과 일치하여 서로에게 큰 영감과 에너지를 줍니다."
+            analysis["dynamics"].append({"interaction": f"{a}(주기능) ↔ {b}(부기능)", "description": desc1})
+            # 분석 2: B의 주기능 -> A의 부기능
+            desc2 = f"마찬가지로, {b}의 주된 접근 방식인 '{RelationshipBrain.FUNCTION_DESCRIPTIONS[P2]['dominant']}' 특성은 {a}의 부기능과 통해, 두 사람의 협업과 소통을 매우 원활하게 만듭니다."
+            analysis["dynamics"].append({"interaction": f"{b}(주기능) ↔ {a}(부기능)", "description": desc2})
+
+        return analysis
+
+    @staticmethod
+    def get_function_stack_details(mbti_type: str) -> Optional[List[Dict[str, str]]]:
+        """MBTI 유형의 8기능 스택과 설명을 반환합니다."""
+        mbti = mbti_type.upper()
+        if mbti not in RelationshipBrain.FUNCTION_STACKS:
+            return None
+
+        stack = RelationshipBrain.FUNCTION_STACKS[mbti]
+        func_P, func_A, func_T, func_I = stack
+
+        detailed_stack = [
+            {
+                "role": "주기능 (Dominant)",
+                "function": func_P,
+                "description": RelationshipBrain.FUNCTION_DESCRIPTIONS.get(func_P, {}).get("dominant", "핵심적인 강점 기능입니다.")
+            },
+            {
+                "role": "부기능 (Auxiliary)",
+                "function": func_A,
+                "description": RelationshipBrain.FUNCTION_DESCRIPTIONS.get(func_A, {}).get("auxiliary", "주기능을 보조하는 균형 기능입니다.")
+            },
+            {
+                "role": "3차기능 (Tertiary)",
+                "function": func_T,
+                "description": "상대적으로 미개발된 기능으로, 스트레스 상황에서 나타나거나 성장 가능성을 보입니다."
+            },
+            {
+                "role": "열등기능 (Inferior)",
+                "function": func_I,
+                "description": RelationshipBrain.FUNCTION_DESCRIPTIONS.get(func_I, {}).get("inferior", "가장 약하고 무의식적인 기능으로, 큰 스트레스 상황에서 미숙하게 표출될 수 있습니다.")
+            }
+        ]
+        return detailed_stack
 # ----------------------------
 # 3. 매칭 엔진 (Matching Engine)
 # ----------------------------
 class HybridMatcher:
+
     def __init__(self, candidates: List[UserVector]):
         self.candidates = candidates
         self.stats_mean = np.array([50.0]*5)
@@ -272,8 +469,8 @@ class HybridMatcher:
         
         # --- [B] Chemistry Score (40%) ---
         # B-1. MBTI 궁합
-        mbti_chem = RelationshipBrain.get_chemistry_score(target.mbti_type, candidate.mbti_type)
-        mbti_label = RelationshipBrain.get_label(target.mbti_type, candidate.mbti_type)
+        mbti_chem = RelationshipBrain.get_chemistry_score(target.mbti_type, candidate.mbti_type) # 새로운 엔진 호출
+        mbti_label = RelationshipBrain.get_relationship_label(target.mbti_type, candidate.mbti_type)
         # B-2. 소시오닉스 쿼드라 궁합
         socio_chem = RelationshipBrain.get_socionics_score(target.socionics_type, candidate.socionics_type)
         
@@ -311,6 +508,7 @@ class HybridMatcher:
             "mbti_label": mbti_label,
             "target_mbti": target.mbti_type,
             "candidate_mbti": candidate.mbti_type,
+            "relationship_analysis": RelationshipBrain.get_relationship_analysis(target.mbti_type, candidate.mbti_type),
             "socio_quadra_same": socio_quadra_same,
             "target_quadra": target_quadra,
             "candidate_quadra": candidate_quadra,
@@ -344,6 +542,15 @@ def load_profile(filepath: str) -> Optional[UserVector]:
             scores.get('neuroticism', 50)
         ], dtype=float)
 
+        # [NEW] 생년월일 정보 로드
+        birth_date_str = meta.get('birth_date')
+        birth_date_obj = None
+        if birth_date_str:
+            try:
+                birth_date_obj = datetime.strptime(birth_date_str, '%Y-%m-%d').date()
+            except (ValueError, TypeError):
+                pass # 날짜 형식이 아니면 무시
+
         return UserVector(
             user_id=meta.get('user_id', 'unknown'),
             name=meta.get('speaker_name', 'unknown'),
@@ -353,7 +560,8 @@ def load_profile(filepath: str) -> Optional[UserVector]:
             big5_conf=float(b5.get('confidence', 0.5)),
             socionics_type=prof.get('socionics', {}).get('type', 'UNK'),
             socionics_conf=float(prof.get('socionics', {}).get('confidence', 0.5)),
-            line_count=parse_q.get('parsed_lines', 0)
+            line_count=parse_q.get('parsed_lines', 0),
+            birth_date=birth_date_obj
         )
     except Exception as e:
         logger.warning(f"[Warn] Load failed ({filepath}): {e}")
@@ -411,16 +619,25 @@ def main():
 
     for c in candidates:
         res = matcher.calculate_match_score(target_user, c)
+
+        # [NEW] 나이 차이 계산 (단위: 일)
+        age_diff = 999999  # 날짜 정보 없을 시 후순위로 밀기 위한 큰 값
+        if target_user.birth_date and c.birth_date:
+            delta = target_user.birth_date - c.birth_date
+            age_diff = abs(delta.days)
+        res['age_difference'] = age_diff
+
         results.append({"cand": c, "res": res})
 
-    results.sort(key=lambda x: x['res']['total_score'], reverse=True)
+    # [REVISED] 점수 동일 시 나이 차이 적은 순으로 정렬 (점수 내림차순, 나이차 오름차순)
+    results.sort(key=lambda x: (-x['res']['total_score'], x['res']['age_difference']))
 
     for idx, r in enumerate(results):
         c = r['cand']
         d = r['res']
         
         # 라벨링
-        rel_label = RelationshipBrain.get_label(target_user.mbti_type, c.mbti_type)
+        rel_label = RelationshipBrain.get_relationship_label(target_user.mbti_type, c.mbti_type)
         if d['socio_detail'] > 0.8: rel_label += " (Quadra)"
 
         # 출력

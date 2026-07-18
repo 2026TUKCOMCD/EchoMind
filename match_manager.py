@@ -128,7 +128,8 @@ class MatchManager:
                         'summary_text': p_result.summary_text or '',
                         'full_report_json': data,
                         'line_count_at_analysis': p_result.line_count_at_analysis,
-                        'big5': llm_profile.get('big5', {}).get('scores_0_100', {})
+                        'big5': llm_profile.get('big5', {}).get('scores_0_100', {}),
+                        'birth_date': user.birth_date
                     }
                     candidates.append(candidate)
                     seen_user_ids.add(uid_str)
@@ -146,7 +147,8 @@ class MatchManager:
                 candidates,
                 current_user_profile_json
             )
-            candidates = sorted(candidates, key=lambda x: x.get('match_score', 0), reverse=True)
+            # [REVISED] Sort by score (desc), then by age difference (asc)
+            candidates = sorted(candidates, key=lambda x: (-x.get('match_score', 0), x.get('age_difference', 999999)))
             limited_candidates = candidates[:limit]
 
             # [최적화] 프론트엔드로 보내기 전, 불필요하게 큰 full_report_json 데이터 제거
@@ -379,10 +381,13 @@ class MatchManager:
             # 현재 사용자 프로필 로드
             target_user = None
             if current_user_profile_json:
-                target_user = cls._convert_json_to_user_vector(current_user_profile_json, my_user_id)
+                # [NEW] Get birth_date for the current user
+                from extensions import User
+                my_user = User.query.get(my_user_id)
+                my_birth_date = my_user.birth_date if my_user else None
+                target_user = cls._convert_json_to_user_vector(current_user_profile_json, my_user_id, my_birth_date)
 
-            # [수정] 현재 사용자 프로필 로드 실패 시, 점수 계산이 불가능하므로 빈 리스트를 반환합니다.
-            # 이는 보통 사용자의 대표 프로필(JSON) 데이터가 손상되었거나 오래된 형식일 때 발생할 수 있습니다.
+            # 현재 사용자 프로필 로드 실패 시, 점수 계산이 불가능하므로 빈 리스트를 반환합니다.
             if not target_user:
                 logger.error(f"매칭 점수 계산 실패: 현재 사용자(ID: {my_user_id})의 프로필 벡터를 생성할 수 없습니다.")
                 # 점수 계산이 불가능하므로 빈 후보 목록을 반환합니다.
@@ -394,7 +399,8 @@ class MatchManager:
 
             for i, candidate in enumerate(candidates):
                 candidate_json = candidate.get('full_report_json', {})
-                user_vector = cls._convert_json_to_user_vector(candidate_json, candidate.get('user_id'))
+                birth_date = candidate.get('birth_date')
+                user_vector = cls._convert_json_to_user_vector(candidate_json, candidate.get('user_id'), birth_date)
                 if user_vector:
                     candidate_users.append(user_vector)
                     valid_candidates_map[candidate.get('user_id')] = i
@@ -421,12 +427,23 @@ class MatchManager:
                 if idx is not None:
                     candidates[idx]['match_score'] = int(max(0, min(100, new_total * 100)))
                     candidates[idx]['match_details'] = scores
+
+                    # [NEW] 나이 차이 계산 및 저장 (단위: 일)
+                    age_diff = 999999  # 날짜 정보 없을 시 후순위로 밀기 위한 큰 값
+                    if target_user.birth_date and candidate_user.birth_date:
+                        delta = target_user.birth_date - candidate_user.birth_date
+                        age_diff = abs(delta.days)
+                    candidates[idx]['age_difference'] = age_diff
                     
                     # 확장 패널용 추가 데이터 (Big5, 대화량)
                     candidates[idx]['my_big5'] = target_user.big5_raw.tolist() if target_user.big5_raw is not None else [50,50,50,50,50]
                     candidates[idx]['cand_big5'] = candidate_user.big5_raw.tolist() if candidate_user.big5_raw is not None else [50,50,50,50,50]
                     candidates[idx]['my_line_count'] = target_user.line_count or 0
                     candidates[idx]['cand_line_count'] = candidate_user.line_count or 0
+
+                    # [NEW] 심리 기능 스택 추가
+                    candidates[idx]['my_functions'] = matcher.RelationshipBrain.get_function_stack_details(target_user.mbti_type)
+                    candidates[idx]['cand_functions'] = matcher.RelationshipBrain.get_function_stack_details(candidate_user.mbti_type)
 
                     # 상대적 성향 분석 (Relative Traits)
                     trait_names_kr = ["개방성", "성실성", "외향성", "우호성", "신경성"]
@@ -446,7 +463,7 @@ class MatchManager:
             return candidates
     
     @classmethod
-    def _convert_json_to_user_vector(cls, json_data, user_id):
+    def _convert_json_to_user_vector(cls, json_data, user_id, birth_date=None):
         """
         JSON 데이터를 UserVector 객체로 변환 (기존 유지)
         """
@@ -479,7 +496,8 @@ class MatchManager:
                 big5_conf=big5_data.get('confidence', 0.0),
                 socionics_type=socionics_data.get('type', 'Unknown'),
                 socionics_conf=socionics_data.get('confidence', 0.0),
-                line_count=json_data.get('parse_quality', {}).get('parsed_lines', 0)
+                line_count=json_data.get('parse_quality', {}).get('parsed_lines', 0),
+                birth_date=birth_date
             )
             return user_vector
         except Exception as e:
