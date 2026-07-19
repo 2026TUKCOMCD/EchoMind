@@ -47,7 +47,8 @@ jobs:
             fi
             echo "=== Migration completed successfully ==="
             
-            # 6. 모든 단계 성공 시에만 가상환경 내부의 Gunicorn 서버 재시작
+            # 6. 모든 단계 성공 시에만 Gunicorn 서버 재시작
             pkill -9 gunicorn || true
             sleep 2
-            ./venv/bin/gunicorn -b 0.0.0.0:5000 --timeout 120 app:app --daemon
+            # ./venv/bin/gunicorn 대신 절대 경로인 /home/ubuntu/EchoMind-main/venv/bin/gunicorn 사용
+            /home/ubuntu/EchoMind-main/venv/bin/gunicorn -b 0.0.0.0:5000 --timeout 120 app:app --daemon
