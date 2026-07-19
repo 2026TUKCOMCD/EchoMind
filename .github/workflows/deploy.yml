@@ -22,19 +22,18 @@ jobs:
             # 2. 최신 코드 불러오기
             git pull origin main
             
-            # 3. 가상환경 활성화 및 의존성 확인
-            source venv/bin/activate
-            pip install -r requirements.txt
+            # 3. 가상환경 내부의 pip를 사용하여 의존성 설치
+            ./venv/bin/pip install -r requirements.txt
             
-            # 4. 사전 상태 진단 (Health Check)
-            if ! python health_check.py; then
+            # 4. 가상환경 내부의 파이썬을 사용하여 사전 상태 진단 (Health Check)
+            if ! ./venv/bin/python3 health_check.py; then
                 echo "Health Check Failed. Deployment aborted!"
                 exit 1
             fi
             
-            # 5. DB 마이그레이션 (실패 시 배포 중단, 기존 서버 유지)
+            # 5. 가상환경 내부의 flask를 사용하여 DB 마이그레이션 (실패 시 배포 중단, 기존 서버 유지)
             echo "=== Running DB Migration ==="
-            MIGRATION_OUTPUT=$(venv/bin/flask db upgrade 2>&1)
+            MIGRATION_OUTPUT=$(./venv/bin/flask db upgrade 2>&1)
             MIGRATION_EXIT=$?
             echo "$MIGRATION_OUTPUT"
             
@@ -48,7 +47,7 @@ jobs:
             fi
             echo "=== Migration completed successfully ==="
             
-            # 6. 모든 단계 성공 시에만 Gunicorn 서버 재시작
+            # 6. 모든 단계 성공 시에만 가상환경 내부의 Gunicorn 서버 재시작
             pkill -9 gunicorn || true
             sleep 2
-            venv/bin/gunicorn -b 0.0.0.0:5000 --timeout 120 app:app --daemon
+            ./venv/bin/gunicorn -b 0.0.0.0:5000 --timeout 120 app:app --daemon
