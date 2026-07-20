@@ -180,6 +180,8 @@
                         android:layout_weight="1"
                         android:hint="시작일"
                         android:focusable="false"
+                        android:clickable="true"
+                        android:cursorVisible="false"
                         android:textSize="13sp"
                         android:background="@drawable/bg_status_badge"
                         android:paddingHorizontal="12dp" />
@@ -195,6 +197,8 @@
                         android:layout_weight="1"
                         android:hint="종료일"
                         android:focusable="false"
+                        android:clickable="true"
+                        android:cursorVisible="false"
                         android:textSize="13sp"
                         android:background="@drawable/bg_status_badge"
                         android:paddingHorizontal="12dp" />
