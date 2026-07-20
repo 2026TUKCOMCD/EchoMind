@@ -31,4 +31,7 @@ interface PersonalityDao {
     // [삭제] 특정 사용자의 모든 분석 기록을 삭제합니다.
     @Query("DELETE FROM personality_results WHERE userEmail = :email")
     suspend fun clearResultsByUser(email: String)
+
+    @androidx.room.Delete
+    suspend fun deleteResult(result: PersonalityEntity)
 }

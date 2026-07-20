@@ -1,12 +1,16 @@
 package com.tukorea.echomind.data.local
 
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 import java.io.Serializable
 
-@Entity(tableName = "personality_results")
+@Entity(
+    tableName = "personality_results",
+    indices = [Index(value = ["serverResultId", "userEmail"], unique = true)]
+)
 data class PersonalityEntity(
-    @PrimaryKey(autoGenerate = true) val id: Int = 0, // 고유 ID로 변경하여 중복 저장 허용
+    @PrimaryKey(autoGenerate = true) val id: Int = 0,
     val serverResultId: Int,
     val userEmail: String,
     val name: String,

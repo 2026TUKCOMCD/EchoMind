@@ -1,5 +1,6 @@
 package com.tukorea.echomind
 
+import android.app.DatePickerDialog
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
@@ -7,6 +8,7 @@ import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.EditText
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
@@ -25,6 +27,7 @@ import retrofit2.http.GET
 import retrofit2.http.POST
 import retrofit2.http.Path
 import java.io.Serializable
+import java.util.Calendar
 
 // [양방향 동기화 강화] 특정 ID의 리포트 데이터를 가져오는 기능 추가
 interface HistoryApiService {
@@ -40,6 +43,7 @@ class HistoryActivity : AppCompatActivity() {
     private lateinit var binding: ActivityHistoryBinding
     private val db by lazy { AppDatabase.getDatabase(applicationContext) }
     private var currentEmail: String = ""
+    private var isDescending: Boolean = true
     
     private val historyService: HistoryApiService by lazy {
         GlobalClient.retrofit.create(HistoryApiService::class.java)
@@ -64,11 +68,35 @@ class HistoryActivity : AppCompatActivity() {
     private fun setupUI() {
         binding.btnBack.setOnClickListener { finish() }
         binding.rvHistory.layoutManager = LinearLayoutManager(this)
+
+        // 시작일/종료일 선택 기능 추가
+        binding.etStartDate.setOnClickListener { showDatePicker(binding.etStartDate) }
+        binding.etEndDate.setOnClickListener { showDatePicker(binding.etEndDate) }
+
+        // 정렬 버튼 토글 기능
+        binding.btnSortOrder.setOnClickListener {
+            isDescending = !isDescending
+            binding.btnSortOrder.text = if (isDescending) "▼ 최신 순" else "▲ 오래된 순"
+            loadHistoryData()
+        }
         
         binding.btnResetFilter.setOnClickListener {
+            binding.etStartDate.setText("")
+            binding.etEndDate.setText("")
+            isDescending = true
+            binding.btnSortOrder.text = "▼ 최신 순"
             syncFullHistoryFromServer()
-            Toast.makeText(this, "서버와 데이터를 완벽하게 동기화합니다.", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "필터를 초기화하고 데이터를 동기화합니다.", Toast.LENGTH_SHORT).show()
         }
+    }
+
+    private fun showDatePicker(editText: EditText) {
+        val calendar = Calendar.getInstance()
+        DatePickerDialog(this, { _, year, month, day ->
+            val dateStr = String.format("%04d-%02d-%02d", year, month + 1, day)
+            editText.setText(dateStr)
+            loadHistoryData() // 날짜 선택 시 즉시 로드
+        }, calendar.get(Calendar.YEAR), calendar.get(Calendar.MONTH), calendar.get(Calendar.DAY_OF_MONTH)).show()
     }
 
     private fun syncFullHistoryFromServer() {
@@ -80,6 +108,7 @@ class HistoryActivity : AppCompatActivity() {
                     val html = response.body() ?: ""
                     val doc = Jsoup.parse(html)
                     val allLocal = db.personalityDao().getAllResultsByUser(currentEmail)
+                    val serverIdsInHtml = mutableSetOf<Int>()
                     
                     // 2. 웹의 모든 기록 카드 탐색
                     doc.select("div.glass-panel").forEach { element ->
@@ -96,6 +125,7 @@ class HistoryActivity : AppCompatActivity() {
                         val dateStr = element.select("span.text-xs.font-mono").first()?.text()?.trim() ?: ""
 
                         if (serverId != 0) {
+                            serverIdsInHtml.add(serverId)
                             // 3. 로컬 DB에 해당 기록이 있는지 확인
                             val localMatch = allLocal.find { it.serverResultId == serverId || (it.mbti == mbti && it.summary.contains(summaryPart)) }
                             
@@ -116,6 +146,14 @@ class HistoryActivity : AppCompatActivity() {
                         // [대표 프로필 날짜 UI 즉시 반영] - 서버에서 가져온 텍스트 사용
                         if (isRepresentative) {
                             binding.tvActiveDate.text = dateStr
+                        }
+                    }
+
+                    // 4. 서버에 없는 로컬 데이터 삭제 (동기화)
+                    allLocal.forEach { local ->
+                        // serverResultId가 있는 기록 중 서버 리스트에 없는 것은 삭제
+                        if (local.serverResultId != 0 && !serverIdsInHtml.contains(local.serverResultId)) {
+                            db.personalityDao().deleteResult(local)
                         }
                     }
                 }
@@ -170,8 +208,10 @@ class HistoryActivity : AppCompatActivity() {
     private fun loadHistoryData() {
         lifecycleScope.launch {
             try {
-                val allHistory = db.personalityDao().getAllResultsByUser(currentEmail)
-                val activeProfile = allHistory.find { it.isRepresentative } ?: allHistory.firstOrNull()
+                val fullHistory = db.personalityDao().getAllResultsByUser(currentEmail)
+                
+                // 1. 대표 프로필 결정 (필터링 전 전체 리스트 기준)
+                val activeProfile = fullHistory.find { it.isRepresentative } ?: fullHistory.firstOrNull()
                 
                 if (activeProfile != null) {
                     binding.cardActiveProfile.visibility = View.VISIBLE
@@ -180,7 +220,30 @@ class HistoryActivity : AppCompatActivity() {
                     binding.cardActiveProfile.visibility = View.GONE
                 }
 
-                binding.rvHistory.adapter = HistoryAdapter(allHistory, activeProfile?.id ?: -1,
+                // 2. 필터링 로직 적용
+                var displayList = fullHistory
+                val start = binding.etStartDate.text.toString()
+                val end = binding.etEndDate.text.toString()
+
+                if (start.isNotEmpty() || end.isNotEmpty()) {
+                    displayList = displayList.filter { entity ->
+                        val itemDate = entity.summary.substringBefore(":::").substringBefore(" ")
+                        if (itemDate.matches(Regex("\\d{4}-\\d{2}-\\d{2}"))) {
+                            val afterStart = if (start.isNotEmpty()) itemDate >= start else true
+                            val beforeEnd = if (end.isNotEmpty()) itemDate <= end else true
+                            afterStart && beforeEnd
+                        } else true
+                    }
+                }
+
+                // 3. 정렬 로직 적용
+                displayList = if (isDescending) {
+                    displayList.sortedByDescending { it.summary.substringBefore(":::") }
+                } else {
+                    displayList.sortedBy { it.summary.substringBefore(":::") }
+                }
+
+                binding.rvHistory.adapter = HistoryAdapter(displayList, activeProfile?.id ?: -1,
                     onViewDetail = { navigateToResult(it) },
                     onSetRepresentative = { setAsRep(it) }
                 )
