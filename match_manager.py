@@ -2,13 +2,12 @@
 # -*- coding: utf-8 -*-
 
 """
-[EchoMind] 서비스 비즈니스 로직 및 데이터 트랜잭션 관리 (SQLAlchemy Refactored)
+[EchoMind] 서비스 비즈니스 로직 및 데이터 트랜잭션 관리
 ======================================================================
 
 [시스템 개요]
 본 모듈은 EchoMind 서비스의 핵심 데이터 엔티티(사용자, 매칭 요청, 알림) 간의 
-상호작용을 관리하는 서비스 레이어입니다. Flask 애플리케이션과 AWS RDS MySQL 
-데이터베이스 사이의 교량 역할을 수행하며, SQLAlchemy ORM을 사용하여 
+상호작용을 관리하는 서비스 레이어입니다. Flask 애플리케이션과 SQLAlchemy ORM을 사용하여 
 안전하고 효율적인 트랜잭션을 처리합니다.
 
 [주요 기능 및 로직]
@@ -43,6 +42,7 @@ import os
 import json
 import logging
 import numpy as np
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 from config import config_by_name
@@ -129,7 +129,8 @@ class MatchManager:
                         'full_report_json': data,
                         'line_count_at_analysis': p_result.line_count_at_analysis,
                         'big5': llm_profile.get('big5', {}).get('scores_0_100', {}),
-                        'birth_date': user.birth_date
+                        'birth_date': user.birth_date,
+                        'created_at': user.created_at
                     }
                     candidates.append(candidate)
                     seen_user_ids.add(uid_str)
@@ -147,8 +148,9 @@ class MatchManager:
                 candidates,
                 current_user_profile_json
             )
-            # [REVISED] Sort by score (desc), then by age difference (asc)
-            candidates = sorted(candidates, key=lambda x: (-x.get('match_score', 0), x.get('age_difference', 999999)))
+            # 3차 정렬 기준: 점수(내림) -> 나이차(오름) -> 가입일(오름)
+            # 가입일이 오래된(작은) 유저가 더 높은 순위를 가집니다.
+            candidates = sorted(candidates, key=lambda x: (-x.get('match_score', 0), x.get('age_difference', 999999), x.get('created_at', datetime.utcnow())))
             limited_candidates = candidates[:limit]
 
             # [최적화] 프론트엔드로 보내기 전, 불필요하게 큰 full_report_json 데이터 제거
@@ -351,29 +353,6 @@ class MatchManager:
     
     @classmethod
     def _calculate_match_scores(cls, my_user_id, candidates, current_user_profile_json=None, weights=None):
-        """
-        matcher.py의 HybridMatcher를 사용하여 고급 매칭 점수를 계산합니다.
-        
-        # ========================================================================
-        # TODO [미래 변경 대비] - 매칭 알고리즘 Abstraction Layer
-        # ------------------------------------------------------------------------
-        # 본 함수는 매칭 점수 계산의 핵심 로직입니다. 다음 변경 시 수정 필요:
-        #
-        # 1. MBTI/소시오닉스가 수치(Numeric)로 변경되는 경우:
-        #    - _convert_json_to_user_vector() 함수 내 타입 변환 로직 수정
-        #    - matcher.py의 HybridMatcher 입력 형식 변경 대응
-        #
-        # 2. 매칭 알고리즘(matcher.py) 자체가 교체되는 경우:
-        #    - HybridMatcher 호출부를 Adapter 패턴으로 추상화 권장
-        #    - 예: matching_adapter.py 생성 후 calc_score(user_a, user_b, weights) 인터페이스로 통일
-        #
-        # 3. 가중치 체계가 변경되는 경우 (예: 4요소로 확장):
-        #    - weights dict 구조 및 기본값 수정
-        #    - 프론트엔드(dashboard.html) 슬라이더 UI도 동시 수정 필요
-        # ========================================================================
-        
-        # 밑은 가중치 설정 부분
-        """
         if weights is None:
             weights = {'similarity': 0.5, 'chemistry': 0.4, 'activity': 0.1}
 
@@ -381,7 +360,7 @@ class MatchManager:
             # 현재 사용자 프로필 로드
             target_user = None
             if current_user_profile_json:
-                # [NEW] Get birth_date for the current user
+                # Get birth_date for the current user
                 from extensions import User
                 my_user = User.query.get(my_user_id)
                 my_birth_date = my_user.birth_date if my_user else None
@@ -400,7 +379,8 @@ class MatchManager:
             for i, candidate in enumerate(candidates):
                 candidate_json = candidate.get('full_report_json', {})
                 birth_date = candidate.get('birth_date')
-                user_vector = cls._convert_json_to_user_vector(candidate_json, candidate.get('user_id'), birth_date)
+                created_at = candidate.get('created_at')
+                user_vector = cls._convert_json_to_user_vector(candidate_json, candidate.get('user_id'), birth_date, created_at)
                 if user_vector:
                     candidate_users.append(user_vector)
                     valid_candidates_map[candidate.get('user_id')] = i
@@ -428,20 +408,20 @@ class MatchManager:
                     candidates[idx]['match_score'] = int(max(0, min(100, new_total * 100)))
                     candidates[idx]['match_details'] = scores
 
-                    # [NEW] 나이 차이 계산 및 저장 (단위: 일)
+                    # 나이 차이 계산 및 저장 (단위: 일)
                     age_diff = 999999  # 날짜 정보 없을 시 후순위로 밀기 위한 큰 값
                     if target_user.birth_date and candidate_user.birth_date:
                         delta = target_user.birth_date - candidate_user.birth_date
                         age_diff = abs(delta.days)
                     candidates[idx]['age_difference'] = age_diff
                     
-                    # 확장 패널용 추가 데이터 (Big5, 대화량)
+                    # 확장 패널용 데이터 (Big5, 대화량)
                     candidates[idx]['my_big5'] = target_user.big5_raw.tolist() if target_user.big5_raw is not None else [50,50,50,50,50]
                     candidates[idx]['cand_big5'] = candidate_user.big5_raw.tolist() if candidate_user.big5_raw is not None else [50,50,50,50,50]
                     candidates[idx]['my_line_count'] = target_user.line_count or 0
                     candidates[idx]['cand_line_count'] = candidate_user.line_count or 0
 
-                    # [NEW] 심리 기능 스택 추가
+                    # 심리 기능 스택
                     candidates[idx]['my_functions'] = matcher.RelationshipBrain.get_function_stack_details(target_user.mbti_type)
                     candidates[idx]['cand_functions'] = matcher.RelationshipBrain.get_function_stack_details(candidate_user.mbti_type)
 
@@ -463,7 +443,7 @@ class MatchManager:
             return candidates
     
     @classmethod
-    def _convert_json_to_user_vector(cls, json_data, user_id, birth_date=None):
+    def _convert_json_to_user_vector(cls, json_data, user_id, birth_date=None, created_at=None):
         """
         JSON 데이터를 UserVector 객체로 변환 (기존 유지)
         """
@@ -497,7 +477,8 @@ class MatchManager:
                 socionics_type=socionics_data.get('type', 'Unknown'),
                 socionics_conf=socionics_data.get('confidence', 0.0),
                 line_count=json_data.get('parse_quality', {}).get('parsed_lines', 0),
-                birth_date=birth_date
+                birth_date=birth_date,
+                created_at=created_at
             )
             return user_vector
         except Exception as e:
@@ -509,7 +490,7 @@ class MatchManager:
         """
         [신청] 매칭 신청 (DB Transaction)
         """
-        from extensions import db, MatchRequest
+        from extensions import db, MatchRequest, Notification, User
         from sqlalchemy import or_
 
         # 자기 자신에게 신청 방지
@@ -543,12 +524,26 @@ class MatchManager:
                 status='PENDING'
             )
             db.session.add(new_req)
+            db.session.flush() # ID 확보
+
+            # 알림 생성
+            sender = User.query.get(sender_id)
+            noti_msg = f"'{sender.nickname or sender.username}'님이 매칭을 신청했습니다."
+            notification = Notification(
+                user_id=receiver_id,
+                message=noti_msg,
+                related_entity_type='match_request',
+                related_entity_id=new_req.request_id
+            )
+            db.session.add(notification)
+            
             db.session.commit()
             
-            return {"success": True, "message": "성공적으로 신청을 보냈습니다."}
+            return {"success": True, "message": "성공적으로 신청을 보냈습니다.", "request_id": new_req.request_id}
 
         except Exception as e:
             db.session.rollback()
+            logger.exception(f"매칭 신청 중 오류 발생: Sender={sender_id}, Receiver={receiver_id}")
             return {"success": False, "message": str(e)}
 
     @classmethod

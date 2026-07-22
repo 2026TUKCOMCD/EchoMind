@@ -18,6 +18,7 @@ from datetime import datetime, timedelta
 from flask import Flask, render_template, request, redirect, url_for, flash, session, g, jsonify
 from flask_compress import Compress
 from flask_migrate import Migrate
+from flask_apscheduler import APScheduler
 from sqlalchemy.orm import aliased
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
@@ -30,6 +31,7 @@ from config import config_by_name
 from match_manager import MatchManager
 import main as analyzer
 import visualize_profile
+from activity_insights import build_activity_summary
 
 app = Flask(__name__)
 Compress(app)
@@ -39,6 +41,10 @@ env = os.getenv('FLASK_ENV', 'development')
 config_class = config_by_name.get(env, config_by_name['default'])
 app.config.from_object(config_class)
 config_class.init_app(app)
+
+# --- 스케줄러 설정 ---
+scheduler = APScheduler()
+scheduler.init_app(app)
 
 # --- Logging Mode Setting ---
 # 1: DEBUG, 2: INFO, 3: WARNING, 4: ERROR, 5: CRITICAL
@@ -121,7 +127,24 @@ def _parse_json_safe(data):
     return data if data is not None else {}
 
 # SQLAlchemy 인스턴스를 extensions에서 임포트 (순환 참조 방지)
-from extensions import db, User, ChatLog, PersonalityResult, MatchRequest, Notification, Message, GroupChatRoom, GroupChatParticipant, GroupChatMessage, GroupChatKickVote
+from extensions import (
+    db,
+    User,
+    ChatLog,
+    PersonalityResult,
+    MatchRequest, 
+    Notification,
+    Message,
+    GroupChatRoom,
+    GroupChatParticipant, 
+    GroupChatMessage,
+    GroupChatKickVote,
+    BlindMatch,
+    BlindMatchMessage,
+    UserActivityLog
+)
+from blind_match_manager import BlindMatchManager, BlindMatchStatus
+
 db.init_app(app)
 migrate = Migrate(app, db)
 
@@ -132,6 +155,12 @@ def kst_filter(dt, format='%Y-%m-%d %H:%M'):
     if not dt:
         return '-'
     from datetime import timedelta
+    # [FIX] ISO 형식의 문자열이 입력될 경우 datetime 객체로 변환
+    if isinstance(dt, str):
+        try:
+            dt = datetime.fromisoformat(dt.replace("Z", "+00:00"))
+        except ValueError:
+            return dt # 변환 실패 시 원본 반환
     return (dt + timedelta(hours=9)).strftime(format)
 
 # --- 보안 및 세션 관리 (Security & Session) ---
@@ -259,7 +288,8 @@ def check_and_update_db_schema():
                             rooms = conn.execute(sqlalchemy.text("SELECT id FROM group_chat_rooms WHERE room_code IS NULL")).fetchall()
                             for r in rooms:
                                 new_code = str(random.randint(1000000000, 9999999999))
-                                conn.execute(sqlalchemy.text("UPDATE group_chat_rooms SET room_code = :c WHERE id = :id"), {"c": new_code, "id": r[0]})
+                                conn.execute(sqlalchemy.text("UPDATE group_chat_rooms SET room_code = :c WHERE id = :id"),
+                                             {"c": new_code, "id": r[0]})
                             conn.commit()
 
                             try:
@@ -283,7 +313,8 @@ def check_and_update_db_schema():
                             reqs = conn.execute(sqlalchemy.text("SELECT request_id FROM match_requests WHERE match_code IS NULL")).fetchall()
                             for r in reqs:
                                 new_code = str(random.randint(1000000000, 9999999999))
-                                conn.execute(sqlalchemy.text("UPDATE match_requests SET match_code = :c WHERE request_id = :id"), {"c": new_code, "id": r[0]})
+                                conn.execute(sqlalchemy.text("UPDATE match_requests SET match_code = :c WHERE request_id = :id"),
+                                             {"c": new_code, "id": r[0]})
                             conn.commit()
 
                             try:
@@ -311,6 +342,42 @@ def check_and_update_db_schema():
                 except Exception as e:
                     app.logger.warning(f"match_code migration/cleanup failed: {e}")
 
+                # 9. notifications 테이블에 related_entity 컬럼 추가
+                try:
+                    if 'notifications' in inspector.get_table_names():
+                        n_cols = [col['name'] for col in inspector.get_columns('notifications')]
+                        if 'related_entity_type' not in n_cols:
+                            conn.execute(sqlalchemy.text("ALTER TABLE notifications ADD COLUMN related_entity_type VARCHAR(50)"))
+                            app.logger.info("'related_entity_type' column added to notifications.")
+                        if 'related_entity_id' not in n_cols:
+                            conn.execute(sqlalchemy.text("ALTER TABLE notifications ADD COLUMN related_entity_id INT"))
+                            app.logger.info("'related_entity_id' column added to notifications.")
+                        conn.commit()
+                except Exception as e:
+                    app.logger.warning(f"notifications migration failed: {e}")
+
+                # 10. user_activity_logs 테이블 추가
+                try:
+                    if 'user_activity_logs' not in inspector.get_table_names():
+                        # MySQL/MariaDB 호환 문법 사용
+                        conn.execute(sqlalchemy.text("""
+                            CREATE TABLE user_activity_logs (
+                                id INT NOT NULL AUTO_INCREMENT,
+                                user_id INT NOT NULL,
+                                activity_type VARCHAR(50) NOT NULL,
+                                ip_address VARCHAR(45),
+                                user_agent VARCHAR(255),
+                                timestamp DATETIME,
+                                details TEXT,
+                                PRIMARY KEY (id),
+                                FOREIGN KEY(user_id) REFERENCES users (user_id) ON DELETE CASCADE
+                            )
+                        """))
+                        conn.commit()
+                        app.logger.info("'user_activity_logs' table created.")
+                except Exception as e:
+                    app.logger.warning(f"user_activity_logs table creation failed: {e}")
+
         except Exception as e:
             app.logger.error(f"Schema update failed: {e}")
 
@@ -327,6 +394,12 @@ def favicon():
 def load_user():
     user_id = session.get('user_id')
     g.user = db.session.get(User, user_id) if user_id else None
+    if g.user:
+        g.unread_count = len(MatchManager.get_unread_notifications(g.user.user_id))
+        g.unread_blind_count = BlindMatchManager.get_unread_blind_count(g.user.user_id)
+    else:
+        g.unread_count = 0
+        g.unread_blind_count = 0
 
 # --- 로그인 및 회원가입 (Auth) ---
 @app.route('/register', methods=['GET', 'POST'])
@@ -339,7 +412,8 @@ def register():
             username=request.form['username'],
             nickname=request.form.get('nickname'),
             gender=request.form.get('gender'),
-            birth_date=datetime.strptime(request.form['birth_date'], '%Y-%m-%d').date() if request.form.get('birth_date') else None
+            birth_date=datetime.strptime(request.form['birth_date'],
+                                         '%Y-%m-%d').date() if request.form.get('birth_date') else None
         )
         try:
             db.session.add(new_user)
@@ -371,34 +445,53 @@ def register():
 def login():
     if request.method == 'POST':
         user = User.query.filter_by(email=request.form['email']).first()
+        
+        # Helper to log activity
+        def log_activity(user_obj, success):
+            if not user_obj:
+                return
+            try:
+                activity = UserActivityLog(
+                    user_id=user_obj.user_id,
+                    activity_type='LOGIN_SUCCESS' if success else 'LOGIN_FAIL',
+                    ip_address=request.remote_addr,
+                    user_agent=request.user_agent.string
+                )
+                db.session.add(activity)
+                db.session.commit()
+            except Exception as e:
+                db.session.rollback()
+                app.logger.error(f"Failed to log user activity for user {user_obj.user_id}: {e}")
+
         if user and check_password_hash(user.password_hash, request.form['password']):
-            # 밴 체크
             if user.is_banned:
+                log_activity(user, False) # Log failed attempt for banned user
                 flash('계정이 정지되었습니다. 관리자에게 문의하세요.', 'danger')
                 return redirect(url_for('suspended'))
 
+            log_activity(user, True) # Log successful login
             session['user_id'] = user.user_id
             session['username'] = user.username
             session['is_admin'] = (user.email == 'admin@echomind.com')
-            # 로그인 시 비회원 분석 결과 발견하면 계정 귀속 및 로그 이관
+            
             guest_result_id = session.pop('guest_result_id', None)
             if guest_result_id:
                 guest_res = PersonalityResult.query.filter_by(result_id=guest_result_id, user_id=None).first()
                 if guest_res:
                     guest_res.user_id = user.user_id
-
-                    # 기존에 대표 결과가 없는 경우에만 이 결과를 대표로 설정
                     has_rep = PersonalityResult.query.filter_by(user_id=user.user_id, is_representative=True).first()
                     if not has_rep:
                         guest_res.is_representative = True
-
-                    # 연관된 채팅 로그(ChatLog)도 있다면 함께 이관
                     if guest_res.log_id:
                         guest_log = ChatLog.query.get(guest_res.log_id)
                         if guest_log and guest_log.user_id is None:
                             guest_log.user_id = user.user_id
                     db.session.commit()
             return redirect(url_for('home'))
+        
+        if user:
+            log_activity(user, False) # Log failed attempt for existing user with wrong password
+
         flash("이메일 또는 비밀번호가 올바르지 않습니다.", "danger")
     return render_template('login.html')
 
@@ -415,11 +508,8 @@ def suspended():
 # --- 라우팅 컨트롤러 (Routing Controllers) ---
 @app.route('/')
 def home():
-    if g.user:
-        unread_count = len(MatchManager.get_unread_notifications(g.user.user_id))
-    else:
-        unread_count = 0
-    return render_template('index.html', user=g.user, unread_count=unread_count)
+    # unread_count is now handled by @before_request and available in `g`
+    return render_template('index.html', user=g.user)
 
 @app.route('/result')
 @app.route('/result/<int:result_id>')
@@ -468,7 +558,7 @@ def view_result(result_id=None):
     # [Common Rendering]
     try:
         if result.full_report_json:
-             # [Robustness Fix] full_report_json 구조 확인
+             # full_report_json 구조 확인
             data_to_pass = result.full_report_json
             if 'llm_profile' not in data_to_pass:
                 # 레거시 데이터 버그 수정 (프로필만 저장된 경우 래핑)
@@ -540,6 +630,115 @@ def history():
                            current_start=start_date,
                            current_end=end_date)
 
+# --- 유저 액티비티 ---
+
+@app.route('/activity')
+@login_required
+def user_activity():
+    """사용자의 최근 활동 내역을 보여주는 페이지입니다."""
+    app.logger.info(f"User {g.user.user_id} is viewing their activity page.")
+    
+    time_threshold = datetime.utcnow() - timedelta(days=30)
+    
+    # 1. 로그인 활동 조회
+    try:
+        login_activities = UserActivityLog.query.filter(
+            UserActivityLog.user_id == g.user.user_id,
+            UserActivityLog.timestamp >= time_threshold
+        ).order_by(UserActivityLog.timestamp.desc()).limit(20).all()
+    except Exception as e:
+        app.logger.error(f"Failed to fetch login activities for user {g.user.user_id}: {e}")
+        login_activities = []
+        flash("로그인 기록을 불러오는 데 실패했습니다.", "warning")
+
+    # 2. 프로필 분석 활동 조회
+    try:
+        analysis_results = PersonalityResult.query.filter(
+            PersonalityResult.user_id == g.user.user_id,
+            PersonalityResult.created_at >= time_threshold
+        ).order_by(PersonalityResult.created_at.desc()).limit(10).all()
+
+        analysis_activities = []
+        for result in analysis_results:
+            report_json = result.full_report_json or {}
+            meta = report_json.get('meta', {})
+            analysis_activities.append({
+                'result_id': result.result_id,
+                'target_name': meta.get('speaker_name', '알 수 없음'),
+                'mbti': result.mbti_prediction,
+                'timestamp': result.created_at
+            })
+    except Exception as e:
+        app.logger.error(f"Failed to fetch analysis activities for user {g.user.user_id}: {e}")
+        analysis_activities = []
+        flash("프로필 분석 기록을 불러오는 데 실패했습니다.", "warning")
+
+    # 3. 매칭 활동 통합 조회
+    try:
+        matching_activities = []
+        
+        # 보낸 요청, 받은 요청, 상태 변경된 요청을 모두 합쳐서 시간 순으로 정렬
+        sent_requests = MatchRequest.query.filter(MatchRequest.sender_id == g.user.user_id, MatchRequest.created_at >= time_threshold).all()
+        received_requests = MatchRequest.query.filter(MatchRequest.receiver_id == g.user.user_id, MatchRequest.created_at >= time_threshold).all()
+        
+        # 활동들을 하나의 리스트로 통합
+        all_related_requests = sent_requests + received_requests
+        unique_request_ids = {req.request_id for req in all_related_requests}
+        final_requests = MatchRequest.query.filter(MatchRequest.request_id.in_(unique_request_ids)).order_by(MatchRequest.updated_at.desc()).all()
+
+        for req in final_requests:
+            is_sender = req.sender_id == g.user.user_id
+            partner_id = req.receiver_id if is_sender else req.sender_id
+            partner = User.query.get(partner_id)
+            if not partner: continue
+
+            activity = { 'timestamp': req.updated_at, 'partner_name': partner.nickname or partner.username, 'request_id': req.request_id }
+
+            if req.created_at == req.updated_at: # 생성 이벤트
+                activity['timestamp'] = req.created_at
+                if is_sender:
+                    activity['type'] = 'sent'
+                    activity['message'] = f"'{activity['partner_name']}'님에게 매칭을 신청했습니다."
+                else:
+                    activity['type'] = 'received'
+                    activity['message'] = f"'{activity['partner_name']}'님으로부터 매칭 신청을 받았습니다."
+            else: # 업데이트 이벤트
+                if req.status == 'ACCEPTED':
+                    activity['type'] = 'accepted'
+                    activity['message'] = f"'{activity['partner_name']}'님과의 매칭이 성사되었습니다."
+                elif req.status == 'REJECTED':
+                    activity['type'] = 'rejected'
+                    activity['message'] = f"'{activity['partner_name']}'님이 요청을 거절했습니다." if is_sender else f"'{activity['partner_name']}'님의 요청을 거절했습니다."
+                elif req.status == 'CANCELLED':
+                    activity['type'] = 'cancelled'
+                    activity['message'] = f"'{activity['partner_name']}'님과의 매칭 신청을 취소했습니다."
+            
+            matching_activities.append(activity)
+
+        matching_activities.sort(key=lambda x: x['timestamp'], reverse=True)
+
+    except Exception as e:
+        app.logger.error(f"Failed to fetch matching activities for user {g.user.user_id}: {e}")
+        matching_activities = []
+        flash("매칭 활동 기록을 불러오는 데 실패했습니다.", "warning")
+
+    activity_summary = build_activity_summary(
+        login_activities=login_activities,
+        analysis_activities=analysis_activities,
+        matching_activities=matching_activities,
+    )
+
+    return render_template(
+        'activity.html',
+        login_activities=login_activities,
+        analysis_activities=analysis_activities,
+        matching_activities=matching_activities,
+        activity_summary=activity_summary,
+    )
+    
+# --- END OF FEATURE: USER ACTIVITY ---
+
+
 @app.route('/set_representative/<int:result_id>', methods=['POST'])
 @login_required
 def set_representative(result_id):
@@ -610,6 +809,13 @@ def upload_chat():
 
                 if not target_name:
                      target_name = "Unknown"
+
+                # 회원 정보가 있다면 meta에 추가 (업로드된 JSON에 덮어쓰기)
+                if g.user:
+                    data['meta']['user_id'] = g.user.user_id
+                    data['meta']['birth_date'] = g.user.birth_date.strftime('%Y-%m-%d') if g.user.birth_date else None
+                    data['meta']['created_at'] = g.user.created_at.isoformat() + "Z" if g.user.created_at else None
+
 
                 # ChatLog 생성 (Fake Log)
                 filename = secure_filename(file.filename)
@@ -734,16 +940,23 @@ def upload_chat():
                 if current_user_id:
                     PersonalityResult.query.filter_by(user_id=current_user_id).update({'is_representative': False})
 
-                # [FIX] 전체 구조 저장 (meta/llm_profile/parse_quality 포함)
+                # 전체 구조 저장 (meta/llm_profile/parse_quality 포함)
                 from dataclasses import asdict
                 full_report_data = {
                     "meta": {
+                        "user_id": current_user_id,
                         "speaker_name": target_name,
-                        "generated_at_utc": datetime.utcnow().isoformat()
+                        "generated_at_utc": datetime.utcnow().isoformat() + "Z"
                     },
                     "parse_quality": asdict(quality),
                     "llm_profile": profile
                 }
+
+                # 회원 정보가 있다면 meta에 추가
+                if g.user:
+                    full_report_data['meta']['birth_date'] = g.user.birth_date.strftime('%Y-%m-%d') if g.user.birth_date else None
+                    full_report_data['meta']['created_at'] = g.user.created_at.isoformat() + "Z" if g.user.created_at else None
+                
 
                 new_profile = PersonalityResult(
                     user_id=current_user_id,
@@ -800,7 +1013,7 @@ def start_matching():
     """매칭 후보 리스트 보기 - 현재 사용자의 최신 분석 결과 기반"""
     app.logger.debug(f"[DEBUG] Entered start_matching route for user {g.user.user_id}")
     try:
-        # [FIX] 대표 프로필 우선 조회 -> 없으면 최신순 Fallback
+        # 대표 프로필 우선 조회 -> 없으면 최신순 Fallback
         latest_result = PersonalityResult.query.filter_by(
             user_id=g.user.user_id,
             is_representative=True
@@ -815,7 +1028,7 @@ def start_matching():
             flash('분석 결과가 없습니다. 먼저 프로필을 분석해주세요.', 'warning')
             return redirect(url_for('upload_chat'))
 
-        # [Robustness Fix] 기존 데이터에 parse_quality가 없는 경우 DB 값으로 복구
+        # 기존 데이터에 parse_quality가 없는 경우 DB 값으로 복구
         current_profile = latest_result.full_report_json
         if 'parse_quality' not in current_profile:
             current_profile['parse_quality'] = {
@@ -1092,7 +1305,7 @@ def match_detail(request_id):
         match_score = match_data.get('match_score', 0)
         match_details = match_data.get('match_details', {})
 
-        # [FIX] Jinja 템플릿의 (match_details.similarity_score) 구문 등호 오류 방지
+        # Jinja 템플릿의 (match_details.similarity_score) 구문 등호 오류 방지
         if not match_details:
             match_details = {
                 'similarity_score': 0.0,
@@ -1138,6 +1351,120 @@ def match_detail(request_id):
         app.logger.error(f"Error in match_detail: {e}")
         flash("상세 정보를 불러오는 중 오류가 발생했습니다.", "danger")
         return redirect(url_for('match_inbox'))
+
+
+@app.route('/download_match_json/<int:request_id>')
+@login_required
+def download_match_json(request_id):
+    """매칭 상세 정보를 JSON 파일로 다운로드합니다."""
+    try:
+        # aliased imports for self-join
+        Sender = aliased(User)
+        Receiver = aliased(User)
+        SenderProfile = aliased(PersonalityResult)
+        ReceiverProfile = aliased(PersonalityResult)
+
+        # 1. 매칭 요청 정보 조회 (match_detail과 동일한 쿼리)
+        result = db.session.query(
+            MatchRequest, Sender, Receiver, SenderProfile, ReceiverProfile
+        ).join(
+            Sender, MatchRequest.sender_id == Sender.user_id
+        ).join(
+            Receiver, MatchRequest.receiver_id == Receiver.user_id
+        ).outerjoin(
+            SenderProfile,
+            (Sender.user_id == SenderProfile.user_id) & (SenderProfile.is_representative == True)
+        ).outerjoin(
+            ReceiverProfile,
+            (Receiver.user_id == ReceiverProfile.user_id) & (ReceiverProfile.is_representative == True)
+        ).filter(
+            MatchRequest.request_id == request_id
+        ).first()
+
+        if not result:
+            flash("존재하지 않는 매칭 요청입니다.", "danger")
+            return redirect(url_for('match_inbox'))
+
+        req, sender, receiver, sender_profile, receiver_profile = result
+
+        # 2. 권한 체크
+        current_uid = g.user.user_id
+        if current_uid != sender.user_id and current_uid != receiver.user_id:
+            flash("조회 권한이 없습니다.", "danger")
+            return redirect(url_for('match_inbox'))
+
+        # 3. 역할 구분 및 프로필 파싱 (match_detail과 동일)
+        is_sender = (current_uid == sender.user_id)
+        counterpart_nickname = receiver.nickname if is_sender else sender.nickname
+        
+        def parse_profile(profile_obj):
+            if not profile_obj or not profile_obj.full_report_json: return None
+            raw = profile_obj.full_report_json
+            try: return json.loads(raw) if isinstance(raw, str) else raw
+            except (json.JSONDecodeError, TypeError): return raw
+
+        my_profile = parse_profile(sender_profile if is_sender else receiver_profile)
+        target_profile = parse_profile(receiver_profile if is_sender else sender_profile)
+
+        # 4. 매칭 점수 재계산 (match_detail과 동일)
+        target_candidate = {
+            'user_id': receiver.user_id if is_sender else sender.user_id,
+            'full_report_json': target_profile, 'nickname': counterpart_nickname
+        }
+        calculated_list = MatchManager._calculate_match_scores(
+            my_user_id=current_uid, candidates=[target_candidate], current_user_profile_json=my_profile
+        )
+        match_data = calculated_list[0] if calculated_list else {}
+
+        # 5. JSON으로 내보낼 데이터 구성
+        json_output = {
+            "request_info": {
+                'request_id': req.request_id,
+                'status': req.status,
+                'created_at_utc': req.created_at.isoformat(),
+                'match_code': req.match_code,
+                'is_sender': is_sender
+            },
+            "my_user_info": {
+                "user_id": sender.user_id if is_sender else receiver.user_id,
+                "nickname": sender.nickname if is_sender else receiver.nickname,
+            },
+            "counterpart_user_info": {
+                "user_id": receiver.user_id if is_sender else sender.user_id,
+                "nickname": receiver.nickname if is_sender else sender.nickname,
+            },
+            "match_analysis": {
+                "match_score": match_data.get('match_score'),
+                "match_details": match_data.get('match_details'),
+                "comparison_data": {
+                    'my_big5': match_data.get('my_big5'),
+                    'cand_big5': match_data.get('cand_big5'),
+                    'my_line_count': match_data.get('my_line_count'),
+                    'cand_line_count': match_data.get('cand_line_count'),
+                    'my_functions': match_data.get('my_functions'),
+                    'cand_functions': match_data.get('cand_functions'),
+                    'relative_traits': match_data.get('relative_traits', [])
+                }
+            },
+            "my_profile_json": my_profile,
+            "counterpart_profile_json": target_profile,
+        }
+
+        # 6. JSON 응답 생성
+        response = app.response_class(
+            response=json.dumps(json_output, indent=4, ensure_ascii=False),
+            status=200,
+            mimetype='application/json'
+        )
+        filename = f"match_detail_{request_id}_{datetime.now().strftime('%Y%m%d')}.json"
+        response.headers["Content-Disposition"] = f"attachment; filename={filename}"
+        return response
+
+    except Exception as e:
+        app.logger.error(f"Failed to download match JSON for request {request_id}: {e}")
+        flash("JSON 데이터를 생성하는 중 오류가 발생했습니다.", "danger")
+        return redirect(url_for('match_detail', request_id=request_id))
+
 
 @app.route('/apply_match/<receiver_id>', methods=['POST'])
 @login_required
@@ -1289,8 +1616,16 @@ def admin_dashboard():
     else:
         avg_openness = avg_conscientiousness = avg_extraversion = avg_agreeableness = avg_neuroticism = 0
 
-    stats['big5_labels'] = ['Openness', 'Conscientiousness', 'Extraversion', 'Agreeableness', 'Neuroticism']
-    stats['big5_scores'] = [avg_openness, avg_conscientiousness, avg_extraversion, avg_agreeableness, avg_neuroticism]
+    stats['big5_labels'] = ['Openness',
+                            'Conscientiousness',
+                            'Extraversion',
+                            'Agreeableness',
+                            'Neuroticism']
+    stats['big5_scores'] = [avg_openness,
+                            avg_conscientiousness,
+                            avg_extraversion,
+                            avg_agreeableness,
+                            avg_neuroticism]
 
     # [Modified] 2-3. 후보군 통계 (DB 기반)
     # File System Scanning Logic Removed
@@ -1531,7 +1866,8 @@ def admin_simulate_match():
             sender_id = int(data.get('sender_id'))
             receiver_id = int(data.get('receiver_id'))
         except (ValueError, TypeError):
-             return jsonify({"success": False, "message": "잘못된 사용자 ID 형식입니다. 존재하는 사용자 ID(숫자)를 입력 해주세요."}), 400
+             return jsonify({"success": False,
+                             "message": "잘못된 사용자 ID 형식입니다. 존재하는 사용자 ID(숫자)를 입력 해주세요."}), 400
         weights = {
             'similarity': float(data.get('w_sim', 0.5)),
             'chemistry': float(data.get('w_chem', 0.4)),
@@ -1727,7 +2063,8 @@ def admin_list_dummies():
     try:
         # DB에서 더미 사용자 조회 (User + PersonalityResult JOIN)
         dummies = db.session.query(User, PersonalityResult)\
-            .outerjoin(PersonalityResult, (User.user_id == PersonalityResult.user_id) & (PersonalityResult.is_representative == True))\
+            .outerjoin(PersonalityResult,
+                       (User.user_id == PersonalityResult.user_id) & (PersonalityResult.is_representative == True))\
             .filter(User.is_dummy == True)\
             .all()
 
@@ -1839,7 +2176,11 @@ def admin_create_random_dummy():
             random_activity = random.randint(100, 2000)
 
             # DB에 저장 (헬퍼 함수 호출)
-            result = _create_dummy_user_in_db(random_name, random_mbti, random_socionics, random_big5, random_activity)
+            result = _create_dummy_user_in_db(random_name,
+                                              random_mbti,
+                                              random_socionics,
+                                              random_big5,
+                                              random_activity)
 
             if result['success']:
                 created_users.append({
@@ -1878,29 +2219,6 @@ def admin_delete_dummy(dummy_id):
         db.session.rollback()
         app.logger.error(f"더미 삭제 오류: {e}")
         return {'success': False, 'message': str(e)}, 500
-
-
-
- # ========================================================================
-    # TODO [미래 변경 대비]
-    # ------------------------------------------------------------------------
-    # 1. MBTI/소시오닉스가 문자열("INTJ", "LII")에서 수치(0-1 스케일)로 변경되면:
-    #    - dummy_a.get('llm_profile', {}).get('mbti', {}).get('type') 접근 방식 수정 필요
-    #    - 타입 변환 유틸리티 함수(type_converter.py) 도입 권장
-    #
-    # 2. 매칭 알고리즘(matcher.py)이 변경되면:
-    #    - MatchManager._calculate_match_scores 호출부 수정 필요
-    #    - 추상화 레이어(matching_adapter.py) 도입 권장
-    #
-    # 3. 가중치 파라미터 구조가 변경되면:
-    #    - weights dict 키 이름 및 개수 변경 대응 필요
-    # ========================================================================
-
-
-# [DEPRECATED] admin_register_dummy_as_candidate 라우트 삭제됨
-# 더미 사용자가 이제 DB에 직접 저장되므로, 별도 파일 등록 기능이 필요 없음
-# 더미는 생성 시점에 users/personality_results 테이블에 저장됨
-
 
 
 @app.route('/admin/api/stats', methods=['GET'])
@@ -1990,7 +2308,7 @@ def admin_system_config():
                 new_level = int(data['log_level'])
                 if 1 <= new_level <= 5:
                     update_system_config('log_level', new_level)
-                    # 로그 레벨 즉시 적용 시도 (재시작 없이)
+                    # 로그 레벨 즉시 적용 시도, 재시작 없이
                     # Root Logger 및 File Handler 레벨 조정
                     app.logger.setLevel(LOG_LEVEL_MAP.get(new_level, logging.ERROR))
                     for h in app.logger.handlers:
@@ -2239,7 +2557,11 @@ def validate_conditions(user, profile, conditions):
             min_val, max_val = limits.get('min', 0), limits.get('max', 100)
             user_val = getattr(profile, trait, 50)
             if user_val < min_val or user_val > max_val:
-                trait_kr = {"openness": "개방성", "conscientiousness": "성실성", "extraversion": "외향성", "agreeableness": "우호성", "neuroticism": "신경성"}.get(trait, trait)
+                trait_kr = {"openness": "개방성",
+                            "conscientiousness": "성실성",
+                            "extraversion": "외향성",
+                            "agreeableness": "우호성",
+                            "neuroticism": "신경성"}.get(trait, trait)
                 return False, f"{trait_kr} 점수가 조건({min_val}~{max_val})에 맞지 않습니다. (나의 점수: {int(user_val)})"
 
     return True, "조건을 모두 만족합니다."
@@ -2311,7 +2633,12 @@ def group_create():
         try:
             import random
             new_room_code = str(random.randint(1000000000, 9999999999))
-            new_room = GroupChatRoom(room_code=new_room_code, name=name, description=description, creator_id=g.user.user_id, max_participants=max_p, conditions=conditions)
+            new_room = GroupChatRoom(room_code=new_room_code,
+                                     name=name,
+                                     description=description,
+                                     creator_id=g.user.user_id,
+                                     max_participants=max_p,
+                                     conditions=conditions)
             db.session.add(new_room)
             db.session.flush() # commit 대신 flush로 안전하게 room_id 확보 (단일 트랜잭션 보장)
 
@@ -2481,7 +2808,7 @@ def get_group_chat_messages(room_code):
             kst_time = m.created_at + timedelta(hours=9) if m.created_at else datetime.utcnow() + timedelta(hours=9)
             current_date_str = kst_time.strftime('%Y년 %m월 %d일')
 
-            # 💡 [핵심] 날짜가 바뀌면 날짜 구분선(시스템 메시지) 삽입
+            # 날짜가 바뀌면 날짜 구분선(시스템 메시지) 삽입
             if current_date_str != last_date_str:
                 weekday_str = WEEKDAYS[kst_time.weekday()]
                 msg_list.append({
@@ -2559,7 +2886,9 @@ def get_group_chat_participants(room_code):
             u = User.query.get(p.user_id)
             if u:
                 votes = GroupChatKickVote.query.filter_by(room_id=room_id, target_id=p.user_id).count()
-                my_vote = GroupChatKickVote.query.filter_by(room_id=room_id, target_id=p.user_id, voter_id=g.user.user_id).first() is not None
+                my_vote = GroupChatKickVote.query.filter_by(room_id=room_id,
+                                                            target_id=p.user_id,
+                                                            voter_id=g.user.user_id).first() is not None
                 res.append({
                     'user_id': u.user_id,
                     'nickname': u.nickname or u.username,
@@ -2591,7 +2920,9 @@ def vote_kick_participant(room_code, target_id):
         if not target_p:
             return jsonify({'error': '대상이 채팅방에 없습니다.'}), 400
 
-        existing_vote = GroupChatKickVote.query.filter_by(room_id=room_id, voter_id=g.user.user_id, target_id=target_id).first()
+        existing_vote = GroupChatKickVote.query.filter_by(room_id=room_id,
+                                                          voter_id=g.user.user_id,
+                                                          target_id=target_id).first()
         if existing_vote:
             db.session.delete(existing_vote)
             db.session.commit()
@@ -2608,7 +2939,10 @@ def vote_kick_participant(room_code, target_id):
             for v in votes_to_delete: db.session.delete(v)
             target_u = User.query.get(target_id)
             if target_u:
-                db.session.add(GroupChatMessage(room_id=room_id, sender_id=g.user.user_id, content=f"투표 결과에 따라 {target_u.nickname or target_u.username} 님이 강제 퇴장되었습니다.", is_system=True))
+                db.session.add(GroupChatMessage(room_id=room_id,
+                                                sender_id=g.user.user_id,
+                                                content=f"투표 결과에 따라 {target_u.nickname or target_u.username} 님이 강제 퇴장되었습니다.",
+                                                is_system=True))
             db.session.commit()
             return jsonify({'success': True, 'action': 'kicked'})
 
@@ -2618,6 +2952,220 @@ def vote_kick_participant(room_code, target_id):
         app.logger.error(f"Vote kick error: {e}")
         return jsonify({'error': "투표 처리 중 서버 오류가 발생했습니다."}), 500
 
+# -------------------------------------------------------------------------
+# [Blind Match System]
+# -------------------------------------------------------------------------
+
+@app.route('/blind-inbox')
+@login_required
+def blind_inbox():
+    """블라인드 매칭 인박스 (요청, 활성, 완료 목록)"""
+    result = BlindMatchManager.get_user_blind_matches(g.user.user_id)
+    if not result.get('success'):
+        flash(result.get('message', '데이터를 불러오는 데 실패했습니다.'), 'danger')
+        return redirect(url_for('home'))
+    
+    # 이제 BlindMatchManager가 마지막 메시지와 안 읽은 메시지 수를 모두 계산하므로
+    # app.py에서는 추가적인 로직이 필요 없습니다.
+    return render_template('blind_inbox.html', blind_matches=result.get('data', {}))
+
+@app.route('/blind-matching')
+@login_required
+def blind_matching():
+    """블라인드 매칭 큐 페이지"""
+    # 이제 후보 리스트를 전달하지 않고, 큐 페이지만 렌더링합니다.
+    # Alpine.js가 클라이언트 측에서 API를 호출하여 모든 로직을 처리합니다.
+    return render_template('blind_match.html')
+
+@app.route('/blind-chat/<string:match_code>')
+@login_required
+def blind_chat(match_code):
+    """블라인드 매칭 익명 채팅방"""
+    match = BlindMatch.query.filter_by(match_code=match_code).first_or_404()
+
+    if g.user.user_id not in [match.user1_id, match.user2_id]:
+        flash("접근 권한이 없습니다.", "danger")
+        return redirect(url_for('blind_inbox'))
+
+    if match.status not in [BlindMatchStatus.ACTIVE,
+                            BlindMatchStatus.REVEAL_REQUESTED_BY_1,
+                            BlindMatchStatus.REVEAL_REQUESTED_BY_2]:
+        flash("활성화된 블라인드 매칭만 채팅할 수 있습니다.", "warning")
+        return redirect(url_for('blind_inbox'))
+
+    partner_id = match.user2_id if match.user1_id == g.user.user_id else match.user1_id
+
+    i_am_user1 = g.user.user_id == match.user1_id
+    
+    # New logic for profile status
+    profile_sent_by_me = (i_am_user1 and match.status == BlindMatchStatus.REVEAL_REQUESTED_BY_1) or \
+                         (not i_am_user1 and match.status == BlindMatchStatus.REVEAL_REQUESTED_BY_2)
+    
+    profile_sent_by_partner = (i_am_user1 and match.status == BlindMatchStatus.REVEAL_REQUESTED_BY_2) or \
+                              (not i_am_user1 and match.status == BlindMatchStatus.REVEAL_REQUESTED_BY_1)
+
+    profile_status = {
+        "i_sent": profile_sent_by_me,
+        "partner_sent": profile_sent_by_partner,
+    }
+
+    return render_template('blind_chat.html', match=match, partner_id=partner_id, profile_status=profile_status)
+
+# --- 블라인드 매칭 큐 API (신규) ---
+
+@app.route('/api/blind-match/queue/enter', methods=['POST'])
+@login_required
+def enter_blind_queue():
+    """사용자를 매칭 대기열에 추가합니다."""
+    result = BlindMatchManager.enter_blind_match_queue(g.user.user_id)
+    return jsonify(result)
+
+@app.route('/api/blind-match/queue/leave', methods=['POST'])
+@login_required
+def leave_blind_queue():
+    """사용자를 매칭 대기열에서 제거합니다."""
+    result = BlindMatchManager.leave_blind_match_queue(g.user.user_id)
+    return jsonify(result)
+
+@app.route('/api/blind-match/queue/status', methods=['GET'])
+@login_required
+def blind_queue_status():
+    """사용자의 현재 대기열 상태를 확인합니다."""
+    status = BlindMatchManager.get_queue_status(g.user.user_id)
+    return jsonify(status)
+
+@app.route('/api/blind-match/request', methods=['POST'])
+@login_required
+def api_request_blind_match():
+    receiver_id = request.json.get('receiver_id')
+    if not receiver_id:
+        return jsonify({'success': False, 'message': '상대방 정보가 없습니다.'}), 400
+    result = BlindMatchManager.create_blind_match_request(g.user.user_id, receiver_id)
+    return jsonify(result)
+
+@app.route('/api/blind-match/<int:match_id>/respond/<action>', methods=['POST'])
+@login_required
+def api_respond_blind_match(match_id, action):
+    result = BlindMatchManager.respond_to_blind_match_request(match_id, g.user.user_id, action)
+    return jsonify(result)
+
+@app.route('/api/blind-match/<int:match_id>/send-profile', methods=['POST'])
+@login_required
+def api_send_blind_profile(match_id):
+    result = BlindMatchManager.send_profile_and_create_match_request(match_id, g.user.user_id)
+    return jsonify(result)
+
+@app.route('/api/blind-match/<int:match_id>/end', methods=['POST'])
+@login_required
+def api_end_blind_match(match_id):
+    result = BlindMatchManager.end_blind_match(match_id, g.user.user_id)
+    return jsonify(result)
+
+@app.route('/api/blind-chat/<string:match_code>/messages')
+@login_required
+def api_get_blind_chat_messages(match_code):
+    match = BlindMatch.query.filter_by(match_code=match_code).first_or_404()
+    if g.user.user_id not in [match.user1_id, match.user2_id]:
+        return jsonify({'error': 'Unauthorized'}), 403
+
+    response_data = {'status': match.status.value}
+
+    # 실시간 버튼 상태 업데이트를 위해 프로필 전송 상태를 계산하여 전달합니다.
+    i_am_user1 = g.user.user_id == match.user1_id
+    profile_sent_by_me = (i_am_user1 and match.status == BlindMatchStatus.REVEAL_REQUESTED_BY_1) or \
+                         (not i_am_user1 and match.status == BlindMatchStatus.REVEAL_REQUESTED_BY_2)
+    
+    profile_sent_by_partner = (i_am_user1 and match.status == BlindMatchStatus.REVEAL_REQUESTED_BY_2) or \
+                              (not i_am_user1 and match.status == BlindMatchStatus.REVEAL_REQUESTED_BY_1)
+    response_data['profile_status'] = {
+        "i_sent": profile_sent_by_me,
+        "partner_sent": profile_sent_by_partner,
+    }
+
+    # If the match is over, no need to process messages further, just inform the client.
+    terminal_states = [
+        BlindMatchStatus.ENDED_BY_USER,
+        BlindMatchStatus.ENDED_BY_TIMEOUT,
+        BlindMatchStatus.REJECTED,
+        BlindMatchStatus.CANCELLED
+    ]
+    if match.status in terminal_states:
+        return jsonify(response_data)
+
+    # If profiles are revealed, provide the redirect URL to the general match detail page.
+    if match.status == BlindMatchStatus.REVEALED:
+        general_match = MatchRequest.query.filter(
+            ((MatchRequest.sender_id == match.user1_id) & (MatchRequest.receiver_id == match.user2_id)) |
+            ((MatchRequest.sender_id == match.user2_id) & (MatchRequest.receiver_id == match.user1_id))
+        ).first()
+        if general_match:
+            response_data['redirect_url'] = url_for('match_detail', request_id=general_match.request_id)
+        else:
+            response_data['redirect_url'] = url_for('blind_inbox')
+        return jsonify(response_data)
+
+    partner_id = match.user2_id if match.user1_id == g.user.user_id else match.user1_id
+    unread_messages = BlindMatchMessage.query.filter_by(match_id=match.id, sender_id=partner_id, is_read=False).all()
+    for msg in unread_messages:
+        msg.is_read = True
+    if unread_messages:
+        db.session.commit()
+
+    messages = BlindMatchMessage.query.filter_by(match_id=match.id).order_by(BlindMatchMessage.created_at.asc()).all()
+    msg_list = []
+    for m in messages:
+        kst_time = m.created_at + timedelta(hours=9)
+        msg_list.append({
+            'id': m.id,
+            'sender_id': m.sender_id,
+            'content': m.content,
+            'created_at': kst_time.strftime('%H:%M'),
+            'is_me': m.sender_id == g.user.user_id,
+            'is_read': m.is_read
+        })
+    
+    response_data['messages'] = msg_list
+    return jsonify(response_data)
+
+@app.route('/api/blind-chat/<string:match_code>/send', methods=['POST'])
+@login_required
+def api_send_blind_chat_message(match_code):
+    match = BlindMatch.query.filter_by(match_code=match_code).first_or_404()
+    if g.user.user_id not in [match.user1_id, match.user2_id]:
+        return jsonify({'error': 'Unauthorized'}), 403
+
+    content = request.json.get('content', '').strip()
+    if not content:
+        return jsonify({'error': 'Empty message'}), 400
+
+    content = str(escape(content))
+
+    msg = BlindMatchMessage(match_id=match.id, sender_id=g.user.user_id, content=content)
+    db.session.add(msg)
+    db.session.commit()
+    return jsonify({'success': True})
+
+def schedule_system_jobs():
+    """스케줄러에 시스템 자동화 작업을 등록합니다."""
+
+    app.logger.info("스케줄링 작업을 설정합니다...")
+    # ID를 지정하여 중복 등록 방지
+    if not scheduler.get_job('cleanup_expired_requests'):
+        scheduler.add_job(id='cleanup_expired_requests',
+                          func=BlindMatchManager.cleanup_expired_requests,
+                          trigger='interval',
+                          hours=1, args=[app])
+        
+        app.logger.info("-> 'cleanup_expired_requests' 작업이 1시간 간격으로 등록되었습니다.")
+    
+    if not scheduler.get_job('timeout_inactive_matches'):
+        scheduler.add_job(id='timeout_inactive_matches',
+                          func=BlindMatchManager.timeout_inactive_matches,
+                          trigger='interval',
+                          hours=6, args=[app])
+        
+        app.logger.info("-> 'timeout_inactive_matches' 작업이 6시간 간격으로 등록되었습니다.")
+
 if __name__ == '__main__':
     import sys
 
@@ -2625,4 +3173,13 @@ if __name__ == '__main__':
     with app.app_context():
         db.create_all()
         check_and_update_db_schema()
-    app.run(host=config_class.RUN_HOST, port=config_class.RUN_PORT)
+
+    # 스케줄러 시작
+    scheduler.start()
+    
+    # 개발 환경에서 리로더로 인한 중복 실행을 방지하기 위해 werkzeug reloader 감지
+    if not app.debug or os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
+        with app.app_context():
+            schedule_system_jobs()
+
+    app.run(host=config_class.RUN_HOST, port=config_class.RUN_PORT, use_reloader=app.debug)
