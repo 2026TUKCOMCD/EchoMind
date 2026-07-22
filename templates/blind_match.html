@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+
+{% block title %}블라인드 매칭{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto p-4 md:p-8 flex flex-col items-center justify-center min-h-[60vh]" x-data="blindMatchQueue()">
+        <!-- Header -->
+        <header class="text-center mb-12">
+            <h1 class="text-4xl font-extrabold text-slate-800 dark:text-slate-100 tracking-tight">블라인드 매칭</h1>
+            <p class="text-slate-500 dark:text-slate-400 mt-2">운명의 상대를 자동으로 찾아드립니다.</p>
+        </header>
+
+        <!-- Alpine.js controlled content -->
+        <div class="w-full max-w-md">
+            <!-- State: Idle -->
+            <div x-show="state === 'idle'" class="text-center">
+                <p class="text-slate-600 dark:text-slate-300 mb-6">아래 버튼을 눌러 매칭 대기열에 참여하세요.<br>다른 사용자와 1:1로 자동 연결됩니다.</p>
+                <button @click="enterQueue()" class="w-full bg-indigo-600 text-white font-bold py-4 px-4 rounded-xl hover:bg-indigo-700 transition shadow-lg text-lg">
+                    ⚡️ 매칭 시작하기
+                </button>
+            </div>
+
+            <!-- State: Waiting -->
+            <div x-show="state === 'waiting'" x-transition class="text-center bg-white dark:bg-slate-800 p-8 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700">
+                <div class="animate-pulse text-5xl mb-4">⏳</div>
+                <h2 class="text-2xl font-bold text-slate-800 dark:text-slate-100">매칭 상대를 찾고 있습니다...</h2>
+                <p class="text-slate-500 dark:text-slate-400 mt-2">평균 1~2분 정도 소요될 수 있습니다.<br>페이지를 벗어나도 매칭은 계속 진행됩니다.</p>
+                <div class="mt-6 text-2xl font-mono font-bold text-slate-700 dark:text-slate-200" x-text="timer">00:00</div>
+                <button @click="leaveQueue()" class="mt-6 w-full bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 font-semibold py-3 px-4 rounded-lg hover:bg-slate-300 dark:hover:bg-slate-600 transition">
+                    매칭 취소
+                </button>
+            </div>
+
+             <!-- State: Error -->
+            <div x-show="state === 'error'" x-transition class="text-center bg-red-50 dark:bg-red-900/20 p-8 rounded-2xl shadow-lg border border-red-200 dark:border-red-800">
+                <div class="text-5xl mb-4">😥</div>
+                <h2 class="text-2xl font-bold text-red-800 dark:text-red-300">오류 발생</h2>
+                <p class="text-red-600 dark:text-red-400 mt-2" x-text="errorMessage">매칭 서버에 연결할 수 없습니다.</p>
+                <button @click="state = 'idle'" class="mt-6 w-full bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 font-semibold py-3 px-4 rounded-lg hover:bg-slate-300 dark:hover:bg-slate-600 transition">
+                    돌아가기
+                </button>
+            </div>
+        </div>
+
+        <div class="mt-12 text-center">
+             <a href="{{ url_for('blind_inbox') }}" class="px-4 py-2 text-sm font-semibold bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition">
+                내 요청함 및 진행중인 대화 보기
+            </a>
+        </div>
+    </div>
+
+    <script>
+        function blindMatchQueue() {
+            return {
+                state: 'idle', // 'idle', 'waiting', 'error'
+                errorMessage: '',
+                pollingInterval: null,
+                timerInterval: null,
+                elapsedSeconds: 0,
+                timer: '00:00',
+
+                init() {
+                    // 페이지 로드 시 현재 상태 확인
+                    this.checkStatus();
+                },
+
+                startTimer() {
+                    this.stopTimer();
+                    this.timerInterval = setInterval(() => {
+                        this.elapsedSeconds++;
+                        const minutes = Math.floor(this.elapsedSeconds / 60).toString().padStart(2, '0');
+                        const seconds = (this.elapsedSeconds % 60).toString().padStart(2, '0');
+                        this.timer = `${minutes}:${seconds}`;
+                    }, 1000);
+                },
+
+                stopTimer() {
+                    clearInterval(this.timerInterval);
+                    this.elapsedSeconds = 0;
+                    this.timer = '00:00';
+                },
+
+                async enterQueue() {
+                    this.state = 'waiting';
+                    this.startTimer();
+                    try {
+                        const response = await fetch('/api/blind-match/queue/enter', { method: 'POST' });
+                        const result = await response.json();
+                        if (!result.success) {
+                            throw new Error(result.message);
+                        }
+                        // Start polling for status
+                        this.pollingInterval = setInterval(() => this.checkStatus(), 3000);
+                        // Check immediately once
+                        this.checkStatus();
+                    } catch (error) {
+                        this.state = 'error';
+                        this.errorMessage = error.message || '매칭 대기열에 참여하지 못했습니다.';
+                        this.stopTimer();
+                    }
+                },
+
+                async leaveQueue() {
+                    clearInterval(this.pollingInterval);
+                    this.stopTimer();
+                    this.state = 'idle';
+                    try {
+                        await fetch('/api/blind-match/queue/leave', { method: 'POST' });
+                    } catch (error) {
+                        console.error("Failed to leave queue on server:", error);
+                    }
+                },
+
+                async checkStatus() {
+                    try {
+                        const response = await fetch('/api/blind-match/queue/status');
+                        const result = await response.json();
+
+                        if (result.status === 'MATCHED') {
+                            clearInterval(this.pollingInterval);
+                            this.stopTimer();
+                            // 매칭 성공! 채팅방으로 리디렉션
+                            window.location.href = `/blind-chat/${result.match_code}`;
+                        } else if (result.status === 'WAITING') {
+                            this.state = 'waiting';
+                            if (!this.timerInterval) {
+                                this.elapsedSeconds = result.elapsed_seconds || 0;
+                                this.startTimer();
+                            }
+                            if (!this.pollingInterval) {
+                                this.pollingInterval = setInterval(() => this.checkStatus(), 3000);
+                            }
+                        } else { // 'IDLE' or other states
+                            this.state = 'idle';
+                            clearInterval(this.pollingInterval);
+                            this.stopTimer();
+                        }
+                    } catch (error) {
+                        this.state = 'error';
+                        this.errorMessage = '매칭 상태를 확인하는 중 오류가 발생했습니다.';
+                        clearInterval(this.pollingInterval);
+                        this.stopTimer();
+                    }
+                }
+            }
+        }
+    </script>
+{% endblock %}

@@ -1,0 +1,200 @@
+{% extends "base.html" %}
+
+{% block title %}블라인드 채팅{% endblock %}
+
+{% block content %}
+    <!-- `h-screen`을 제거하고, 하단 입력창을 fixed로 변경하여 base.html 레이아웃과 통합합니다. -->
+    <div class="max-w-2xl mx-auto" x-data="chatApp('{{ match.match_code }}', {{ match.id }})">
+        <!-- Header -->
+        <!-- 이 헤더는 base.html의 네비게이션 바 아래에 표시되는 페이지 전용 헤더입니다. -->
+        <header class="bg-white dark:bg-slate-800 p-4 flex items-center justify-between z-10 border-b border-slate-200 dark:border-slate-700 sticky top-16">
+            <div class="flex items-center">
+                <a href="{{ url_for('blind_inbox') }}" class="text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white mr-4">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+                    </svg>
+                </a>
+                <div class="w-10 h-10 bg-slate-300 dark:bg-slate-700 rounded-full flex items-center justify-center mr-3">
+                    <span class="text-lg font-bold text-slate-600 dark:text-slate-400">?</span>
+                </div>
+                <div>
+                    <h1 class="text-lg font-bold text-slate-800 dark:text-white">블라인드 매칭</h1>
+                    <p class="text-xs text-slate-500 dark:text-slate-400">익명으로 대화중입니다</p>
+                </div>
+            </div>
+            <div class="flex items-center space-x-2">
+                <!-- 테마 토글 버튼은 base.html의 네비게이션 바에 있으므로 여기서는 제거합니다. -->
+                <button @click="sendProfile()" 
+                        :disabled="profileStatus.i_sent"
+                        :class="{ 
+                            'bg-indigo-200 text-indigo-500 dark:bg-indigo-800 dark:text-indigo-400 cursor-not-allowed': profileStatus.i_sent, 
+                            'bg-green-500 hover:bg-green-600 text-white': profileStatus.partner_sent,
+                            'bg-indigo-500 hover:bg-indigo-600 text-white': !profileStatus.i_sent && !profileStatus.partner_sent
+                        }"
+                        class="px-3 py-2 text-sm font-semibold rounded-md transition">
+                    <span x-text="profileStatus.partner_sent ? '상대방 프로필 보러 가기' : (profileStatus.i_sent ? '프로필 전송 완료' : '프로필 보내기')">프로필 보내기</span>
+                </button>
+                <button @click="endChat()" class="px-3 py-2 text-sm font-semibold bg-red-500 hover:bg-red-600 text-white rounded-md transition">대화 종료</button>
+            </div>
+        </header>
+
+        <!-- Messages -->
+        <!-- 하단 입력창이 fixed 이므로, 가려지지 않도록 padding-bottom 추가 -->
+        <main class="overflow-y-auto p-4 space-y-4 pb-24 bg-slate-100 dark:bg-slate-900 min-h-[calc(100vh-240px)]" x-ref="messages">
+            <template x-for="message in messages" :key="message.id">
+                <div class="flex items-end" :class="message.is_me ? 'justify-end' : 'justify-start'">
+                    <!-- 안 읽음 카운트 (내 메시지이고, is_read가 false일 때만 표시) -->
+                    <div x-show="message.is_me && !message.is_read" class="text-xs text-slate-400 dark:text-slate-500 mr-2 mb-1.5">
+                        1
+                    </div>
+
+                    <div class="max-w-xs lg:max-w-md px-4 py-2 rounded-2xl shadow-sm"
+                         :class="message.is_me ? 'bg-indigo-500 text-white rounded-br-none' : 'bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-bl-none'">
+                        <p class="text-sm" x-text="message.content"></p>
+                        <div class="text-xs mt-1 text-right" :class="message.is_me ? 'text-indigo-200' : 'text-slate-400 dark:text-slate-500'" x-text="message.created_at"></div>
+                    </div>
+                </div>
+            </template>
+        </main>
+
+        <!-- Input -->
+        <!-- flex 레이아웃 대신 fixed 위치로 변경 -->
+        <div class="fixed bottom-0 left-0 right-0 bg-white dark:bg-slate-800 p-4 border-t border-slate-200 dark:border-slate-700">
+            <div class="max-w-2xl mx-auto flex items-center">
+                <input type="text" x-model="newMessage" @keydown.enter="sendMessage" placeholder="메시지를 입력하세요..."
+                       class="w-full px-4 py-2 bg-slate-100 dark:bg-slate-700 border border-transparent rounded-full focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition text-slate-900 dark:text-white">
+                <button @click="sendMessage" class="ml-3 px-5 py-2 bg-indigo-600 text-white font-semibold rounded-full hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition">
+                    전송
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Alpine.js 로직은 그대로 유지
+        function chatApp(matchCode, matchId) {
+            return {
+                matchCode: matchCode,
+                matchId: matchId,
+                messages: [],
+                newMessage: '',
+                profileStatus: {{ profile_status | tojson }},
+                pollingInterval: null,
+
+                init() {
+                    this.fetchMessages();
+                    this.pollingInterval = setInterval(() => this.fetchMessages(), 3000); // Polling 주기를 3초로 단축
+                    
+                    this.$watch('messages', () => {
+                        this.$nextTick(() => {
+                            this.$refs.messages.scrollTop = this.$refs.messages.scrollHeight;
+                        });
+                    });
+                },
+
+                destroy() {
+                    clearInterval(this.pollingInterval);
+                },
+
+                async fetchMessages() {
+                    try {
+                        const response = await fetch(`/api/blind-chat/${this.matchCode}/messages`);
+                        if (!response.ok) throw new Error('Server error');
+                        const data = await response.json();
+
+                        // 실시간 버튼 상태 업데이트
+                        if (data.profile_status) {
+                            this.profileStatus = data.profile_status;
+                        }
+
+                        const terminalStates = ['ENDED_BY_USER', 'ENDED_BY_TIMEOUT', 'REJECTED', 'CANCELLED'];
+                        
+                        if (data.status === 'REVEALED') {
+                            clearInterval(this.pollingInterval);
+                            alert('프로필이 공개되었습니다! 일반 매칭으로 전환됩니다.');
+                            if (data.redirect_url) {
+                                window.location.href = data.redirect_url;
+                            } else {
+                                window.location.href = "{{ url_for('match_inbox') }}"; // Fallback
+                            }
+                            return; // Stop further processing
+                        }
+
+                        if (terminalStates.includes(data.status)) {
+                            clearInterval(this.pollingInterval);
+                            alert('대화가 종료되었습니다.');
+                            window.location.href = "{{ url_for('blind_inbox') }}";
+                            return; // Stop further processing
+                        }
+
+                        // Only update messages if the chat is active
+                        if (data.messages) {
+                            this.messages = data.messages;
+                        }
+                    } catch (error) {
+                        console.error('Error fetching messages:', error);
+                        // Do not stop polling on network errors, it might recover
+                    }
+                },
+
+                async sendMessage() {
+                    if (this.newMessage.trim() === '') return;
+
+                    try {
+                        const response = await fetch(`/api/blind-chat/${this.matchCode}/send`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ content: this.newMessage })
+                        });
+                        if (!response.ok) throw new Error('Server error');
+                        this.newMessage = '';
+                        await this.fetchMessages(); // 즉시 갱신
+                    } catch (error) {
+                        console.error('Error sending message:', error);
+                        alert('메시지 전송에 실패했습니다.');
+                    }
+                },
+
+                async sendProfile() {
+                    // If partner sent profile, this button redirects to inbox
+                    if (this.profileStatus.partner_sent) {
+                        window.location.href = "{{ url_for('match_inbox') }}";
+                        return;
+                    }
+
+                    if (!confirm('상대방에게 나의 프로필을 보내시겠습니까? 이 작업은 되돌릴 수 없습니다. 전송 후에는 블라인드 채팅이 종료되고, 상대방이 인박스에서 매칭을 수락해야 대화를 이어갈 수 있습니다.')) return;
+
+                    try {
+                        // New API endpoint
+                        const response = await fetch(`/api/blind-match/${this.matchId}/send-profile`, { method: 'POST' });
+                        const result = await response.json();
+                        alert(result.message);
+                        if (result.success) {
+                            // Redirect to inbox to see the sent request
+                            window.location.href = "{{ url_for('match_inbox') }}";
+                        }
+                    } catch (error) {
+                        console.error('Error sending profile:', error);
+                        alert('요청 처리 중 오류가 발생했습니다.');
+                    }
+                },
+
+                async endChat() {
+                    if (!confirm('정말로 대화를 종료하시겠습니까? 이 작업은 되돌릴 수 없습니다.')) return;
+
+                    try {
+                        const response = await fetch(`/api/blind-match/${this.matchId}/end`, { method: 'POST' });
+                        const result = await response.json();
+                        alert(result.message);
+                        if (result.success) {
+                            window.location.href = "{{ url_for('blind_inbox') }}";
+                        }
+                    } catch (error) {
+                        console.error('Error ending chat:', error);
+                        alert('요청 처리 중 오류가 발생했습니다.');
+                    }
+                }
+            }
+        }
+    </script>
+{% endblock %}

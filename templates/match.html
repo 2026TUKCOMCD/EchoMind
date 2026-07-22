@@ -21,7 +21,7 @@
         <div
             class="relative glass-panel p-8 rounded-3xl hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 mt-4">
 
-            <!-- [NEW] Relationship Label -->
+            <!-- Relationship Label -->
             {% if cand.match_details and cand.match_details.mbti_label %}
             <div class="absolute top-6 right-6 bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-200 text-xs font-bold px-2.5 py-1.5 rounded-full shadow-sm">
                 {{ cand.match_details.mbti_label }}
@@ -337,35 +337,15 @@
                                 <div
                                     class="absolute left-0 sm:left-auto sm:-left-4 top-full mt-2 w-[500px] p-6 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 pointer-events-none">
                                     <p
-                                        class="font-bold text-base text-slate-700 dark:text-slate-200 mb-3 border-b border-slate-100 dark:border-slate-700 pb-3">
-                                        MBTI 궁합 산출표</p>
+                                        class="font-bold text-base text-slate-800 dark:text-slate-200 mb-3 border-b border-slate-100 dark:border-slate-700 pb-3">
+                                        MBTI 기능 궁합 산출표</p>
                                     <ul class="space-y-3 text-sm list-none text-slate-600 dark:text-slate-300">
-                                        <li><span class="inline-block w-28 font-bold text-indigo-500">100점 (이원)</span>
-                                            <span class="opacity-90">4지표 모두 다름</span>
-                                        </li>
-                                        <li><span class="inline-block w-28 font-bold text-blue-500">90점 (활동)</span>
-                                            <span class="opacity-90">E/I만 동일, 3지표 다름</span>
-                                        </li>
-                                        <li><span class="inline-block w-28 font-bold text-emerald-500">80점 (거울)</span>
-                                            <span class="opacity-90">E/I만 다름, 3지표 동일</span>
-                                        </li>
-                                        <li><span class="inline-block w-28 font-bold text-teal-500">75점 (유사)</span>
-                                            <span class="opacity-90">E/I, J/P 동일, 기능(N/S,T/F) 1개 다름</span>
-                                        </li>
-                                        <li><span class="inline-block w-28 font-bold text-yellow-500">65점 (비대칭)</span>
-                                            <span class="opacity-90">기능(N/S,T/F) 1개 이상 같고 J/P 다름</span>
-                                        </li>
-                                        <li><span class="inline-block w-28 font-bold text-orange-500">60점 (동일)</span>
-                                            <span class="opacity-90">4지표 완벽 일치</span>
-                                        </li>
-                                        <li><span class="inline-block w-28 font-bold text-slate-500">50점 (중립)</span>
-                                            <span class="opacity-90">기능 모두 다르면서 J/P도 다름 등 (그 외)</span>
-                                        </li>
-                                        <li><span class="inline-block w-28 font-bold text-rose-500">30점 (초자아)</span>
-                                            <span class="opacity-90">E/I, J/P 동일, 기능 2개 서로 다름</span>
-                                        </li>
-                                        <li><span class="inline-block w-28 font-bold text-red-500">10점 (갈등)</span> <span
-                                                class="opacity-90">J/P만 동일, 3지표 다름</span></li>
+                                        <li><span class="inline-block w-36 font-bold text-indigo-500">완벽보완 (100점)</span><span class="opacity-90">주기능 ↔ 열등기능 상호 교차</span></li>
+                                        <li><span class="inline-block w-36 font-bold text-blue-500">시너지협업 (70점)</span><span class="opacity-90">주기능 ↔ 부기능 교차</span></li>
+                                        <li><span class="inline-block w-36 font-bold text-emerald-500">핵심일치 (65점)</span><span class="opacity-90">주기능 동일</span></li>
+                                        <li><span class="inline-block w-36 font-bold text-teal-500">기질조화 (60점)</span><span class="opacity-90">주기능의 기질(S/N, T/F) 동일</span></li>
+                                        <li><span class="inline-block w-36 font-bold text-slate-500">인지적상호작용 (50점)</span><span class="opacity-90">그 외의 일반적인 관계</span></li>
+                                        <li><span class="inline-block w-36 font-bold text-red-500">기능 대립 (약 43점)</span><span class="opacity-90">주기능이 서로 대립 관계 (예: Si-Se)</span></li>
                                     </ul>
                                 </div>
                             </div>
