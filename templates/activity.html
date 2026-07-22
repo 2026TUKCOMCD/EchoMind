@@ -67,7 +67,7 @@
                                     '{{ activity.target_name }}'님 프로필 분석
                                 </p>
                                 <p class="text-sm text-slate-500 dark:text-slate-400">
-                                    MBTI: {{ activity.mbti }}, 분석 라인 수: {{ activity.line_count }}
+                                    MBTI: {{ activity.mbti }}
                                 </p>
                             </div>
                         </div>
@@ -75,35 +75,6 @@
                     </li>
                     {% else %}
                     <li class="p-4 text-center text-slate-500 dark:text-slate-400">최근 프로필 분석 기록이 없습니다.</li>
-                    {% endfor %}
-                </ul>
-            </div>
-        </div>
-        
-        <!-- 매칭 활동 섹션 -->
-        <div>
-            <h2 class="text-xl font-bold text-slate-800 dark:text-white mb-4">매칭 활동 기록</h2>
-            <div class="bg-white dark:bg-slate-800 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700 rounded-lg">
-                <ul class="divide-y divide-slate-200 dark:divide-slate-700">
-                    {% for activity in matching_activities %}
-                    <li class="p-4">
-                        <div class="flex items-center justify-between">
-                            <div class="flex items-center gap-4">
-                                <span class="text-2xl">
-                                    {% if activity.type == 'sent' %}➡️{% elif activity.type == 'received' %}⬅️{% elif activity.type == 'accepted' %}🤝{% elif activity.type == 'rejected' %}❌{% endif %}
-                                </span>
-                                <div>
-                                    <p class="font-semibold text-slate-900 dark:text-white">{{ activity.message }}</p>
-                                    <p class="text-sm text-slate-500 dark:text-slate-400">
-                                        상대: <span class="font-medium">{{ activity.partner_name }}</span>
-                                    </p>
-                                </div>
-                            </div>
-                            <p class="text-sm text-slate-500 dark:text-slate-400">{{ activity.timestamp | kst }}</p>
-                        </div>
-                    </li>
-                    {% else %}
-                    <li class="p-4 text-center text-slate-500 dark:text-slate-400">최근 매칭 활동이 없습니다.</li>
                     {% endfor %}
                 </ul>
             </div>
