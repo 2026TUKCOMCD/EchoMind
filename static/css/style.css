@@ -46,6 +46,11 @@ body {
     box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.12), 0 10px 10px -5px rgba(0, 0, 0, 0.06);
 }
 
+.desktop-nav-links > a {
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
 /* Component Overrides - Use sparingly to avoid theme glitches */
 
 html.dark .bg-slate-50,
