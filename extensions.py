@@ -53,6 +53,15 @@ class User(db.Model):
     is_banned = db.Column(db.Boolean, default=False) # 계정 정지 여부
     is_dummy = db.Column(db.Boolean, default=False)  # 더미 사용자 여부 (시뮬레이션용)
 
+class CreditTransaction(db.Model):
+    __tablename__ = 'credit_transactions'
+    transaction_id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.user_id', ondelete='CASCADE'), nullable=False)
+    amount = db.Column(db.Integer, nullable=False)  # 구매는 양수, 사용은 음수
+    transaction_type = db.Column(db.String(30), nullable=False)
+    description = db.Column(db.String(255), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
 class ChatLog(db.Model):
     __tablename__ = 'chat_logs'
     log_id = db.Column(db.Integer, primary_key=True)

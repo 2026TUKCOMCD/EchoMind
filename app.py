@@ -113,6 +113,15 @@ else:
 if not os.path.exists(app.config['UPLOAD_FOLDER']):
     os.makedirs(app.config['UPLOAD_FOLDER'])
 
+
+def allowed_upload_file(filename: str, allowed_extensions=None) -> bool:
+    if not filename or '.' not in filename:
+        return False
+
+    extension = filename.rsplit('.', 1)[1].lower()
+    allowed = allowed_extensions or app.config.get('ALLOWED_EXTENSIONS', set())
+    return extension in allowed
+
 # --- Helper Functions ---
 def _parse_json_safe(data):
     """
@@ -130,6 +139,7 @@ def _parse_json_safe(data):
 from extensions import (
     db,
     User,
+    CreditTransaction,
     ChatLog,
     PersonalityResult,
     MatchRequest, 
@@ -147,6 +157,36 @@ from blind_match_manager import BlindMatchManager, BlindMatchStatus
 
 db.init_app(app)
 migrate = Migrate(app, db)
+
+FREE_ANALYSIS_COUNT = 3
+ANALYSIS_CREDIT_COST = 290
+CREDIT_PACKAGES = {
+    500: 5000,
+    1000: 10000,
+    2000: 20000,
+    3000: 30000,
+    5000: 50000,
+    10000: 100000,
+}
+
+def get_credit_balance(user_id):
+    total = db.session.query(
+        db.func.coalesce(db.func.sum(CreditTransaction.amount), 0)
+    ).filter_by(user_id=user_id).scalar()
+    return int(total or 0)
+
+def charge_analysis_credit(user_id):
+    if PersonalityResult.query.filter_by(user_id=user_id).count() < FREE_ANALYSIS_COUNT:
+        return False
+    if get_credit_balance(user_id) < ANALYSIS_CREDIT_COST:
+        raise ValueError(f"성격 분석에는 {ANALYSIS_CREDIT_COST}크레딧이 필요합니다.")
+    db.session.add(CreditTransaction(
+        user_id=user_id,
+        amount=-ANALYSIS_CREDIT_COST,
+        transaction_type='ANALYSIS_USE',
+        description='성격 분석 이용',
+    ))
+    return True
 
 # --- Template Filters ---
 @app.template_filter('kst')
@@ -206,8 +246,25 @@ def check_and_update_db_schema():
         try:
             inspector = sqlalchemy.inspect(db.engine)
             user_columns = [col['name'] for col in inspector.get_columns('users')]
+            table_names = inspector.get_table_names()
 
             with db.engine.connect() as conn:
+                # 0. 직접 실행 환경을 위한 크레딧 원장 테이블 생성
+                if 'credit_transactions' not in table_names:
+                    conn.execute(sqlalchemy.text("""
+                        CREATE TABLE credit_transactions (
+                            transaction_id INT AUTO_INCREMENT PRIMARY KEY,
+                            user_id INT NOT NULL,
+                            amount INT NOT NULL,
+                            transaction_type VARCHAR(30) NOT NULL,
+                            description VARCHAR(255) NOT NULL,
+                            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                            FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
+                            INDEX ix_credit_transactions_user_id (user_id)
+                        )
+                    """))
+                    conn.commit()
+
                 # 1. is_banned 컬럼 추가
                 if 'is_banned' not in user_columns:
                     app.logger.info("Adding 'is_banned' column to users table...")
@@ -443,6 +500,9 @@ def register():
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
+    if session.get('user_id'):
+        return redirect(url_for('home'))
+
     if request.method == 'POST':
         user = User.query.filter_by(email=request.form['email']).first()
         
@@ -470,6 +530,7 @@ def login():
                 return redirect(url_for('suspended'))
 
             log_activity(user, True) # Log successful login
+            session.permanent = True
             session['user_id'] = user.user_id
             session['username'] = user.username
             session['is_admin'] = (user.email == 'admin@echomind.com')
@@ -495,7 +556,7 @@ def login():
         flash("이메일 또는 비밀번호가 올바르지 않습니다.", "danger")
     return render_template('login.html')
 
-@app.route('/logout')
+@app.route('/logout', methods=['GET', 'POST'])
 def logout():
     session.clear()
     flash("로그아웃 되었습니다.", "info")
@@ -630,6 +691,81 @@ def history():
                            current_start=start_date,
                            current_end=end_date)
 
+@app.route('/credits', methods=['GET', 'POST'])
+@login_required
+def credits():
+    """크레딧 잔액, 구매 및 사용 내역 페이지"""
+    if request.method == 'POST':
+        try:
+            credit_amount = int(request.form.get('credits', 0))
+        except (TypeError, ValueError):
+            credit_amount = 0
+
+        price = CREDIT_PACKAGES.get(credit_amount)
+        if price is None:
+            flash('올바르지 않은 크레딧 상품입니다.', 'danger')
+            return redirect(url_for('credits'))
+
+        db.session.add(CreditTransaction(
+            user_id=g.user.user_id,
+            amount=credit_amount,
+            transaction_type='PURCHASE',
+            description=f'{credit_amount:,}크레딧 구매 (테스트 결제)',
+        ))
+        db.session.commit()
+        flash(f'{credit_amount:,}크레딧이 충전되었습니다. (테스트 결제: {price:,}원)', 'success')
+        return redirect(url_for('credits'))
+
+    transactions = CreditTransaction.query.filter_by(
+        user_id=g.user.user_id
+    ).order_by(CreditTransaction.created_at.desc()).all()
+    return render_template(
+        'credits.html',
+        balance=get_credit_balance(g.user.user_id),
+        transactions=transactions,
+        packages=CREDIT_PACKAGES,
+        analysis_cost=ANALYSIS_CREDIT_COST,
+    )
+
+@app.route('/api/credits', methods=['GET', 'POST'])
+@login_required
+def credits_api():
+    """모바일 앱용 크레딧 조회 및 테스트 구매 API"""
+    if request.method == 'POST':
+        try:
+            credit_amount = int(request.form.get('credits', 0))
+        except (TypeError, ValueError):
+            credit_amount = 0
+
+        price = CREDIT_PACKAGES.get(credit_amount)
+        if price is None:
+            return jsonify({'success': False, 'message': '올바르지 않은 크레딧 상품입니다.'}), 400
+
+        db.session.add(CreditTransaction(
+            user_id=g.user.user_id,
+            amount=credit_amount,
+            transaction_type='PURCHASE',
+            description=f'{credit_amount:,}크레딧 구매 (테스트 결제)',
+        ))
+        db.session.commit()
+
+    transactions = CreditTransaction.query.filter_by(
+        user_id=g.user.user_id
+    ).order_by(CreditTransaction.created_at.desc()).all()
+    return jsonify({
+        'success': True,
+        'balance': get_credit_balance(g.user.user_id),
+        'analysis_cost': ANALYSIS_CREDIT_COST,
+        'transactions': [
+            {
+                'amount': transaction.amount,
+                'description': transaction.description,
+                'created_at': transaction.created_at.isoformat() if transaction.created_at else None,
+            }
+            for transaction in transactions
+        ],
+    })
+
 # --- 유저 액티비티 ---
 
 @app.route('/activity')
@@ -735,6 +871,38 @@ def user_activity():
         matching_activities=matching_activities,
         activity_summary=activity_summary,
     )
+
+@app.route('/api/activity')
+@login_required
+def user_activity_api():
+    """모바일 앱용 최근 활동 API"""
+    time_threshold = datetime.utcnow() - timedelta(days=30)
+    login_activities = UserActivityLog.query.filter(
+        UserActivityLog.user_id == g.user.user_id,
+        UserActivityLog.timestamp >= time_threshold,
+    ).order_by(UserActivityLog.timestamp.desc()).limit(20).all()
+    analysis_results = PersonalityResult.query.filter(
+        PersonalityResult.user_id == g.user.user_id,
+        PersonalityResult.created_at >= time_threshold,
+    ).order_by(PersonalityResult.created_at.desc()).limit(10).all()
+
+    activities = [
+        {
+            'type': 'login',
+            'message': '로그인',
+            'created_at': activity.timestamp.isoformat() if activity.timestamp else None,
+        }
+        for activity in login_activities
+    ]
+    for result in analysis_results:
+        meta = result.full_report_json.get('meta', {}) if result.full_report_json else {}
+        activities.append({
+            'type': 'analysis',
+            'message': f"{meta.get('speaker_name', '알 수 없음')} 성격 분석 완료 ({result.mbti_prediction or '미정'})",
+            'created_at': result.created_at.isoformat() if result.created_at else None,
+        })
+    activities.sort(key=lambda item: item.get('created_at') or '', reverse=True)
+    return jsonify({'success': True, 'activities': activities[:30]})
     
 # --- END OF FEATURE: USER ACTIVITY ---
 
@@ -760,10 +928,14 @@ def set_representative(result_id):
     return redirect(url_for('history'))
 
 @app.route('/download_json')
+@app.route('/download_json/<int:result_id>')
 @login_required
-def download_result_json():
-    """대표 결과(Representative Result)를 JSON 파일로 다운로드"""
-    result = PersonalityResult.query.filter_by(user_id=g.user.user_id, is_representative=True).first()
+def download_result_json(result_id=None):
+    """대표 결과 또는 본인의 특정 결과를 JSON으로 다운로드"""
+    if result_id is None:
+        result = PersonalityResult.query.filter_by(user_id=g.user.user_id, is_representative=True).first()
+    else:
+        result = PersonalityResult.query.filter_by(user_id=g.user.user_id, result_id=result_id).first()
 
     if not result or not result.full_report_json:
         flash("다운로드할 분석 결과가 없습니다.", "warning")
@@ -786,11 +958,26 @@ def download_result_json():
 def upload_chat():
     if request.method == 'POST':
         current_user_id = g.user.user_id if getattr(g, 'user', None) else None
+
+        if current_user_id:
+            analysis_count = PersonalityResult.query.filter_by(user_id=current_user_id).count()
+            if analysis_count >= FREE_ANALYSIS_COUNT and get_credit_balance(current_user_id) < ANALYSIS_CREDIT_COST:
+                flash(f"무료 분석 3회를 모두 사용했습니다. 분석을 계속하려면 {ANALYSIS_CREDIT_COST}크레딧이 필요합니다.", "warning")
+                return redirect(url_for('credits'))
+
         file = request.files.get('file')
         target_name = request.form.get('target_name')
 
+        if not file or not file.filename:
+            flash('파일을 선택해주세요.', 'danger')
+            return redirect(request.url)
+
+        if not allowed_upload_file(file.filename, {'txt', 'json'}):
+            flash('TXT 또는 JSON 파일만 업로드 가능합니다.', 'danger')
+            return redirect(request.url)
+
         # 1. JSON 파일 직접 업로드 처리
-        if file and file.filename.endswith('.json'):
+        if file.filename.lower().endswith('.json'):
             try:
                 data = json.load(file)
 
@@ -801,6 +988,10 @@ def upload_chat():
 
                 profile = data['llm_profile']
                 meta = data.get('meta', {})
+
+                if not isinstance(meta, dict):
+                    meta = {}
+                data['meta'] = meta
 
                 # 타겟 이름 결정 (메타데이터 우선)
                 target_name_from_json = meta.get('speaker_name', 'Unknown')
@@ -863,6 +1054,7 @@ def upload_chat():
                 )
 
                 db.session.add(new_profile)
+                charge_analysis_credit(current_user_id) if current_user_id else None
                 db.session.commit()
 
                 if not current_user_id:
@@ -881,7 +1073,7 @@ def upload_chat():
             flash("분석 대상자 이름을 입력해주세요.", "danger")
             return redirect(request.url)
 
-        if file and file.filename.endswith('.txt'):
+        if file.filename.lower().endswith('.txt'):
             filename = secure_filename(file.filename)
             unique_filename = f"{uuid.uuid4().hex}_{filename}"
             save_path = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
@@ -984,6 +1176,7 @@ def upload_chat():
 
                 new_log.process_status = 'COMPLETED'
                 db.session.add(new_profile)
+                charge_analysis_credit(current_user_id) if current_user_id else None
                 db.session.commit()
 
                 if not current_user_id:
@@ -1473,7 +1666,7 @@ def apply_match(receiver_id):
     flash(result['message'], 'success' if result['success'] else 'danger')
     return redirect(url_for('start_matching'))
 
-@app.route('/respond_match/<int:request_id>/<action>')
+@app.route('/respond_match/<int:request_id>/<action>', methods=['GET', 'POST'])
 @login_required
 def respond_match(request_id, action):
     result = MatchManager.respond_to_request(request_id, action.upper())
@@ -1494,7 +1687,7 @@ def cancel_match_request_route(request_id):
     flash(result['message'], 'success' if result['success'] else 'danger')
     return redirect(url_for('match_inbox'))
 
-@app.route('/unmatch/respond/<int:request_id>/<action>')
+@app.route('/unmatch/respond/<int:request_id>/<action>', methods=['GET', 'POST'])
 @login_required
 def respond_unmatch(request_id, action):
     result = MatchManager.respond_unmatch(request_id, action.upper())
@@ -1511,13 +1704,15 @@ def withdraw_unmatch(request_id):
 # --- 관리자 (Admin) ---
 @app.route('/admin/login', methods=['GET', 'POST'])
 def admin_login():
-
+    if session.get('is_admin'):
+        return redirect(url_for('admin_dashboard'))
 
     if request.method == 'POST':
         pw = request.form.get('password')
         # 환경변수 ADMIN_PASSWORD 사용 (기본값: 1234)
         admin_pw = os.environ.get('ADMIN_PASSWORD', '1234')
         if pw == admin_pw:
+            session.permanent = True
             session['is_admin'] = True
             flash("관리자 모드로 로그인되었습니다.", "success")
             return redirect(url_for('admin_dashboard'))
@@ -1774,7 +1969,7 @@ def admin_upload_candidate():
         flash('선택된 파일이 없습니다.', 'danger')
         return redirect(url_for('admin_dashboard'))
 
-    if file and file.filename.endswith('.json'):
+    if file and allowed_upload_file(file.filename, {'json'}):
         try:
             filename = secure_filename(file.filename)
             candidates_dir = os.path.join(os.path.dirname(__file__), 'candidates_db')
@@ -1926,7 +2121,7 @@ def admin_delete_match(request_id):
     flash(result['message'], 'success' if result['success'] else 'danger')
     return redirect(url_for('admin_dashboard', tab='logs'))
 
-@app.route('/admin/logout')
+@app.route('/admin/logout', methods=['GET', 'POST'])
 def admin_logout():
     # 기존 메시지 클리어 (중복 표시 방지)
     session.pop('_flashes', None)
@@ -2968,6 +3163,13 @@ def blind_inbox():
     # 이제 BlindMatchManager가 마지막 메시지와 안 읽은 메시지 수를 모두 계산하므로
     # app.py에서는 추가적인 로직이 필요 없습니다.
     return render_template('blind_inbox.html', blind_matches=result.get('data', {}))
+
+@app.route('/api/blind-inbox')
+@login_required
+def blind_inbox_api():
+    """모바일 앱용 블라인드 매칭 목록 API"""
+    result = BlindMatchManager.get_user_blind_matches(g.user.user_id)
+    return jsonify(result), (200 if result.get('success') else 500)
 
 @app.route('/blind-matching')
 @login_required

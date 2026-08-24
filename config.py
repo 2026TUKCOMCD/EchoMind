@@ -66,7 +66,7 @@ class Config:
     # 세션 및 쿠키 설정
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = 'Lax'
-    PERMANENT_SESSION_LIFETIME = timedelta(hours=2)
+    PERMANENT_SESSION_LIFETIME = timedelta(days=7)
 
     @staticmethod
     def init_app(app):
@@ -76,7 +76,6 @@ class DevelopmentConfig(Config):
     """개발 환경 설정"""
     DEBUG = True
     SESSION_COOKIE_SECURE = False
-    # [REMOVED] ENABLE_DUMMY_SIMULATION 삭제됨 (더미 기능은 이제 DB 기반으로 통합됨)
 
 class ProductionConfig(Config):
     """운영 환경 설정"""
@@ -87,5 +86,5 @@ class ProductionConfig(Config):
 config_by_name = {
     'development': DevelopmentConfig,
     'production': ProductionConfig,
-    'default': DevelopmentConfig
+    'default': ProductionConfig
 }
