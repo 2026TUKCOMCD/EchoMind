@@ -39,6 +39,12 @@ android {
     buildFeatures {
         viewBinding = true
     }
+
+    sourceSets {
+        getByName("main") {
+            manifest.srcFile("src/main/manifests/AndroidManifest.xml")
+        }
+    }
 }
 
 dependencies {
