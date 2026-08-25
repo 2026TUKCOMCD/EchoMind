@@ -146,5 +146,16 @@
             app:cornerRadius="12dp"
             app:backgroundTint="@color/primary" />
 
+        <TextView
+            android:id="@+id/tvBackToLogin"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:layout_marginTop="24dp"
+            android:text="이미 계정이 있으신가요? 로그인"
+            android:textColor="@color/primary"
+            android:fontFamily="sans-serif-medium"
+            android:padding="8dp" />
+
     </LinearLayout>
 </ScrollView>
