@@ -57,7 +57,8 @@
         <activity
             android:name=".ChatActivity"
             android:exported="false"
-            android:label="채팅" />
+            android:label="채팅"
+            android:windowSoftInputMode="adjustResize" />
 
         <activity
             android:name=".GroupLoungeActivity"
@@ -67,7 +68,8 @@
         <activity
             android:name=".GroupChatActivity"
             android:exported="false"
-            android:label="그룹 채팅" />
+            android:label="그룹 채팅"
+            android:windowSoftInputMode="adjustResize" />
 
         <activity
             android:name=".GroupCreateActivity"
@@ -78,11 +80,37 @@
             android:name=".HistoryActivity"
             android:exported="false" />
 
-        <!-- [추가] 매칭 상대방 성격 분석 상세 화면 -->
+        <activity
+            android:name=".CreditActivity"
+            android:exported="false"
+            android:label="크레딧" />
+
+        <activity
+            android:name=".UserActivityActivity"
+            android:exported="false"
+            android:label="나의 활동" />
+
+        <activity
+            android:name=".BlindMatchActivity"
+            android:exported="false"
+            android:label="블라인드 매칭" />
+
+        <activity
+            android:name=".BlindInboxActivity"
+            android:exported="false"
+            android:label="블라인드 인박스" />
+
+        <activity
+            android:name=".BlindChatActivity"
+            android:exported="false"
+            android:label="블라인드 채팅"
+            android:windowSoftInputMode="adjustResize" />
+
         <activity
             android:name=".MatchDetailActivity"
             android:exported="false"
             android:label="상대방 분석 상세" />
+
 
     </application>
 
