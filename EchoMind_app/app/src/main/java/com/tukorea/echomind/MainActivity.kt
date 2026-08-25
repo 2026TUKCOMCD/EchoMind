@@ -57,6 +57,9 @@ class MainActivity : AppCompatActivity() {
         binding.menuMatch.setOnClickListener { startActivity(Intent(this, MatchActivity::class.java)); closeMenu() }
         binding.menuGroupLounge.setOnClickListener { startActivity(Intent(this, GroupLoungeActivity::class.java)); closeMenu() }
         binding.menuInbox.setOnClickListener { startActivity(Intent(this, InboxActivity::class.java)); closeMenu() }
+        binding.menuCredits.setOnClickListener { startActivity(Intent(this, CreditActivity::class.java)); closeMenu() }
+        binding.menuActivity.setOnClickListener { startActivity(Intent(this, UserActivityActivity::class.java)); closeMenu() }
+        binding.menuBlindMatch.setOnClickListener { startActivity(Intent(this, BlindInboxActivity::class.java)); closeMenu() }
         binding.menuLogout.setOnClickListener {
             getSharedPreferences("EchoMindSession", Context.MODE_PRIVATE).edit().clear().apply()
             startActivity(Intent(this, LoginActivity::class.java))
@@ -83,21 +86,29 @@ class MainActivity : AppCompatActivity() {
     private fun syncDataWithSafety() {
         lifecycleScope.launch {
             try {
-                // 1. 사용자 이름 동기화
-                val homeResp = apiService.getHomeHtml()
-                if (homeResp.isSuccessful) {
-                    val name = Jsoup.parse(homeResp.body() ?: "").select("span.font-bold.text-slate-700").first()?.text()?.replace("님", "")?.trim() ?: "회원"
-                    binding.tvMenuUserName.text = "${name}님"
-                }
-
-                // 2. 분석 프로필 동기화 (서버의 현재 대표 프로필 가져오기)
+                // 1. 사용자 정보 동기화 (프로필 JSON 우선, HTML 차선)
                 val profileResp = apiService.getMyProfileJson()
                 if (profileResp.isSuccessful) {
                     val root = profileResp.body()
+                    val serverName = root?.meta?.name
+                    if (serverName != null && serverName != "Unknown") {
+                        binding.tvMenuUserName.text = "${serverName}님"
+                    } else {
+                        // JSON에 이름이 없으면 HTML에서 파싱 시도 (더 넓은 범위 탐색)
+                        val homeResp = apiService.getHomeHtml()
+                        if (homeResp.isSuccessful) {
+                            val name = Jsoup.parse(homeResp.body() ?: "")
+                                .select("span.font-bold, p.font-bold")
+                                .firstOrNull { it.text().length < 10 }?.text()?.replace("님", "")?.trim() ?: "회원"
+                            binding.tvMenuUserName.text = "${name}님"
+                        }
+                    }
+
+                    // 프로필 데이터 동기화
                     val profile = root?.llmProfile
                     val serverResultId = root?.meta?.resultId ?: 0
                     if (profile != null) {
-                        handleSmartSync(profile.copy(name = root.meta?.name ?: "Unknown"), serverResultId)
+                        handleSmartSync(profile.copy(name = serverName ?: "Unknown"), serverResultId)
                     }
                 }
             } catch (e: Exception) { Log.e("Sync", "Fail", e) }
@@ -109,25 +120,20 @@ class MainActivity : AppCompatActivity() {
         
         val allLocal = db.personalityDao().getAllResultsByUser(currentEmail)
         
-        // 서버에서 온 프로필과 일치하는 로컬 기록 찾기
         val existing = allLocal.find { 
             (it.serverResultId != 0 && it.serverResultId == serverId) || 
             (it.mbti == serverProfile.mbti?.type && it.summary == serverProfile.summary?.one_paragraph)
         }
 
-        // 1. 기존의 모든 로컬 대표 설정 해제
         db.personalityDao().clearRepresentative(currentEmail)
 
         if (existing != null) {
-            // 2. [해결] 이미 있는 기록이라면, 대표 설정만 true로 바꾸고 업데이트
             val updatedEntity = existing.copy(
                 isRepresentative = true,
                 serverResultId = serverId
             )
             db.personalityDao().insertResult(updatedEntity)
-            Log.d("Sync", "Existing record ${updatedEntity.mbti} marked as representative")
         } else {
-            // 3. 완전히 새로운 분석 결과라면 DB에 추가
             val newEntity = PersonalityEntity(
                 serverResultId = serverId,
                 userEmail = currentEmail,
@@ -150,7 +156,6 @@ class MainActivity : AppCompatActivity() {
                 isRepresentative = true
             )
             db.personalityDao().insertResult(newEntity)
-            Log.d("Sync", "New record ${newEntity.mbti} added as representative")
         }
     }
 

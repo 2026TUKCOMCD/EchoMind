@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.provider.OpenableColumns
 import android.util.Log
 import android.view.View
 import android.widget.Toast
@@ -40,7 +41,7 @@ class AnalysisActivity : AppCompatActivity() {
     private var selectedFileUri: Uri? = null
     
     private val analysisService by lazy {
-        com.tukorea.echomind.GlobalClient.retrofit.create(AnalysisApiService::class.java)
+        GlobalClient.retrofit.create(AnalysisApiService::class.java)
     }
     private val db by lazy { AppDatabase.getDatabase(this) }
 
@@ -52,14 +53,15 @@ class AnalysisActivity : AppCompatActivity() {
         val filePickerLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
             if (result.resultCode == Activity.RESULT_OK) {
                 selectedFileUri = result.data?.data
-                binding.tvFileName.text = "선택된 파일: ${selectedFileUri?.lastPathSegment ?: "chat.txt"}"
+                binding.tvFileName.text = "선택된 파일: ${selectedFileUri?.let { getFileName(it) } ?: "chat.txt"}"
                 binding.btnRunAnalysis.isEnabled = true
             }
         }
 
         binding.btnSelectFile.setOnClickListener {
             val intent = Intent(Intent.ACTION_GET_CONTENT).apply {
-                type = "text/plain"
+                type = "*/*"
+                putExtra(Intent.EXTRA_MIME_TYPES, arrayOf("text/plain", "application/json"))
                 addCategory(Intent.CATEGORY_OPENABLE)
             }
             filePickerLauncher.launch(intent)
@@ -67,7 +69,9 @@ class AnalysisActivity : AppCompatActivity() {
 
         binding.btnRunAnalysis.setOnClickListener {
             val targetName = binding.etTargetName.text.toString().trim()
-            if (targetName.isBlank()) {
+            val selectedName = selectedFileUri?.let { getFileName(it) } ?: ""
+            val isJson = selectedName.endsWith(".json", ignoreCase = true)
+            if (targetName.isBlank() && !isJson) {
                 Toast.makeText(this, "대상자 이름을 입력해주세요.", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
@@ -86,8 +90,11 @@ class AnalysisActivity : AppCompatActivity() {
                 val fileBytes = inputStream?.readBytes() ?: ByteArray(0)
                 inputStream?.close()
 
-                val fileRequestBody = fileBytes.toRequestBody("text/plain".toMediaTypeOrNull())
-                val filePart = MultipartBody.Part.createFormData("file", "chat.txt", fileRequestBody)
+                val sourceName = getFileName(uri)
+                val isJson = sourceName.endsWith(".json", ignoreCase = true)
+                val mimeType = if (isJson) "application/json" else "text/plain"
+                val fileRequestBody = fileBytes.toRequestBody(mimeType.toMediaTypeOrNull())
+                val filePart = MultipartBody.Part.createFormData("file", sourceName, fileRequestBody)
                 val targetNameBody = targetName.toRequestBody("text/plain".toMediaTypeOrNull())
 
                 val response = analysisService.uploadChatFile(filePart, targetNameBody)
@@ -106,6 +113,16 @@ class AnalysisActivity : AppCompatActivity() {
         }
     }
 
+    private fun getFileName(uri: Uri): String {
+        contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
+            if (cursor.moveToFirst()) {
+                val index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                if (index >= 0) return cursor.getString(index)
+            }
+        }
+        return uri.lastPathSegment?.substringAfterLast('/') ?: "chat.txt"
+    }
+
     private suspend fun syncNewResult() {
         try {
             val profileResp = com.tukorea.echomind.GlobalClient.apiService.getMyProfileJson()
@@ -113,7 +130,6 @@ class AnalysisActivity : AppCompatActivity() {
                 val root = profileResp.body()
                 val profile = root?.llmProfile
                 if (profile != null) {
-                    // [해결] 서버에서 내려준 진짜 result_id를 사용하여 저장
                     val serverId = root.meta?.resultId ?: 0
                     saveToLocal(profile.copy(name = root.meta?.name ?: "Unknown"), serverId)
                     

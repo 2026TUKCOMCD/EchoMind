@@ -103,7 +103,12 @@ class ChatActivity : AppCompatActivity() {
                         val messages = response.body()?.messages ?: emptyList()
                         updateChatList(messages)
                     }
-                } catch (e: Exception) { e.printStackTrace() }
+            } catch (e: Exception) { 
+                e.printStackTrace()
+                runOnUiThread {
+                    Toast.makeText(this@ChatActivity, "연결 오류: ${e.message}", Toast.LENGTH_SHORT).show()
+                }
+            }
                 delay(3000) // 3초 간격 실시간 동기화
             }
         }

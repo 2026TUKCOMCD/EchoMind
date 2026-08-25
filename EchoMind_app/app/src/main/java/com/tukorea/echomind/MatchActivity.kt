@@ -59,7 +59,7 @@ interface MatchApiService {
 class MatchActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMatchBinding
     private val matchService by lazy {
-        com.tukorea.echomind.GlobalClient.retrofit.create(MatchApiService::class.java)
+        GlobalClient.retrofit.create(MatchApiService::class.java)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {

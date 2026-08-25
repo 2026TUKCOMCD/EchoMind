@@ -8,7 +8,6 @@ import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.EditText
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
@@ -27,13 +26,12 @@ import retrofit2.http.GET
 import retrofit2.http.POST
 import retrofit2.http.Path
 import java.io.Serializable
-import java.util.Calendar
+import java.text.SimpleDateFormat
+import java.util.*
 
-// [양방향 동기화 강화] 특정 ID의 리포트 데이터를 가져오는 기능 추가
 interface HistoryApiService {
-    @GET("download_json") // 대표 결과 다운로드
-    suspend fun getRepresentativeJson(): Response<ProfileRootDto>
-
+    @GET("download_json/{resultId}")
+    suspend fun getProfileJson(@Path("resultId") resultId: Int): Response<ProfileRootDto>
     @POST("set_representative/{resultId}")
     suspend fun setRepresentative(@Path("resultId") resultId: Int): Response<ResponseBody>
 }
@@ -43,25 +41,23 @@ class HistoryActivity : AppCompatActivity() {
     private lateinit var binding: ActivityHistoryBinding
     private val db by lazy { AppDatabase.getDatabase(applicationContext) }
     private var currentEmail: String = ""
-    private var isDescending: Boolean = true
-    
-    private val historyService: HistoryApiService by lazy {
-        GlobalClient.retrofit.create(HistoryApiService::class.java)
-    }
+    private val historyService: HistoryApiService by lazy { GlobalClient.retrofit.create(HistoryApiService::class.java) }
+
+    private var allHistory: List<PersonalityEntity> = emptyList()
+    private var isNewestFirst = true
+    private var startDate: Calendar? = null
+    private var endDate: Calendar? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityHistoryBinding.inflate(layoutInflater)
         setContentView(binding.root)
-
         currentEmail = getSharedPreferences("EchoMindSession", Context.MODE_PRIVATE).getString("user_email", "") ?: ""
-
         setupUI()
     }
 
     override fun onResume() {
         super.onResume()
-        // [해결 핵심] 화면이 열릴 때마다 서버의 모든 기록을 검사하고 누락된 것을 강제 동기화
         syncFullHistoryFromServer()
     }
 
@@ -69,188 +65,192 @@ class HistoryActivity : AppCompatActivity() {
         binding.btnBack.setOnClickListener { finish() }
         binding.rvHistory.layoutManager = LinearLayoutManager(this)
 
-        // 시작일/종료일 선택 기능 추가
-        binding.etStartDate.setOnClickListener { showDatePicker(binding.etStartDate) }
-        binding.etEndDate.setOnClickListener { showDatePicker(binding.etEndDate) }
-
-        // 정렬 버튼 토글 기능
-        binding.btnSortOrder.setOnClickListener {
-            isDescending = !isDescending
-            binding.btnSortOrder.text = if (isDescending) "▼ 최신 순" else "▲ 오래된 순"
-            loadHistoryData()
+        // 시작일 선택
+        binding.etStartDate.setOnClickListener {
+            showDatePicker { calendar ->
+                startDate = calendar
+                binding.etStartDate.setText(SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(calendar.time))
+                applyFiltersAndSort()
+            }
         }
-        
+
+        // 종료일 선택
+        binding.etEndDate.setOnClickListener {
+            showDatePicker { calendar ->
+                endDate = calendar
+                binding.etEndDate.setText(SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(calendar.time))
+                applyFiltersAndSort()
+            }
+        }
+
+        // 정렬 순서 토글
+        binding.btnSortOrder.setOnClickListener {
+            isNewestFirst = !isNewestFirst
+            binding.btnSortOrder.text = if (isNewestFirst) "▼ 최신 순" else "▲ 오래된 순"
+            applyFiltersAndSort()
+        }
+
+        // 초기화 버튼
         binding.btnResetFilter.setOnClickListener {
-            binding.etStartDate.setText("")
-            binding.etEndDate.setText("")
-            isDescending = true
+            startDate = null
+            endDate = null
+            isNewestFirst = true
+            binding.etStartDate.text.clear()
+            binding.etEndDate.text.clear()
             binding.btnSortOrder.text = "▼ 최신 순"
             syncFullHistoryFromServer()
-            Toast.makeText(this, "필터를 초기화하고 데이터를 동기화합니다.", Toast.LENGTH_SHORT).show()
         }
     }
 
-    private fun showDatePicker(editText: EditText) {
-        val calendar = Calendar.getInstance()
+    private fun showDatePicker(onDateSelected: (Calendar) -> Unit) {
+        val current = Calendar.getInstance()
         DatePickerDialog(this, { _, year, month, day ->
-            val dateStr = String.format("%04d-%02d-%02d", year, month + 1, day)
-            editText.setText(dateStr)
-            loadHistoryData() // 날짜 선택 시 즉시 로드
-        }, calendar.get(Calendar.YEAR), calendar.get(Calendar.MONTH), calendar.get(Calendar.DAY_OF_MONTH)).show()
+            val selected = Calendar.getInstance().apply { set(year, month, day) }
+            onDateSelected(selected)
+        }, current.get(Calendar.YEAR), current.get(Calendar.MONTH), current.get(Calendar.DAY_OF_MONTH)).show()
     }
 
     private fun syncFullHistoryFromServer() {
         lifecycleScope.launch {
             try {
-                // 1. 서버의 히스토리 페이지 HTML을 가져옴
+                cleanupLocalDuplicates()
                 val response = GlobalClient.apiService.getHistoryHtml()
                 if (response.isSuccessful) {
-                    val html = response.body() ?: ""
-                    val doc = Jsoup.parse(html)
-                    val allLocal = db.personalityDao().getAllResultsByUser(currentEmail)
-                    val serverIdsInHtml = mutableSetOf<Int>()
+                    val doc = Jsoup.parse(response.body() ?: "")
+                    val localList = db.personalityDao().getAllResultsByUser(currentEmail)
                     
-                    // 2. 웹의 모든 기록 카드 탐색
                     doc.select("div.glass-panel").forEach { element ->
-                        val mbti = element.select("h3").text().let { 
-                            val match = Regex("\\(([A-Z]{4})\\)").find(it)
-                            match?.groupValues?.get(1) ?: ""
-                        }
-                        val summaryPart = element.select("p.text-sm").text().trim().take(20)
-                        val detailUrl = element.select("a:contains(상세 보기)").attr("href")
-                        val serverId = detailUrl.split("/").lastOrNull()?.toIntOrNull() ?: 0
-                        val isRepresentative = element.select("span:contains(ACTIVE PROFILE)").isNotEmpty()
-                        
-                        // [KST 날짜 추출]
-                        val dateStr = element.select("span.text-xs.font-mono").first()?.text()?.trim() ?: ""
+                        val fullTitle = element.select("h3").text()
+                        val mbti = Regex("\\(([A-Z]{4})\\)").find(fullTitle)?.groupValues?.get(1) ?: ""
+                        val detailLink = element.select("a[href*=/result/]").firstOrNull()?.attr("href") ?: ""
+                        val serverId = detailLink.split("/").lastOrNull()?.toIntOrNull() ?: 0
+                        val isRep = element.select("span:contains(ACTIVE PROFILE)").isNotEmpty()
+                        val dateStr = element.select("span.text-xs.font-mono").text().trim()
+                        val fullSummary = element.select("p.text-sm").text().trim()
 
                         if (serverId != 0) {
-                            serverIdsInHtml.add(serverId)
-                            // 3. 로컬 DB에 해당 기록이 있는지 확인
-                            val localMatch = allLocal.find { it.serverResultId == serverId || (it.mbti == mbti && it.summary.contains(summaryPart)) }
+                            val existing = localList.find { 
+                                it.serverResultId == serverId || 
+                                (it.mbti == mbti && it.summary.substringAfter(":::") == fullSummary)
+                            }
                             
-                            if (localMatch != null) {
-                                // 이미 있다면 상태 및 날짜 하이재킹 업데이트
-                                val updated = localMatch.copy(
-                                    serverResultId = serverId, 
-                                    isRepresentative = isRepresentative,
-                                    summary = if (dateStr.isNotEmpty()) dateStr + ":::" + localMatch.summary.substringAfter(":::") else localMatch.summary
+                            val parsedTimestamp = parseDateToLong(dateStr)
+
+                            if (existing != null) {
+                                val updated = existing.copy(
+                                    serverResultId = serverId,
+                                    isRepresentative = isRep,
+                                    summary = if (dateStr.isNotEmpty()) "$dateStr:::$fullSummary" else fullSummary,
+                                    timestamp = if (parsedTimestamp != 0L) parsedTimestamp else existing.timestamp
                                 )
                                 db.personalityDao().insertResult(updated)
                             } else {
-                                // 없다면 서버에서 이 리포트 정보를 가져옴
-                                fetchAndSaveMissingProfile(serverId, isRepresentative, dateStr)
+                                fetchAndSaveMissingProfile(serverId, isRep, dateStr, parsedTimestamp)
                             }
-                        }
-                        
-                        // [대표 프로필 날짜 UI 즉시 반영] - 서버에서 가져온 텍스트 사용
-                        if (isRepresentative) {
-                            binding.tvActiveDate.text = dateStr
-                        }
-                    }
-
-                    // 4. 서버에 없는 로컬 데이터 삭제 (동기화)
-                    allLocal.forEach { local ->
-                        // serverResultId가 있는 기록 중 서버 리스트에 없는 것은 삭제
-                        if (local.serverResultId != 0 && !serverIdsInHtml.contains(local.serverResultId)) {
-                            db.personalityDao().deleteResult(local)
                         }
                     }
                 }
-            } catch (e: Exception) {
-                Log.e("Sync", "Full Sync Error", e)
-            } finally {
-                loadHistoryData()
+            } catch (e: Exception) { Log.e("Sync", "Error", e) }
+            finally { loadHistoryData() }
+        }
+    }
+
+    private fun parseDateToLong(dateStr: String): Long {
+        return try {
+            val sdf = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
+            sdf.parse(dateStr)?.time ?: 0L
+        } catch (e: Exception) { 0L }
+    }
+
+    private suspend fun cleanupLocalDuplicates() {
+        val results = db.personalityDao().getAllResultsByUser(currentEmail)
+        val seen = mutableSetOf<String>()
+        results.forEach { res ->
+            val contentKey = "${res.mbti}|${res.summary.substringAfter(":::")}"
+            if (seen.contains(contentKey)) {
+                if (!res.isRepresentative) db.personalityDao().deleteResult(res)
+            } else {
+                seen.add(contentKey)
             }
         }
     }
 
-    // 서버에만 있고 앱에는 없는 기록을 다운로드하여 저장
-    private suspend fun fetchAndSaveMissingProfile(serverId: Int, isRepresentative: Boolean, dateStr: String) {
+    private suspend fun fetchAndSaveMissingProfile(serverId: Int, isRep: Boolean, dateStr: String, timestamp: Long) {
         try {
-            historyService.setRepresentative(serverId)
-            val jsonResp = historyService.getRepresentativeJson()
-            if (jsonResp.isSuccessful) {
-                val root = jsonResp.body()
-                val profile = root?.llmProfile
-                if (profile != null) {
-                    val rawSummary = profile.summary?.one_paragraph ?: ""
-                    val newEntity = PersonalityEntity(
-                        serverResultId = serverId,
-                        userEmail = currentEmail,
-                        name = root.meta?.name ?: "Unknown",
-                        mbti = profile.mbti?.type ?: "",
-                        mbtiConfidence = profile.mbti?.confidence ?: 0.0,
-                        mbtiReasons = profile.mbti?.reasons?.joinToString("|") ?: "",
-                        openness = profile.big5?.scores_0_100?.openness ?: 50.0,
-                        conscientiousness = profile.big5?.scores_0_100?.conscientiousness ?: 50.0,
-                        extraversion = profile.big5?.scores_0_100?.extraversion ?: 50.0,
-                        agreeableness = profile.big5?.scores_0_100?.agreeableness ?: 50.0,
-                        neuroticism = profile.big5?.scores_0_100?.neuroticism ?: 50.0,
-                        big5Reasons = profile.big5?.reasons?.joinToString("|") ?: "",
-                        socionics = profile.socionics?.type ?: "",
-                        socionicsReasons = profile.socionics?.reasons?.joinToString("|") ?: "",
-                        lineCount = profile.lineCount,
-                        // [하이재킹 저장]
-                        summary = if (dateStr.isNotEmpty()) dateStr + ":::" + rawSummary else rawSummary,
-                        styleBullets = profile.summary?.communication_style_bullets?.joinToString("|") ?: "",
-                        caveats = profile.caveats?.joinToString("|") ?: "",
-                        isRepresentative = isRepresentative
-                    )
-                    db.personalityDao().insertResult(newEntity)
-                }
+            val jsonResp = historyService.getProfileJson(serverId)
+            val profile = jsonResp.body()?.llmProfile
+            if (jsonResp.isSuccessful && profile != null) {
+                val rawSummary = profile.summary?.one_paragraph ?: ""
+                val newEntity = PersonalityEntity(
+                    serverResultId = serverId, userEmail = currentEmail,
+                    name = jsonResp.body()?.meta?.name ?: "Unknown",
+                    mbti = profile.mbti?.type ?: "", mbtiConfidence = profile.mbti?.confidence ?: 0.0,
+                    mbtiReasons = profile.mbti?.reasons?.joinToString("|") ?: "",
+                    openness = profile.big5?.scores_0_100?.openness ?: 50.0,
+                    conscientiousness = profile.big5?.scores_0_100?.conscientiousness ?: 50.0,
+                    extraversion = profile.big5?.scores_0_100?.extraversion ?: 50.0,
+                    agreeableness = profile.big5?.scores_0_100?.agreeableness ?: 50.0,
+                    neuroticism = profile.big5?.scores_0_100?.neuroticism ?: 50.0,
+                    big5Reasons = profile.big5?.reasons?.joinToString("|") ?: "",
+                    socionics = profile.socionics?.type ?: "", socionicsReasons = profile.socionics?.reasons?.joinToString("|") ?: "",
+                    lineCount = profile.lineCount,
+                    summary = if (dateStr.isNotEmpty()) "$dateStr:::$rawSummary" else rawSummary,
+                    styleBullets = profile.summary?.communication_style_bullets?.joinToString("|") ?: "",
+                    caveats = profile.caveats?.joinToString("|") ?: "", isRepresentative = isRep,
+                    timestamp = if (timestamp != 0L) timestamp else System.currentTimeMillis()
+                )
+                db.personalityDao().insertResult(newEntity)
             }
-        } catch (e: Exception) {
-            Log.e("Sync", "Download Fail", e)
-        }
+        } catch (e: Exception) { }
     }
 
     private fun loadHistoryData() {
         lifecycleScope.launch {
             try {
-                val fullHistory = db.personalityDao().getAllResultsByUser(currentEmail)
-                
-                // 1. 대표 프로필 결정 (필터링 전 전체 리스트 기준)
-                val activeProfile = fullHistory.find { it.isRepresentative } ?: fullHistory.firstOrNull()
-                
-                if (activeProfile != null) {
-                    binding.cardActiveProfile.visibility = View.VISIBLE
-                    displayActiveProfile(activeProfile)
-                } else {
-                    binding.cardActiveProfile.visibility = View.GONE
-                }
-
-                // 2. 필터링 로직 적용
-                var displayList = fullHistory
-                val start = binding.etStartDate.text.toString()
-                val end = binding.etEndDate.text.toString()
-
-                if (start.isNotEmpty() || end.isNotEmpty()) {
-                    displayList = displayList.filter { entity ->
-                        val itemDate = entity.summary.substringBefore(":::").substringBefore(" ")
-                        if (itemDate.matches(Regex("\\d{4}-\\d{2}-\\d{2}"))) {
-                            val afterStart = if (start.isNotEmpty()) itemDate >= start else true
-                            val beforeEnd = if (end.isNotEmpty()) itemDate <= end else true
-                            afterStart && beforeEnd
-                        } else true
-                    }
-                }
-
-                // 3. 정렬 로직 적용
-                displayList = if (isDescending) {
-                    displayList.sortedByDescending { it.summary.substringBefore(":::") }
-                } else {
-                    displayList.sortedBy { it.summary.substringBefore(":::") }
-                }
-
-                binding.rvHistory.adapter = HistoryAdapter(displayList, activeProfile?.id ?: -1,
-                    onViewDetail = { navigateToResult(it) },
-                    onSetRepresentative = { setAsRep(it) }
-                )
-            } catch (e: Exception) {
-                Log.e("History", "DB Error", e)
-            }
+                allHistory = db.personalityDao().getAllResultsByUser(currentEmail)
+                applyFiltersAndSort()
+            } catch (e: Exception) { Log.e("History", "Error", e) }
         }
+    }
+
+    private fun applyFiltersAndSort() {
+        // 상단 대표 프로필 표시 (필터링과 무관하게 항상 대표 프로필 표시)
+        val activeProfile = allHistory.find { it.isRepresentative } ?: allHistory.firstOrNull()
+        if (activeProfile != null) {
+            binding.cardActiveProfile.visibility = View.VISIBLE
+            displayActiveProfile(activeProfile)
+        } else {
+            binding.cardActiveProfile.visibility = View.GONE
+        }
+
+        // 하단 리스트 필터링 및 정렬
+        var filtered = allHistory.filter { item ->
+            var keep = true
+            val itemTime = item.timestamp
+            
+            startDate?.let {
+                val start = it.apply { set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0) }.timeInMillis
+                if (itemTime < start) keep = false
+            }
+            endDate?.let {
+                val end = it.apply { set(Calendar.HOUR_OF_DAY, 23); set(Calendar.MINUTE, 59) }.timeInMillis
+                if (itemTime > end) keep = false
+            }
+            keep
+        }
+
+        // 정렬
+        filtered = if (isNewestFirst) {
+            filtered.sortedByDescending { it.timestamp }
+        } else {
+            filtered.sortedBy { it.timestamp }
+        }
+
+        binding.rvHistory.adapter = HistoryAdapter(filtered, activeProfile?.id ?: -1,
+            onViewDetail = { navigateToResult(it) },
+            onSetRepresentative = { setAsRep(it) }
+        )
+        binding.rvHistory.adapter?.notifyDataSetChanged()
     }
 
     private fun displayActiveProfile(entity: PersonalityEntity) {
@@ -258,36 +258,14 @@ class HistoryActivity : AppCompatActivity() {
             val parts = entity.summary.split(":::")
             tvActiveMbti.text = entity.mbti
             tvActiveName.text = entity.name
+            if (parts.size > 1) { tvActiveDate.text = parts[0]; tvActiveSummary.text = parts[1] }
+            else { tvActiveDate.text = "날짜 정보 없음"; tvActiveSummary.text = entity.summary }
             
-            if (parts.size > 1) {
-                tvActiveDate.text = parts[0]
-                tvActiveSummary.text = parts[1]
-            } else {
-                tvActiveDate.text = "날짜 정보 없음"
-                tvActiveSummary.text = entity.summary
-            }
-            
-            miniOpen.apply {
-                tvMiniScore.text = entity.openness.toInt().toString()
-                tvMiniLabel.text = "OPEN"
-            }
-            miniCons.apply {
-                tvMiniScore.text = entity.conscientiousness.toInt().toString()
-                tvMiniLabel.text = "CONS"
-            }
-            miniExtr.apply {
-                tvMiniScore.text = entity.extraversion.toInt().toString()
-                tvMiniLabel.text = "EXTR"
-            }
-            miniAgre.apply {
-                tvMiniScore.text = entity.agreeableness.toInt().toString()
-                tvMiniLabel.text = "AGRE"
-            }
-            miniNeur.apply {
-                tvMiniScore.text = entity.neuroticism.toInt().toString()
-                tvMiniLabel.text = "NEUR"
-            }
-
+            miniOpen.apply { tvMiniScore.text = entity.openness.toInt().toString(); tvMiniLabel.text = "OPEN" }
+            miniCons.apply { tvMiniScore.text = entity.conscientiousness.toInt().toString(); tvMiniLabel.text = "CONS" }
+            miniExtr.apply { tvMiniScore.text = entity.extraversion.toInt().toString(); tvMiniLabel.text = "EXTR" }
+            miniAgre.apply { tvMiniScore.text = entity.agreeableness.toInt().toString(); tvMiniLabel.text = "AGRE" }
+            miniNeur.apply { tvMiniScore.text = entity.neuroticism.toInt().toString(); tvMiniLabel.text = "NEUR" }
             btnActiveDetail.setOnClickListener { navigateToResult(entity) }
         }
     }
@@ -295,22 +273,15 @@ class HistoryActivity : AppCompatActivity() {
     private fun setAsRep(entity: PersonalityEntity) {
         lifecycleScope.launch {
             try {
-                val targetId = if (entity.serverResultId != 0) entity.serverResultId else {
-                    Toast.makeText(this@HistoryActivity, "서버 동기화 중...", Toast.LENGTH_SHORT).show()
-                    return@launch
-                }
-                
+                val targetId = if (entity.serverResultId != 0) entity.serverResultId else return@launch
                 val response = historyService.setRepresentative(targetId)
                 if (response.isSuccessful) {
                     db.personalityDao().clearRepresentative(currentEmail)
-                    val updated = entity.copy(isRepresentative = true)
-                    db.personalityDao().insertResult(updated)
+                    db.personalityDao().insertResult(entity.copy(isRepresentative = true))
                     Toast.makeText(this@HistoryActivity, "대표 프로필이 변경되었습니다.", Toast.LENGTH_SHORT).show()
                     loadHistoryData()
                 }
-            } catch (e: Exception) {
-                Toast.makeText(this@HistoryActivity, "네트워크 오류", Toast.LENGTH_SHORT).show()
-            }
+            } catch (e: Exception) { }
         }
     }
 
@@ -321,7 +292,6 @@ class HistoryActivity : AppCompatActivity() {
     }
 
     private fun mapEntityToProfile(entity: PersonalityEntity): PersonalityProfile {
-        // 상세 보기 화면으로 넘길 때는 하이재킹된 날짜를 제거하고 순수 요약만 보냄
         val pureSummary = entity.summary.substringAfter(":::")
         return PersonalityProfile(
             name = entity.name,
@@ -335,32 +305,16 @@ class HistoryActivity : AppCompatActivity() {
     }
 }
 
-class HistoryAdapter(
-    private var items: List<PersonalityEntity>,
-    private val activeId: Int,
-    private val onViewDetail: (PersonalityEntity) -> Unit,
-    private val onSetRepresentative: (PersonalityEntity) -> Unit
-) : RecyclerView.Adapter<HistoryAdapter.ViewHolder>() {
-
+class HistoryAdapter(private var items: List<PersonalityEntity>, private val activeId: Int, private val onViewDetail: (PersonalityEntity) -> Unit, private val onSetRepresentative: (PersonalityEntity) -> Unit) : RecyclerView.Adapter<HistoryAdapter.ViewHolder>() {
     class ViewHolder(val binding: ItemAnalysisHistoryBinding) : RecyclerView.ViewHolder(binding.root)
-
-    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int) =
-        ViewHolder(ItemAnalysisHistoryBinding.inflate(LayoutInflater.from(parent.context), parent, false))
-
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int) = ViewHolder(ItemAnalysisHistoryBinding.inflate(LayoutInflater.from(parent.context), parent, false))
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
         val item = items[position]
         holder.binding.apply {
             val parts = item.summary.split(":::")
             tvHistoryNameMbti.text = "${item.name} (${item.mbti})"
-            
-            if (parts.size > 1) {
-                tvHistoryDate.text = parts[0]
-                tvHistorySummary.text = parts[1]
-            } else {
-                tvHistoryDate.text = "분석 완료"
-                tvHistorySummary.text = item.summary
-            }
-
+            if (parts.size > 1) { tvHistoryDate.text = parts[0]; tvHistorySummary.text = parts[1] }
+            else { tvHistoryDate.text = "분석 완료"; tvHistorySummary.text = item.summary }
             val isActive = item.id == activeId
             tvActiveBadge.visibility = if (isActive) View.VISIBLE else View.GONE
             btnSetRep.visibility = if (isActive) View.GONE else View.VISIBLE
@@ -368,6 +322,5 @@ class HistoryAdapter(
             btnSetRep.setOnClickListener { onSetRepresentative(item) }
         }
     }
-
     override fun getItemCount() = items.size
 }
