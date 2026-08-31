@@ -7,7 +7,7 @@
 또한 인공지능과 자연어처리 기술을 활용하여 사용자와 잘 맞는 사람을 찾아주는 새로운 방식의 소셜 매칭 플랫폼을 제시합니다.
 
 ## 📁 시스템 구조도
-<img width="8192" height="2202" alt="EchoMind_system" src="https://github.com/user-attachments/assets/6cccd435-d445-49ec-b43a-558e8320c11f" />
+<img width="2007" height="1393" alt="system" src="https://github.com/user-attachments/assets/c08b89c6-da9e-41bd-9a57-10ac6322c426" />
 
 
 
